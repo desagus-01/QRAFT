@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence, cast
 
@@ -12,6 +13,8 @@ from portfolio.policy.objectives.protocol import (
     get_refineable_handler,
 )
 from portfolio.policy.objectives.specs import CVaRCuttingPlane, ObjectiveSpec
+
+logger = logging.getLogger(__name__)
 
 
 def _structural_constraints(
@@ -261,6 +264,16 @@ class MultiPeriodOptimizer:
 
             if converged:
                 break
+        else:
+            total_cuts = sum(
+                sum(params.get("cut_count", [0])) for _, params in cvar_terms
+            )
+            logger.warning(
+                "CVaR cutting-plane did not converge in %d iterations "
+                "(%d total cuts placed).",
+                max_iter,
+                total_cuts,
+            )
 
         assert weights_val is not None, "weights.value is None after solve"
         assert trades_val is not None, "trades.value is None after solve"

@@ -94,10 +94,6 @@ class CVaRCuttingPlaneHandler:
                 (spec.max_cuts, n_assets), name=f"cvar_gw_{h}"
             )
             params[f"gz_{h}"] = cp.Parameter(spec.max_cuts, name=f"cvar_gz_{h}")
-            params[f"slack_{h}"] = cp.Parameter(
-                spec.max_cuts, name=f"cvar_slack_{h}", nonneg=True
-            )
-
         return params
 
     def compile(
@@ -112,10 +108,8 @@ class CVaRCuttingPlaneHandler:
         zeta = params[f"zeta_{horizon}"]
         gw = params[f"gw_{horizon}"]
         gz = params[f"gz_{horizon}"]
-        slack = params[f"slack_{horizon}"]
 
-        # Each row k: theta >= gw[k] @ w + gz[k] * zeta - slack[k]
-        rhs = gw @ weights_h + gz * zeta - slack
+        rhs = gw @ weights_h + gz * zeta
         aux = [theta >= rhs]
 
         return -theta, aux
@@ -145,26 +139,21 @@ class CVaRCuttingPlaneHandler:
                 )
 
             # IMPORTANT:
-            # Do NOT use 1e10 slack; that causes numerical instability.
             gw = np.zeros((spec.max_cuts, n))
             gz = np.ones(spec.max_cuts)
-            slack = np.zeros(spec.max_cuts)
 
             # Anchor cut 0: empty-tail cut
             # theta >= zeta
             gw[0, :] = 0.0
             gz[0] = 1.0
-            slack[0] = 0.0
 
             # Anchor cut 1: all-tail cut
             # theta >= -(1/alpha) * (p @ R) @ w + (1 - 1/alpha) * zeta
             gw[1, :] = -(1.0 / spec.alpha) * (probs @ R_h)
             gz[1] = 1.0 - (1.0 / spec.alpha) * probs.sum()
-            slack[1] = 0.0
 
             params[f"gw_{h}"].value = gw
             params[f"gz_{h}"].value = gz
-            params[f"slack_{h}"].value = slack
             params["cut_count"][h] = 2
 
     def _compute_actual_cvar(
@@ -210,20 +199,18 @@ class CVaRCuttingPlaneHandler:
 
         gw_val = params[f"gw_{h}"].value
         gz_val = params[f"gz_{h}"].value
-        sl_val = params[f"slack_{h}"].value
 
-        if gw_val is None or gz_val is None or sl_val is None:
+        if gw_val is None or gz_val is None:
             raise RuntimeError(
                 f"CVaR cut parameters for horizon {h} are not initialized."
             )
 
+        # Mutate the existing CVXPY parameter buffers in place.
+        # Re-assigning ``.value`` here would run CVXPY's validation/copy path
+        # again, even though these arrays are already the parameter backing data.
         gw_val[k, :] = np.asarray(g_w, dtype=float)
         gz_val[k] = g_zeta
-        sl_val[k] = 0.0
 
-        params[f"gw_{h}"].value = gw_val
-        params[f"gz_{h}"].value = gz_val
-        params[f"slack_{h}"].value = sl_val
         params["cut_count"][h] += 1
 
     def _refine_horizon(

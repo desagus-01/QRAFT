@@ -9,10 +9,8 @@ from portfolio.policy import LongOnly
 from portfolio.policy.constraints import MaxWeight
 from portfolio.policy.moments import (
     HorizonMoments,
-    incremental_returns_from_forecast_paths,
 )
 from portfolio.pre_built import classic_mpo, cvar_mpo_cuts
-from portfolio.risk import cvar
 from probability.distributions import state_smooth_probs
 from scenarios.panel import ScenarioPanel
 from utils.log import setup_logging
@@ -40,7 +38,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:70])
+tradable_assets = list(data.columns[10:90])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -53,7 +51,7 @@ analysis_horizon = 30
 
 prob_ex = state_smooth_probs(
     data.height,
-    half_life=120,
+    half_life=data.height / 2,
     time_based=True,
 )
 
@@ -71,17 +69,12 @@ forecasts = run_n_steps_forecast(
     prob=historical_panel.prob,
     horizon=horizon,
     n_sims=n_sims,
-    seed=2,
+    seed=3,
     universe=universe,
-    method="bootstrap",
-    # target_copula="t",
+    method="cma",
+    target_copula="t",
     back_to_price=True,
 )
-
-# %%
-rets = incremental_returns_from_forecast_paths(forecasts)
-
-cvar(rets["BAC"], forecasts.path_probs, "empirical", distribution_type="pnl")
 
 # %%
 h = 10
@@ -113,9 +106,8 @@ c = cvar_mpo_cuts(
     forecast_moms,
     np.full(len(assets), 1 / len(assets)),
     constraints=[LongOnly(), MaxWeight(limit=0.3)],
-    verbose=True,
+    # verbose=True,
     solver=cp.CLARABEL,
 )
 # %%
 c.target_weights_by_asset
-x.target_weights_by_asset

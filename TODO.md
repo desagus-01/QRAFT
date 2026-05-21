@@ -14,7 +14,7 @@
     - [x] Simple implementation ✅ 2026-05-18
     - [x] make constraints easier ✅ 2026-05-19
     - [x] make objectives easier ✅ 2026-05-20
-- [ ] Apply CVAR optimization in this framework
+- [x] Apply CVAR optimization in this framework ✅ 2026-05-21
 - [ ] Create efficient frontier?
 - [ ] Review and implement better covariances techniques
     - [ ] Look at 72.2.1
