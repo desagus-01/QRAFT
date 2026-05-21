@@ -82,7 +82,6 @@ class CVaRRiskHandler:
         if not 0.0 < spec.alpha <= 1.0:
             raise ValueError(f"CVaR alpha must be in (0, 1], got {spec.alpha}")
 
-        # Probabilities are scenario-level and shared across horizons.
         params: dict[str, Any] = {
             "probs": cp.Parameter(n_scenarios, name="cvar_probs", nonneg=True),
         }

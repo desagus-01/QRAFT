@@ -53,22 +53,6 @@ def cvar_mpo(
     constraints: list[PortfolioConstraint] | None = None,
     **solver_options,
 ):
-    """
-    Mean-CVaR multi-period optimisation.
-
-    Maximises   E[return] − cvar_aversion · CVaR_α(loss) − transaction_cost · ||z||_1
-
-    Parameters
-    ----------
-    cvar_aversion:
-        Coefficient on the CVaR penalty. Plays the same role as
-        ``risk_aversion`` in ``classic_mpo`` but penalises tail loss rather
-        than variance.
-    alpha:
-        Tail probability for CVaR (default 0.05 → 5% CVaR).
-    n_scenarios:
-        Number of Monte-Carlo paths in ``moments.scenario_returns``.
-    """
     objective = ObjectiveSpec(
         terms=(
             WeightedTerm(1.0, ExpectedReturn()),

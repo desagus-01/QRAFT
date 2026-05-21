@@ -10,7 +10,15 @@ from portfolio.policy.moments import (
     HorizonMoments,
     incremental_returns_from_forecast_paths,
 )
-from portfolio.pre_built import classic_mpo, cvar_mpo
+from portfolio.policy.objectives.specs import (
+    CVaRRisk,
+    ExpectedReturn,
+    ObjectiveSpec,
+    TransactionCost,
+    WeightedTerm,
+)
+from portfolio.policy.optimization import MultiPeriodOptimizer
+from portfolio.pre_built import classic_mpo
 from portfolio.risk import cvar
 from probability.distributions import state_smooth_probs
 from scenarios.panel import ScenarioPanel
@@ -83,16 +91,15 @@ rets = incremental_returns_from_forecast_paths(forecasts)
 cvar(rets["BAC"], forecasts.path_probs, "empirical", distribution_type="pnl")
 
 # %%
-h = 10
+h = 3
 forecast_moms = HorizonMoments.from_forecast_paths(
-    forecasts, horizons=10, expectation_tolerance=1.0
+    forecasts, horizons=h, expectation_tolerance=1.0
 )
 
-# %%
 assets = forecast_moms.assets
 
 x = classic_mpo(
-    10,
+    h,
     len(assets),
     2.0,
     0.005,
@@ -101,15 +108,26 @@ x = classic_mpo(
     constraints=[LongOnly(), MaxWeight(limit=0.3)],
     verbose=True,
 )
+
 # %%
-y = cvar_mpo(
-    10,
-    len(assets),
-    1.0,
-    0.005,
-    forecast_moms,
-    np.full(len(assets), 1 / len(assets)),
-    constraints=[LongOnly(), MaxWeight(limit=0.3)],
-    verbose=True,
-    solver="CLARABEL",
+objective = ObjectiveSpec(
+    terms=(
+        WeightedTerm(1.0, ExpectedReturn()),
+        WeightedTerm(1.0, CVaRRisk(alpha=0.05)),
+        WeightedTerm(
+            0.001,
+            TransactionCost(cost=1.0, market_impact=0.0, exponent=1.0),
+        ),
+    )
 )
+
+ex = MultiPeriodOptimizer(
+    objective=objective,
+    horizons=h,
+    n_assets=len(assets),
+    constraints=[LongOnly()],
+    n_scenarios=forecast_moms.scenario_returns.shape[0],
+)
+
+# %%
+ex.objective
