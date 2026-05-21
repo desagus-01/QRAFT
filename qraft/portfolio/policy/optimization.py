@@ -7,8 +7,11 @@ from cvxpy import Constraint, Expression
 from numpy.typing import NDArray
 from portfolio.policy import PortfolioConstraint
 from portfolio.policy.moments import HorizonMoments
-from portfolio.policy.objectives.protocol import get_objective_handler
-from portfolio.policy.objectives.specs import ObjectiveSpec
+from portfolio.policy.objectives.protocol import (
+    get_objective_handler,
+    get_refineable_handler,
+)
+from portfolio.policy.objectives.specs import CVaRCuttingPlane, ObjectiveSpec
 
 
 def _structural_constraints(
@@ -194,6 +197,71 @@ class MultiPeriodOptimizer:
         weights_val = self.weights.value
         trades_val = self.trades.value
         obj_val = self.problem.value
+        assert weights_val is not None, "weights.value is None after solve"
+        assert trades_val is not None, "trades.value is None after solve"
+        assert obj_val is not None, "problem.value is None after solve"
+
+        return MPOResult(
+            assets=moments.assets,
+            planned_weights=weights_val,
+            planned_trades=trades_val,
+            initial_weights=current_weights,
+            status=cast(SolverStatus, self.problem.status),
+            objective_value=float(obj_val),
+            solver_stats=self.problem.solver_stats,
+        )
+
+    def solve_iterative(
+        self,
+        moments: HorizonMoments,
+        current_weights: NDArray[np.floating],
+        inputs: dict[str, Any] | None = None,
+        max_iter: int = 200,
+        **solver_options,
+    ) -> MPOResult:
+        self.current_weights.value = current_weights
+        full_inputs = {"moments": moments, **(inputs or {})}
+
+        # Initial parameter setup (all handlers)
+        for term, params in zip(self.objective.terms, self._term_params):
+            get_objective_handler(term.spec).update(term.spec, params, full_inputs)
+
+        # Identify cutting-plane CVaR terms that need iterative refinement
+        cvar_terms = [
+            (term, params)
+            for term, params in zip(self.objective.terms, self._term_params)
+            if isinstance(term.spec, CVaRCuttingPlane)
+        ]
+
+        weights_val: NDArray[np.floating] | None = None
+        trades_val: NDArray[np.floating] | None = None
+        obj_val: float | None = None
+
+        for iteration in range(max_iter):
+            self.problem.solve(enforce_dpp=True, warm_start=True, **solver_options)
+
+            if self.problem.status not in {"optimal", "optimal_inaccurate"}:
+                raise RuntimeError(
+                    f"Iteration {iteration}: solve failed with {self.problem.status}"
+                )
+
+            weights_val = self.weights.value
+            trades_val = self.trades.value
+            obj_val = self.problem.value
+
+            if not cvar_terms:
+                break  # no cutting-plane CVaR → one-shot
+
+            converged = True
+            for term, params in cvar_terms:
+                handler = get_refineable_handler(term.spec)
+                assert weights_val is not None
+                if not handler.refine(term.spec, params, weights_val, moments):
+                    converged = False
+
+            if converged:
+                break
+
         assert weights_val is not None, "weights.value is None after solve"
         assert trades_val is not None, "trades.value is None after solve"
         assert obj_val is not None, "problem.value is None after solve"

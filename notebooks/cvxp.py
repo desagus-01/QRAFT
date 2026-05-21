@@ -1,6 +1,7 @@
 # %%
 import logging
 
+import cvxpy as cp
 import numpy as np
 from pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from policy import LogConfig
@@ -10,15 +11,7 @@ from portfolio.policy.moments import (
     HorizonMoments,
     incremental_returns_from_forecast_paths,
 )
-from portfolio.policy.objectives.specs import (
-    CVaRRisk,
-    ExpectedReturn,
-    ObjectiveSpec,
-    TransactionCost,
-    WeightedTerm,
-)
-from portfolio.policy.optimization import MultiPeriodOptimizer
-from portfolio.pre_built import classic_mpo
+from portfolio.pre_built import classic_mpo, cvar_mpo_cuts
 from portfolio.risk import cvar
 from probability.distributions import state_smooth_probs
 from scenarios.panel import ScenarioPanel
@@ -47,7 +40,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:15])
+tradable_assets = list(data.columns[10:70])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -91,7 +84,7 @@ rets = incremental_returns_from_forecast_paths(forecasts)
 cvar(rets["BAC"], forecasts.path_probs, "empirical", distribution_type="pnl")
 
 # %%
-h = 3
+h = 10
 forecast_moms = HorizonMoments.from_forecast_paths(
     forecasts, horizons=h, expectation_tolerance=1.0
 )
@@ -101,33 +94,28 @@ assets = forecast_moms.assets
 x = classic_mpo(
     h,
     len(assets),
-    2.0,
+    1.0,
     0.005,
     forecast_moms,
     np.full(len(assets), 1 / len(assets)),
     constraints=[LongOnly(), MaxWeight(limit=0.3)],
     verbose=True,
+    solver=cp.CLARABEL,
 )
 
 # %%
-objective = ObjectiveSpec(
-    terms=(
-        WeightedTerm(1.0, ExpectedReturn()),
-        WeightedTerm(1.0, CVaRRisk(alpha=0.05)),
-        WeightedTerm(
-            0.001,
-            TransactionCost(cost=1.0, market_impact=0.0, exponent=1.0),
-        ),
-    )
-)
 
-ex = MultiPeriodOptimizer(
-    objective=objective,
-    horizons=h,
-    n_assets=len(assets),
-    constraints=[LongOnly()],
-    n_scenarios=forecast_moms.scenario_returns.shape[0],
+c = cvar_mpo_cuts(
+    h,
+    len(assets),
+    1.0,
+    0.005,
+    forecast_moms,
+    np.full(len(assets), 1 / len(assets)),
+    constraints=[LongOnly(), MaxWeight(limit=0.3)],
+    verbose=True,
+    solver=cp.CLARABEL,
 )
-
 # %%
-ex.objective
+c.target_weights_by_asset
+x.target_weights_by_asset

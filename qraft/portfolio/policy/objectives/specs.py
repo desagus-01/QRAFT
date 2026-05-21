@@ -12,7 +12,18 @@ class CovarianceRisk:
 
 @dataclass(frozen=True, slots=True)
 class CVaRRisk:
+    """Rockafellar-Uryasev LP formulation of CVaR."""
+
     alpha: float = 0.05
+
+
+@dataclass(frozen=True, slots=True)
+class CVaRCuttingPlane:
+    """Cutting-plane approximation of CVaR (supports iterative refinement)."""
+
+    alpha: float = 0.05
+    max_cuts: int = 200
+    tol: float = 1e-6
 
 
 @dataclass(frozen=True)
@@ -60,7 +71,14 @@ class HoldingCost:
 @dataclass(frozen=True)
 class WeightedTerm:
     weight: float
-    spec: ExpectedReturn | CovarianceRisk | TransactionCost | HoldingCost | CVaRRisk
+    spec: (
+        ExpectedReturn
+        | CovarianceRisk
+        | TransactionCost
+        | HoldingCost
+        | CVaRRisk
+        | CVaRCuttingPlane
+    )
 
 
 @dataclass(frozen=True)

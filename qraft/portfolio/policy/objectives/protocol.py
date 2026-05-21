@@ -1,6 +1,8 @@
 from typing import Any, Protocol
 
 import cvxpy as cp
+import numpy as np
+from numpy.typing import NDArray
 
 
 class MPOObjectiveHandler(Protocol):
@@ -43,6 +45,28 @@ class MPOObjectiveHandler(Protocol):
         pass
 
 
+class RefineableMPOObjectiveHandler(MPOObjectiveHandler, Protocol):
+    """Extension of MPOObjectiveHandler for handlers that support iterative
+    cut refinement (e.g. cutting-plane CVaR approximations).
+    """
+
+    def refine(
+        self,
+        spec,
+        params: dict[str, Any],
+        weights_val: NDArray[np.floating],
+        moments: Any,
+    ) -> bool:
+        """
+        Called after each solve to tighten the approximation.
+
+        Returns ``True`` when the solution has converged (no new cuts added),
+        ``False`` when at least one cut was added and the problem should be
+        re-solved.
+        """
+        ...
+
+
 _REGISTRY: dict[type, MPOObjectiveHandler] = {}
 
 
@@ -83,3 +107,15 @@ def get_objective_handler(spec: object) -> MPOObjectiveHandler:
         raise TypeError(f"No objective handler registered for {type(spec).__name__}.")
 
     return handler
+
+
+def get_refineable_handler(spec: object) -> RefineableMPOObjectiveHandler:
+    handler = get_objective_handler(spec)
+
+    if not callable(getattr(handler, "refine", None)):
+        raise TypeError(
+            f"The handler registered for {type(spec).__name__!r} "
+            "does not implement 'refine'. Use a RefineableMPOObjectiveHandler."
+        )
+
+    return handler  # type: ignore[return-value]

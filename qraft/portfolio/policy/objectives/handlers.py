@@ -3,9 +3,11 @@ from typing import Any
 import cvxpy as cp
 import numpy as np
 from numpy.typing import NDArray
+from portfolio.policy.moments import HorizonMoments
 from portfolio.policy.objectives.protocol import register_objective
 from portfolio.policy.objectives.specs import (
     CovarianceRisk,
+    CVaRCuttingPlane,
     CVaRRisk,
     ExpectedReturn,
     HoldingCost,
@@ -25,6 +27,11 @@ def _project_on_psd_cone_and_factorize(
     eigvals, eigvecs = np.linalg.eigh(cov)
     eigvals = np.maximum(eigvals, 0.0)
     return eigvecs @ np.diag(np.sqrt(eigvals))
+
+
+def _cvar_alpha_check(alpha: float) -> None:
+    if not 0.0 < alpha <= 1.0:
+        raise ValueError(f"CVaR alpha must be in (0, 1], got {alpha}")
 
 
 @register_objective(ExpectedReturn)
@@ -62,6 +69,220 @@ class ExpectedReturnHandler:
         params["mean"].value = inputs["moments"].mean
 
 
+@register_objective(CVaRCuttingPlane)
+class CVaRCuttingPlaneHandler:
+    def allocate(
+        self, spec: CVaRCuttingPlane, horizons: int, n_assets: int, n_scenarios: int
+    ) -> dict[str, cp.Parameter | cp.Variable]:
+        _cvar_alpha_check(spec.alpha)
+
+        if spec.max_cuts < 3:
+            raise ValueError(
+                "CVaRCuttingPlane.max_cuts must be at least 3: "
+                "2 anchor cuts plus at least 1 refinement cut."
+            )
+
+        params: dict[str, Any] = {
+            "n_scenarios": n_scenarios,
+            "cut_count": [0] * horizons,
+        }
+
+        for h in range(horizons):
+            params[f"theta_{h}"] = cp.Variable(name=f"cvar_theta_{h}")
+            params[f"zeta_{h}"] = cp.Variable(name=f"cvar_zeta_{h}")
+            params[f"gw_{h}"] = cp.Parameter(
+                (spec.max_cuts, n_assets), name=f"cvar_gw_{h}"
+            )
+            params[f"gz_{h}"] = cp.Parameter(spec.max_cuts, name=f"cvar_gz_{h}")
+            params[f"slack_{h}"] = cp.Parameter(
+                spec.max_cuts, name=f"cvar_slack_{h}", nonneg=True
+            )
+
+        return params
+
+    def compile(
+        self,
+        spec: CVaRCuttingPlane,
+        params: dict[str, Any],
+        weights_h: cp.Expression,
+        trades_h: cp.Expression,
+        horizon: int,
+    ) -> tuple[cp.Expression, list[cp.Constraint]]:
+        theta = params[f"theta_{horizon}"]
+        zeta = params[f"zeta_{horizon}"]
+        gw = params[f"gw_{horizon}"]
+        gz = params[f"gz_{horizon}"]
+        slack = params[f"slack_{horizon}"]
+
+        # Each row k: theta >= gw[k] @ w + gz[k] * zeta - slack[k]
+        rhs = gw @ weights_h + gz * zeta - slack
+        aux = [theta >= rhs]
+
+        return -theta, aux
+
+    def update(
+        self,
+        spec: CVaRCuttingPlane,
+        params: dict[str, Any],
+        inputs: dict[str, Any],
+    ) -> None:
+        moments = inputs["moments"]
+        probs = np.asarray(moments.scenario_probs, dtype=float)
+
+        for h in range(moments.n_horizons):
+            n = moments.n_assets
+            R_h = np.asarray(moments.scenario_returns[:, h, :], dtype=float)
+
+            if R_h.shape != (params["n_scenarios"], n):
+                raise ValueError(
+                    f"scenario_returns[:, {h}, :] must have shape "
+                    f"({params['n_scenarios']}, {n}); got {R_h.shape}"
+                )
+
+            if not np.all(np.isfinite(R_h)):
+                raise ValueError(
+                    f"scenario_returns for horizon {h} contains NaN or inf."
+                )
+
+            # IMPORTANT:
+            # Do NOT use 1e10 slack; that causes numerical instability.
+            gw = np.zeros((spec.max_cuts, n))
+            gz = np.ones(spec.max_cuts)
+            slack = np.zeros(spec.max_cuts)
+
+            # Anchor cut 0: empty-tail cut
+            # theta >= zeta
+            gw[0, :] = 0.0
+            gz[0] = 1.0
+            slack[0] = 0.0
+
+            # Anchor cut 1: all-tail cut
+            # theta >= -(1/alpha) * (p @ R) @ w + (1 - 1/alpha) * zeta
+            gw[1, :] = -(1.0 / spec.alpha) * (probs @ R_h)
+            gz[1] = 1.0 - (1.0 / spec.alpha) * probs.sum()
+            slack[1] = 0.0
+
+            params[f"gw_{h}"].value = gw
+            params[f"gz_{h}"].value = gz
+            params[f"slack_{h}"].value = slack
+            params["cut_count"][h] = 2
+
+    def _compute_actual_cvar(
+        self,
+        losses: NDArray[np.floating],
+        zeta_val: float,
+        probs: NDArray[np.floating],
+        alpha: float,
+    ) -> float:
+        shortfall = np.maximum(losses - zeta_val, 0.0)
+        return zeta_val + (1.0 / alpha) * (probs @ shortfall)
+
+    def _build_cut(
+        self,
+        losses: NDArray[np.floating],
+        R_h: NDArray[np.floating],
+        zeta_val: float,
+        probs: NDArray[np.floating],
+        alpha: float,
+    ) -> tuple[NDArray[np.floating], float]:
+        tail_mask = losses > zeta_val
+        if not np.any(tail_mask):
+            tail_mask[np.argmax(losses)] = True
+
+        tail_probs = probs * tail_mask
+        g_w = -(1.0 / alpha) * (tail_probs @ R_h)
+        g_zeta = 1.0 - (1.0 / alpha) * tail_probs.sum()
+        return g_w, g_zeta
+
+    def _activate_cut(
+        self,
+        params: dict[str, Any],
+        h: int,
+        g_w: NDArray[np.floating],
+        g_zeta: float,
+        max_cuts: int,
+    ) -> None:
+        if max_cuts <= 2:
+            raise ValueError("max_cuts must be greater than 2.")
+
+        # Rotate only through dynamic cuts 2, ..., max_cuts - 1.
+        k = 2 + ((params["cut_count"][h] - 2) % (max_cuts - 2))
+
+        gw_val = params[f"gw_{h}"].value
+        gz_val = params[f"gz_{h}"].value
+        sl_val = params[f"slack_{h}"].value
+
+        if gw_val is None or gz_val is None or sl_val is None:
+            raise RuntimeError(
+                f"CVaR cut parameters for horizon {h} are not initialized."
+            )
+
+        gw_val[k, :] = np.asarray(g_w, dtype=float)
+        gz_val[k] = g_zeta
+        sl_val[k] = 0.0
+
+        params[f"gw_{h}"].value = gw_val
+        params[f"gz_{h}"].value = gz_val
+        params[f"slack_{h}"].value = sl_val
+        params["cut_count"][h] += 1
+
+    def _refine_horizon(
+        self,
+        spec: CVaRCuttingPlane,
+        params: dict[str, Any],
+        w_h: NDArray[np.floating],
+        R_h: NDArray[np.floating],
+        probs: NDArray[np.floating],
+        h: int,
+    ) -> bool:
+        zeta_raw = params[f"zeta_{h}"].value
+        theta_raw = params[f"theta_{h}"].value
+
+        if zeta_raw is None or theta_raw is None:
+            raise RuntimeError(
+                f"CVaR variables for horizon {h} have no value after solve."
+            )
+
+        zeta_val = float(np.asarray(zeta_raw).reshape(()))
+        theta_val = float(np.asarray(theta_raw).reshape(()))
+
+        losses = -R_h @ w_h
+        actual_cvar = self._compute_actual_cvar(losses, zeta_val, probs, spec.alpha)
+
+        # Only add a cut if true CVaR is materially above theta.
+        gap = actual_cvar - theta_val
+
+        if gap <= spec.tol * max(1.0, abs(actual_cvar)):
+            return True
+
+        g_w, g_zeta = self._build_cut(losses, R_h, zeta_val, probs, spec.alpha)
+        self._activate_cut(params, h, g_w, g_zeta, spec.max_cuts)
+        return False
+
+    def refine(
+        self,
+        spec: CVaRCuttingPlane,
+        params: dict[str, Any],
+        weights_val: NDArray[np.floating],
+        moments: HorizonMoments,
+    ) -> bool:
+        probs = moments.scenario_probs
+
+        converged = True
+        for h in range(moments.n_horizons):
+            h_converged = self._refine_horizon(
+                spec,
+                params,
+                weights_val[h, :],
+                moments.scenario_returns[:, h, :],
+                probs,
+                h,
+            )
+            converged = converged and h_converged
+
+        return converged
+
+
 @register_objective(CVaRRisk)
 class CVaRRiskHandler:
     """
@@ -79,8 +300,7 @@ class CVaRRiskHandler:
     def allocate(
         self, spec: CVaRRisk, horizons: int, n_assets: int, n_scenarios: int
     ) -> dict[str, cp.Parameter | cp.Variable]:
-        if not 0.0 < spec.alpha <= 1.0:
-            raise ValueError(f"CVaR alpha must be in (0, 1], got {spec.alpha}")
+        _cvar_alpha_check(spec.alpha)
 
         params: dict[str, Any] = {
             "probs": cp.Parameter(n_scenarios, name="cvar_probs", nonneg=True),
