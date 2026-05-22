@@ -11,7 +11,7 @@ class PortfolioConstraint(Protocol):
     """Any object with this method is a valid constraint."""
 
     def compile_to_cvxpy(
-        self, weights: Expression, _trades: Expression
+        self, weights: Expression, trades: Expression
     ) -> list[Constraint]: ...
 
 
@@ -19,7 +19,7 @@ class LongOnly:
     """Require all post-trade weights to be non-negative."""
 
     def compile_to_cvxpy(
-        self, weights: Expression, _trades: Expression
+        self, weights: Expression, trades: Expression
     ) -> list[Constraint]:
         return [weights >= 0]
 
@@ -28,7 +28,7 @@ class FullyInvested:
     """Require weights to sum to 1 (no cash leakage)."""
 
     def compile_to_cvxpy(
-        self, weights: Expression, _trades: Expression
+        self, weights: Expression, trades: Expression
     ) -> list[Constraint]:
         return cast(list[Constraint], [cp.sum(weights) == 1])
 
@@ -47,7 +47,7 @@ class MaxWeight:
         self.limit = limit
 
     def compile_to_cvxpy(
-        self, weights: Expression, _trades: Expression
+        self, weights: Expression, trades: Expression
     ) -> list[Constraint]:
         return [weights <= self.limit]
 
@@ -66,7 +66,7 @@ class MinWeight:
         self.limit = limit
 
     def compile_to_cvxpy(
-        self, weights: Expression, _trades: Expression
+        self, weights: Expression, trades: Expression
     ) -> list[Constraint]:
         return [weights >= self.limit]
 
@@ -84,7 +84,7 @@ class TurnoverLimit:
         self.limit = limit
 
     def compile_to_cvxpy(
-        self, _weights: Expression, trades: Expression
+        self, weights: Expression, trades: Expression
     ) -> list[Constraint]:
         return [cp.norm1(trades) <= self.limit]
 
@@ -105,7 +105,7 @@ class FactorExposureLimit:
         self.limit = limit
 
     def compile_to_cvxpy(
-        self, weights: Expression, _trades: Expression
+        self, weights: Expression, trades: Expression
     ) -> list[Constraint]:
         return [self.factor @ weights <= self.limit]
 

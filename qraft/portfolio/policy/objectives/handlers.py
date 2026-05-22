@@ -10,7 +10,6 @@ from portfolio.policy.objectives.specs import (
     CVaRCuttingPlane,
     CVaRRisk,
     ExpectedReturn,
-    HoldingCost,
     TransactionCost,
 )
 
@@ -460,49 +459,3 @@ class TransactionCostHandler:
             impact_coeff = spec.market_impact * sigma
 
         params["tc_impact"].value = np.maximum(impact_coeff, 0.0)
-
-
-@register_objective(HoldingCost)
-class HoldingCostHandler:
-    """
-    Penalise the cost of holding short positions overnight.
-
-    The per-period short fee is::
-
-        short_fees_per_period = (spec.short_fees / 100) / periods_per_year
-
-    Applied as::
-
-        -short_fees_per_period * sum_i max(-w_i, 0)
-
-    ``cp.neg(x) = max(-x, 0)``, so ``cp.sum(cp.neg(w))`` is the total
-    magnitude of short weight, charged at the borrowing rate each period.
-
-    The expression is negative so that maximising it minimises holding costs.
-    """
-
-    def allocate(
-        self, spec: HoldingCost, horizons: int, n_assets: int, **_kwargs
-    ) -> dict[str, Any]:
-        return {"hc_short_rate": cp.Parameter(nonneg=True, name="hc_short_rate")}
-
-    def compile(
-        self,
-        spec: HoldingCost,
-        params: dict[str, Any],
-        weights_h: cp.Expression,
-        trades_h: cp.Expression,
-        horizon: int,
-    ) -> tuple[cp.Expression, list[cp.Constraint]]:
-        return (-params["hc_short_rate"] * cp.sum(cp.neg(weights_h)), [])
-
-    def update(
-        self, spec: HoldingCost, params: dict[str, Any], inputs: dict[str, Any]
-    ) -> None:
-        """
-        Expected ``inputs`` keys:
-          ``"periods_per_year"``  – int, trading periods per year (default 252).
-        """
-        periods_per_year: int = inputs.get("periods_per_year", 252)
-        annual_rate = spec.short_fees / 100.0
-        params["hc_short_rate"].value = annual_rate / periods_per_year

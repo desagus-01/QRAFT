@@ -5,7 +5,7 @@ import cvxpy as cp
 import numpy as np
 from pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from policy import LogConfig
-from portfolio.policy import LongOnly
+from portfolio.policy import FullyInvested, LongOnly, MinWeight, TurnoverLimit
 from portfolio.policy.constraints import MaxWeight
 from portfolio.policy.moments import (
     HorizonMoments,
@@ -83,31 +83,48 @@ forecast_moms = HorizonMoments.from_forecast_paths(
 )
 
 assets = forecast_moms.assets
+constraints = [
+    LongOnly(),
+    FullyInvested(),
+    MaxWeight(limit=0.13),
+    MinWeight(limit=0.02),
+    TurnoverLimit(limit=0.1),
+]
+
 
 x = classic_mpo(
-    h,
-    len(assets),
-    1.0,
-    0.005,
-    forecast_moms,
-    np.full(len(assets), 1 / len(assets)),
-    constraints=[LongOnly(), MaxWeight(limit=0.3)],
-    verbose=True,
+    horizons=h,
+    n_assets=len(assets),
+    risk_aversion=1.0,
+    moments=forecast_moms,
+    current_weights=np.full(len(assets), 1 / len(assets)),
+    constraints=constraints,
+    # verbose=True,
     solver=cp.CLARABEL,
 )
 
 # %%
 
 c = cvar_mpo_cuts(
-    h,
-    len(assets),
-    1.0,
-    0.005,
-    forecast_moms,
-    np.full(len(assets), 1 / len(assets)),
-    constraints=[LongOnly(), MaxWeight(limit=0.3)],
+    horizons=h,
+    n_assets=len(assets),
+    cvar_aversion=1,
+    moments=forecast_moms,
+    current_weights=np.full(len(assets), 1 / len(assets)),
+    constraints=constraints,
     # verbose=True,
     solver=cp.CLARABEL,
 )
+
 # %%
-c.target_weights_by_asset
+x.target_weights_by_asset
+# c.target_weights_by_asset
+# %%
+a = x.target_weights_by_asset
+
+for asset, weight in a.items():
+    a[asset] = np.round(weight, 3)
+
+i = np.array(list(a.values()))
+np.max(i)
+# %%
