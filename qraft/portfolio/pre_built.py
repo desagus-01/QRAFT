@@ -7,6 +7,7 @@ from portfolio.policy.objectives.specs import (
     CVaRCuttingPlane,
     CVaRRisk,
     ExpectedReturn,
+    HoldingCost,
     ObjectiveSpec,
     TransactionCost,
     WeightedTerm,
@@ -26,11 +27,26 @@ def classic_mpo(
 ):
     objective = ObjectiveSpec(
         terms=(
-            WeightedTerm(1.0, ExpectedReturn()),
+            WeightedTerm(1.0, ExpectedReturn(decay=0.9)),
             WeightedTerm(risk_aversion, CovarianceRisk()),
             WeightedTerm(
-                transaction_cost,
-                TransactionCost(cost=1.0, market_impact=0.0, exponent=1.0),
+                1.0,
+                TransactionCost(
+                    cost=0.0005,
+                    pershare_cost=0.005,
+                    market_impact=0.8,
+                    exponent=1.5,
+                    c_bias=0.0003,
+                ),
+            ),
+            WeightedTerm(
+                1.0,
+                HoldingCost(
+                    short_fees=0.0,
+                    long_fees=0.3,
+                    dividends=0.0,
+                    periods_per_year=252,
+                ),
             ),
         )
     )
@@ -79,7 +95,6 @@ def cvar_mpo_cuts(
     cvar_aversion: float,
     moments: HorizonMoments,
     current_weights: NDArray[np.floating],
-    transaction_cost: float = 0.01,
     alpha: float = 0.05,
     constraints: list[PortfolioConstraint] | None = None,
     max_iter: int = 200,
@@ -90,8 +105,23 @@ def cvar_mpo_cuts(
             WeightedTerm(1.0, ExpectedReturn()),
             WeightedTerm(cvar_aversion, CVaRCuttingPlane(alpha=alpha)),
             WeightedTerm(
-                transaction_cost,
-                TransactionCost(cost=1.0, market_impact=0.0, exponent=1.0),
+                1.0,
+                TransactionCost(
+                    cost=0.0005,
+                    pershare_cost=0.005,
+                    market_impact=0.8,
+                    exponent=1.5,
+                    c_bias=0.0003,
+                ),
+            ),
+            WeightedTerm(
+                1.0,
+                HoldingCost(
+                    short_fees=0.0,
+                    long_fees=0.3,
+                    dividends=0.0,
+                    periods_per_year=252,
+                ),
             ),
         )
     )

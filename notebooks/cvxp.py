@@ -38,7 +38,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:90])
+tradable_assets = list(data.columns[10:30])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -75,6 +75,7 @@ forecasts = run_n_steps_forecast(
     back_to_price=True,
 )
 
+
 # %%
 h = 10
 forecast_moms = HorizonMoments.from_forecast_paths(
@@ -85,9 +86,9 @@ assets = forecast_moms.assets
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(),
-    MaxWeight(limit=0.13),
+    MaxWeight(limit=0.13, constraint_type="soft", soft_weight=500.0),
     MinWeight(limit=0.01),
-    TurnoverLimit(limit=0.1),
+    TurnoverLimit(limit=0.08),
 ]
 
 
@@ -112,3 +113,6 @@ c = cvar_mpo_cuts(
     # verbose=True,
     solver=cp.CLARABEL,
 )
+# %%
+x.target_weights_by_asset
+c.target_weights_by_asset

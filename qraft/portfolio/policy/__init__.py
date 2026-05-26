@@ -1,5 +1,4 @@
 from portfolio.policy.constraints import (
-    FactorExposureLimit,
     FullyInvested,
     LongOnly,
     MaxWeight,
@@ -15,5 +14,4 @@ __all__ = [
     "MaxWeight",
     "MinWeight",
     "TurnoverLimit",
-    "FactorExposureLimit",
 ]

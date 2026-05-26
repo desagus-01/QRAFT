@@ -10,6 +10,7 @@ from portfolio.policy.objectives.specs import (
     CVaRCuttingPlane,
     CVaRRisk,
     ExpectedReturn,
+    HoldingCost,
     TransactionCost,
 )
 
@@ -379,11 +380,15 @@ class TransactionCostHandler:
     """
     Penalise trading costs at each horizon.
 
-    Two components are combined:
+    Three components are combined:
 
-    1. **Linear cost** (e.g. half bid-ask spread)::
+    1. **Linear cost** (e.g. half bid-ask spread + per-share brokerage)::
 
-           a_i * |z_i|   where  a_i = spec.cost  (uniform across assets)
+           a_i * |z_i|
+
+       where ``a_i = spec.cost + spec.pershare_cost / price_i``.
+       The per-share term is only active when ``inputs["prices"]`` is provided
+       and ``spec.pershare_cost > 0``.
 
     2. **Market-impact cost** (Almgren-style power law)::
 
@@ -393,9 +398,15 @@ class TransactionCostHandler:
        period volatility (derived from the horizon-0 covariance diagonal),
        ``V_i`` is the per-asset average daily volume (from ``inputs``), and
        ``p = spec.exponent`` (1.5 by default → square-root impact).
+       Falls back to ``b * sigma_i`` when volume data is unavailable.
 
-    If volume data is unavailable, the impact coefficient falls back to
-    ``b * sigma_i`` (i.e. the volume denominator is dropped).
+    3. **Directional slippage bias** (the ``c`` term)::
+
+           c_bias * z_i
+
+       Signed, not absolute — models systematic execution-price deviation.
+       E.g. set to the negative of the expected open-to-VWAP return if
+       execution happens at VWAP.  Default 0 (disabled).
 
     The expression is negative so that maximising it minimises costs.
     """
@@ -404,10 +415,14 @@ class TransactionCostHandler:
         self, spec: TransactionCost, horizons: int, n_assets: int, **_kwargs
     ) -> dict[str, Any]:
         return {
-            # Per-asset linear cost coefficient  a_i
+            # Per-asset linear cost coefficient  a_i  (>= 0)
             "tc_linear": cp.Parameter(n_assets, nonneg=True, name="tc_linear"),
-            # Per-asset market-impact coefficient  b * sigma_i / V_i^(p-1)
+            # Per-asset market-impact coefficient  b * sigma_i / V_i^(p-1)  (>= 0)
             "tc_impact": cp.Parameter(n_assets, nonneg=True, name="tc_impact"),
+            # Per-asset directional bias  c_i  (signed — no nonneg constraint)
+            # This is a signed Parameter: buying penalised when c > 0,
+            # selling penalised when c < 0.
+            "tc_bias": cp.Parameter(n_assets, name="tc_bias"),
         }
 
     def compile(
@@ -418,12 +433,14 @@ class TransactionCostHandler:
         trades_h: cp.Expression,
         horizon: int,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
-        # Linear term: sum_i a_i * |z_i|
+        # 1. Linear term: sum_i a_i * |z_i|
+        #    cp.multiply(param, abs(z)) is DPP because param is nonneg
+        #    and abs() is convex, so nonneg * convex stays DPP.
         linear = cp.sum(cp.multiply(params["tc_linear"], cp.abs(trades_h)))
 
-        # Power-law impact term: sum_i c_i * |z_i|^p
-        # cp.power(cp.abs(z), p) is valid for p >= 1 via CVXPY's power-cone
-        # support; nonneg parameters scaling a convex expression remain DPP.
+        # 2. Power-law impact term: sum_i c_i * |z_i|^p
+        #    cp.power(cp.abs(z), p) is convex for p >= 1 (CVXPY power-cone).
+        #    nonneg parameter * convex = DPP compliant.
         impact = cp.sum(
             cp.multiply(
                 params["tc_impact"],
@@ -431,7 +448,14 @@ class TransactionCostHandler:
             )
         )
 
-        return (-1.0 * (linear + impact), [])  # type: ignore[return-value]  # cvxpy stubs under-specify cp.power return type
+        # 3. Directional bias term: sum_i c_i * z_i
+        #    This is *affine* in z (not absolute value), so it is both
+        #    convex and concave — valid in any DCP problem, DPP compliant
+        #    because the parameter is just a coefficient of a linear expression.
+        bias = params["tc_bias"] @ trades_h
+
+        # All three are costs (positive = bad), so negate for maximisation.
+        return (-1.0 * (linear + impact + bias), [])  # type: ignore[return-value]
 
     def update(
         self, spec: TransactionCost, params: dict[str, Any], inputs: dict[str, Any]
@@ -440,14 +464,31 @@ class TransactionCostHandler:
         Expected ``inputs`` keys:
           ``"moments"``  – a ``HorizonMoments`` instance.
           ``"volume"``   – per-asset ADV, shape ``(n_assets,)`` (optional).
+          ``"prices"``   – per-asset current prices, shape ``(n_assets,)``
+                           (optional, required only when pershare_cost > 0).
         """
         moments = inputs["moments"]
         n = moments.n_assets
 
-        # Uniform linear cost
-        params["tc_linear"].value = np.full(n, spec.cost)
+        # --- linear coefficient: base spread + optional per-share fee ---
+        # Base uniform cost (e.g. half bid-ask as a fraction of notional).
+        linear_coeff = np.full(n, spec.cost)
 
-        # Per-asset volatility from the horizon-0 covariance diagonal
+        if spec.pershare_cost > 0.0:
+            prices: NDArray[np.floating] | None = inputs.get("prices")
+            if prices is not None and np.all(prices > 0):
+                # Per-share cost → weight-space: pershare / price_i
+                # A $0.005/share fee on a $5 stock = 0.1% of notional;
+                # on a $500 stock = 0.001%.  This correctly penalises
+                # cheap stocks more than expensive ones.
+                linear_coeff = linear_coeff + spec.pershare_cost / np.asarray(prices)
+            else:
+                # Prices unavailable or zero — degrade gracefully.
+                pass  # pershare term silently omitted
+
+        params["tc_linear"].value = np.maximum(linear_coeff, 0.0)
+
+        # --- market impact: b * sigma_i / V_i^(p-1) ---
         sigma = np.sqrt(np.maximum(np.diag(moments.covariances[0]), 0.0))
 
         volume: NDArray[np.floating] | None = inputs.get("volume")
@@ -455,7 +496,92 @@ class TransactionCostHandler:
             vol_factor = volume ** (spec.exponent - 1.0)
             impact_coeff = spec.market_impact * sigma / vol_factor
         else:
-            # Degrade gracefully: drop the volume denominator
             impact_coeff = spec.market_impact * sigma
 
         params["tc_impact"].value = np.maximum(impact_coeff, 0.0)
+
+        # --- directional bias: uniform c_bias across all assets ---
+        params["tc_bias"].value = np.full(n, spec.c_bias)
+
+
+@register_objective(HoldingCost)
+class HoldingCostHandler:
+    """
+    Penalise overnight holding costs at each horizon.
+
+    The per-period objective contribution is::
+
+        - short_rate * sum(neg(w_h))   # borrow fee on shorts
+        - long_rate  * sum(pos(w_h))   # custody / financing on longs
+        + div_rate   * sum(w_h)        # dividend income (if using price returns)
+
+    where ``*_rate = annual_pct / (100 * periods_per_year)``.
+
+    DCP validity
+    ------------
+    ``cp.neg(w)`` and ``cp.pos(w)`` are convex in ``w``.
+    Multiplying by a nonneg parameter and negating gives a concave term,
+    which is valid in a maximisation problem.  ``div_rate * sum(w)`` is
+    affine — always valid.
+
+    DPP validity
+    ------------
+    All coefficients are ``cp.Parameter`` objects (not Python scalars),
+    so the symbolic graph is fixed; only the parameter values change between
+    solves.  This satisfies CVXPY's DPP rules and enables warm-starting.
+    """
+
+    def allocate(
+        self, spec: HoldingCost, horizons: int, n_assets: int, **_kwargs
+    ) -> dict[str, Any]:
+        # Scalar parameters: one rate applies uniformly to all assets.
+        # nonneg=True on fee params lets CVXPY verify the concavity argument
+        # automatically (-nonneg_param * convex_expr is concave).
+        return {
+            "short_rate": cp.Parameter(nonneg=True, name="hc_short_rate"),
+            "long_rate": cp.Parameter(nonneg=True, name="hc_long_rate"),
+            "div_rate": cp.Parameter(name="hc_div_rate"),  # signed: income
+        }
+
+    def compile(
+        self,
+        spec: HoldingCost,
+        params: dict[str, Any],
+        weights_h: cp.Expression,
+        trades_h: cp.Expression,
+        horizon: int,
+    ) -> tuple[cp.Expression, list[cp.Constraint]]:
+        short_rate = params["short_rate"]
+        long_rate = params["long_rate"]
+        div_rate = params["div_rate"]
+
+        # cp.neg(w) = max(-w, 0): the magnitude of short positions.
+        # cp.pos(w) = max( w, 0): the magnitude of long  positions.
+        # Both are convex.  Scaling by a nonneg param keeps DPP.
+        short_cost = short_rate * cp.sum(cp.neg(weights_h))
+        long_cost = long_rate * cp.sum(cp.pos(weights_h))
+
+        # Dividend income: affine in w, always DCP + DPP.
+        div_income = div_rate * cp.sum(weights_h)
+
+        # Net contribution to the maximisation objective:
+        # costs subtract, income adds.
+        return (-short_cost - long_cost + div_income, [])
+
+    def update(
+        self, spec: HoldingCost, params: dict[str, Any], inputs: dict[str, Any]
+    ) -> None:
+        """
+        Converts annualised percentages to per-period rates and fills
+        the CVXPY parameters.
+
+        No ``inputs`` keys are required — all rates come from the spec.
+        """
+        ppy = spec.periods_per_year
+
+        # Linear approximation: annual_pct / (100 * ppy).
+        # Exact geometric: (1 + annual_pct/100)^(1/ppy) - 1.
+        # For small fees (< 20% p.a.) the difference is negligible.
+        params["short_rate"].value = spec.short_fees / (100.0 * ppy)
+        params["long_rate"].value = spec.long_fees / (100.0 * ppy)
+        params["div_rate"].value = spec.dividends / (100.0 * ppy)

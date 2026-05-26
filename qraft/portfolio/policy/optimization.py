@@ -164,7 +164,11 @@ class MultiPeriodOptimizer:
             constraints += _structural_constraints(z_h, w_h, prev)
             if self.constraints is not None:
                 for c in self.constraints:
-                    constraints += c.compile_to_cvxpy(w_h, z_h)
+                    if c.constraint_type == "hard":
+                        constraints += c.compile_to_cvxpy(w_h, z_h)
+                    else:  # ie soft
+                        violation = c.violation_expr(w_h, z_h)
+                        terms.append(-c.soft_weight * cp.sum(violation))
 
             for term, params in zip(self.objective.terms, self._term_params):
                 handler = get_objective_handler(term.spec)
