@@ -184,4 +184,4 @@ class TurnoverLimit:
 
     def violation_expr(self, weights: Expression, trades: Expression) -> Expression:
         # Scalar: pos(||z||_1 - limit).
-        return cp.pos(cp.norm1(trades) - self.limit)
+        return cp.pos(0.5 * cp.norm1(trades) - self.limit)
