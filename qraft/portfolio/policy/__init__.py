@@ -1,5 +1,4 @@
 from portfolio.policy.constraints import (
-    DEFAULT_CONSTRAINTS,
     FactorExposureLimit,
     FullyInvested,
     LongOnly,
@@ -11,7 +10,6 @@ from portfolio.policy.constraints import (
 
 __all__ = [
     "PortfolioConstraint",
-    "DEFAULT_CONSTRAINTS",
     "LongOnly",
     "FullyInvested",
     "MaxWeight",

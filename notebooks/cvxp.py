@@ -6,7 +6,7 @@ import numpy as np
 from pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from policy import LogConfig
 from portfolio.policy import FullyInvested, LongOnly, MinWeight, TurnoverLimit
-from portfolio.policy.constraints import MaxWeight
+from portfolio.policy.constraints import MaxWeight, PortfolioConstraint
 from portfolio.policy.moments import (
     HorizonMoments,
 )
@@ -47,7 +47,6 @@ data = data.select("date", *universe.all_tickers)
 # ── Build historical ScenarioPanel ───────────────────────────────────
 horizon = 30
 n_sims = 30_000
-analysis_horizon = 30
 
 prob_ex = state_smooth_probs(
     data.height,
@@ -83,11 +82,11 @@ forecast_moms = HorizonMoments.from_forecast_paths(
 )
 
 assets = forecast_moms.assets
-constraints = [
+constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(),
     MaxWeight(limit=0.13),
-    MinWeight(limit=0.02),
+    MinWeight(limit=0.01),
     TurnoverLimit(limit=0.1),
 ]
 
@@ -103,8 +102,6 @@ x = classic_mpo(
     solver=cp.CLARABEL,
 )
 
-# %%
-
 c = cvar_mpo_cuts(
     horizons=h,
     n_assets=len(assets),
@@ -115,16 +112,3 @@ c = cvar_mpo_cuts(
     # verbose=True,
     solver=cp.CLARABEL,
 )
-
-# %%
-x.target_weights_by_asset
-# c.target_weights_by_asset
-# %%
-a = x.target_weights_by_asset
-
-for asset, weight in a.items():
-    a[asset] = np.round(weight, 3)
-
-i = np.array(list(a.values()))
-np.max(i)
-# %%

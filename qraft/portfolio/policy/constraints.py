@@ -108,6 +108,3 @@ class FactorExposureLimit:
         self, weights: Expression, trades: Expression
     ) -> list[Constraint]:
         return [self.factor @ weights <= self.limit]
-
-
-DEFAULT_CONSTRAINTS: list[PortfolioConstraint] = [LongOnly(), FullyInvested()]
