@@ -10,7 +10,7 @@ from portfolio.policy.constraints import MaxWeight, PortfolioConstraint
 from portfolio.policy.moments import (
     HorizonMoments,
 )
-from portfolio.pre_built import classic_mpo, cvar_mpo_cuts
+from portfolio.pre_built import multi_period_optimization
 from probability.distributions import state_smooth_probs
 from scenarios.panel import ScenarioPanel
 from utils.log import setup_logging
@@ -38,7 +38,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:30])
+tradable_assets = list(data.columns[10:60])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -92,7 +92,8 @@ constraints: list[PortfolioConstraint] = [
 ]
 
 
-x = classic_mpo(
+x = multi_period_optimization(
+    type="cvar_cuts",
     horizons=h,
     n_assets=len(assets),
     risk_aversion=1.0,
@@ -103,16 +104,6 @@ x = classic_mpo(
     solver=cp.CLARABEL,
 )
 
-c = cvar_mpo_cuts(
-    horizons=h,
-    n_assets=len(assets),
-    cvar_aversion=1,
-    moments=forecast_moms,
-    current_weights=np.full(len(assets), 1 / len(assets)),
-    constraints=constraints,
-    # verbose=True,
-    solver=cp.CLARABEL,
-)
 # %%
+
 x.target_weights_by_asset
-c.target_weights_by_asset
