@@ -87,8 +87,8 @@ constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(),
     MaxWeight(limit=0.06),
-    MaxWeightTopN(top_n=10, sum_limit=0.3),
-    TurnoverLimit(limit=0.35),
+    MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
+    TurnoverLimit(limit=0.10),
 ]
 
 

@@ -180,7 +180,7 @@ class TurnoverLimit:
     def compile_to_cvxpy(
         self, weights: Expression, trades: Expression
     ) -> list[Constraint]:
-        return [cp.norm1(trades) <= self.limit]
+        return [0.5 * cp.norm1(trades) <= self.limit]
 
     def violation_expr(self, weights: Expression, trades: Expression) -> Expression:
         # Scalar: pos(||z||_1 - limit).

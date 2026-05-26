@@ -1,146 +1,13 @@
-from typing import Literal
-
 import numpy as np
 from numpy.typing import NDArray
 from portfolio.policy.constraints import PortfolioConstraint
 from portfolio.policy.moments import HorizonMoments
-from portfolio.policy.objectives.specs import (
-    CovarianceRisk,
-    CVaRCuttingPlane,
-    CVaRRisk,
-    ExpectedReturn,
-    HoldingCost,
-    ObjectiveSpec,
-    TransactionCost,
-    WeightedTerm,
+from portfolio.policy.objectives.specs import CVaRCuttingPlane
+from portfolio.policy.optimization import (
+    MPOResult,
+    MultiPeriodOptimizer,
+    PreMadeObjectives,
 )
-from portfolio.policy.optimization import MultiPeriodOptimizer
-
-
-def mean_covariance_objectives(
-    risk_aversion: float,
-) -> ObjectiveSpec:
-    return ObjectiveSpec(
-        terms=(
-            WeightedTerm(1.0, ExpectedReturn(decay=0.9)),
-            WeightedTerm(risk_aversion, CovarianceRisk()),
-            WeightedTerm(
-                1.0,
-                TransactionCost(
-                    cost=0.0005,
-                    pershare_cost=0.005,
-                    market_impact=0.8,
-                    exponent=1.5,
-                    c_bias=0.0003,
-                ),
-            ),
-            WeightedTerm(
-                1.0,
-                HoldingCost(
-                    short_fees=0.0,
-                    long_fees=0.3,
-                    dividends=0.0,
-                    periods_per_year=252,
-                ),
-            ),
-        )
-    )
-
-
-def cvar_classical_objectives(
-    cvar_aversion: float,
-    alpha: float = 0.05,
-) -> ObjectiveSpec:
-    return ObjectiveSpec(
-        terms=(
-            WeightedTerm(1.0, ExpectedReturn()),
-            WeightedTerm(cvar_aversion, CVaRRisk(alpha=alpha)),
-            WeightedTerm(
-                1.0,
-                TransactionCost(
-                    cost=0.0005,
-                    pershare_cost=0.005,
-                    market_impact=0.8,
-                    exponent=1.5,
-                    c_bias=0.0003,
-                ),
-            ),
-            WeightedTerm(
-                1.0,
-                HoldingCost(
-                    short_fees=0.0,
-                    long_fees=0.3,
-                    dividends=0.0,
-                    periods_per_year=252,
-                ),
-            ),
-        )
-    )
-
-
-def cvar_cuts_objectives(
-    cvar_aversion: float,
-    alpha: float = 0.05,
-) -> ObjectiveSpec:
-    return ObjectiveSpec(
-        terms=(
-            WeightedTerm(1.0, ExpectedReturn()),
-            WeightedTerm(cvar_aversion, CVaRCuttingPlane(alpha=alpha)),
-            WeightedTerm(
-                1.0,
-                TransactionCost(
-                    cost=0.0005,
-                    pershare_cost=0.005,
-                    market_impact=0.8,
-                    exponent=1.5,
-                    c_bias=0.0003,
-                ),
-            ),
-            WeightedTerm(
-                1.0,
-                HoldingCost(
-                    short_fees=0.0,
-                    long_fees=0.3,
-                    dividends=0.0,
-                    periods_per_year=252,
-                ),
-            ),
-        )
-    )
-
-
-PreMadeObjectives = Literal["mean_covariance", "cvar_auto", "cvar_classic", "cvar_cuts"]
-
-
-def _select_cvar_solver(
-    horizons: int, n_scenarios: int, problem_limit: int = 1_000
-) -> PreMadeObjectives:
-    """
-    Auto-pick CVaR formulation from problem size.
-
-    Uses cutting-planes for medium/large horizon-scenario grids, classical LP
-    for smaller ones.
-    """
-    problem_scale = horizons * n_scenarios
-    return "cvar_cuts" if problem_scale >= problem_limit else "cvar_classic"
-
-
-def _map_type_to_objective(
-    type: PreMadeObjectives,
-    risk_aversion: float,
-    cvar_alpha: float | None,
-) -> ObjectiveSpec:
-    if type == "mean_covariance":
-        objective = mean_covariance_objectives(risk_aversion=risk_aversion)
-    elif type == "cvar_classic" and cvar_alpha is not None:
-        objective = cvar_classical_objectives(
-            cvar_aversion=risk_aversion, alpha=cvar_alpha
-        )
-    elif type == "cvar_cuts" and cvar_alpha is not None:
-        objective = cvar_cuts_objectives(cvar_aversion=risk_aversion, alpha=cvar_alpha)
-    else:
-        raise ValueError(f"Your {type} is not valid, please choose a suitable one.")
-    return objective
 
 
 def multi_period_optimization(
@@ -154,33 +21,52 @@ def multi_period_optimization(
     constraints: list[PortfolioConstraint] | None = None,
     max_iter: int = 200,
     **solver_options,
-):
-    if type == "cvar_auto":
-        type = _select_cvar_solver(
-            horizons=horizons, n_scenarios=moments.scenario_returns.shape[0]
-        )
+) -> MPOResult:
+    """
+    Convenience wrapper around :class:`~portfolio.policy.optimization.MultiPeriodOptimizer`.
 
-    objective = _map_type_to_objective(
-        type=type, risk_aversion=risk_aversion, cvar_alpha=cvar_alpha
+
+    Parameters
+    ----------
+    type:
+        Objective recipe.  Ignored when *optimizer* is provided.
+    horizons:
+        Look-ahead periods.  Ignored when *optimizer* is provided.
+    n_assets:
+        Number of assets.  Ignored when *optimizer* is provided.
+    risk_aversion:
+        Risk / CVaR-aversion scalar.  Ignored when *optimizer* is provided.
+    moments:
+        Forecast moments for the current time step.
+    current_weights:
+        Portfolio weights at the start of the current time step.
+    cvar_alpha:
+        CVaR tail probability.  Ignored when *optimizer* is provided.
+    constraints:
+        Portfolio constraints.  Ignored when *optimizer* is provided.
+    max_iter:
+        Max cutting-plane iterations (CVaR-cuts only).
+    **solver_options:
+        Forwarded verbatim to the underlying CVXPY solver.
+    """
+    optimizer = MultiPeriodOptimizer.from_pre_built(
+        type=type,
+        horizons=horizons,
+        n_assets=n_assets,
+        n_scenarios=moments.scenario_returns.shape[0],
+        risk_aversion=risk_aversion,
+        cvar_alpha=cvar_alpha,
+        constraints=constraints,
     )
 
-    if type == "cvar_cuts":
-        return MultiPeriodOptimizer(
-            objective=objective,
-            horizons=horizons,
-            n_assets=n_assets,
-            constraints=constraints,
-            n_scenarios=moments.scenario_returns.shape[0],
-        ).solve_iterative(moments, current_weights, max_iter=max_iter, **solver_options)
-    else:
-        return MultiPeriodOptimizer(
-            objective=objective,
-            horizons=horizons,
-            n_assets=n_assets,
-            constraints=constraints,
-            n_scenarios=moments.scenario_returns.shape[0],
-        ).solve(
-            moments=moments,
-            current_weights=current_weights,
-            **solver_options,
+    uses_cutting_plane = any(
+        isinstance(term.spec, CVaRCuttingPlane) for term in optimizer.objective.terms
+    )
+
+    if uses_cutting_plane:
+        return optimizer.solve_iterative(
+            moments, current_weights, max_iter=max_iter, **solver_options
         )
+    return optimizer.solve(
+        moments=moments, current_weights=current_weights, **solver_options
+    )
