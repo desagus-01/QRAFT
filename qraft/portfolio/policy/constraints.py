@@ -93,6 +93,41 @@ class MaxWeight:
         return cp.pos(weights - self.limit)
 
 
+class MaxWeightTopN:
+    """Cap the sum of the largest ``top_n`` weights at ``sum_limit``.
+
+    Parameters
+    ----------
+    top_n:
+        Number of largest weights to include in the cap.
+    sum_limit:
+        Maximum allowed sum of the top ``top_n`` weights.
+    """
+
+    def __init__(
+        self,
+        top_n: int,
+        sum_limit: float,
+        constraint_type: ConstraintType = "hard",
+        soft_weight: float = 1.0,
+    ):
+        if top_n <= 0:
+            raise ValueError("top_n must be a positive integer")
+        self.top_n = top_n
+        self.sum_limit = sum_limit
+        self.constraint_type = constraint_type
+        self.soft_weight = soft_weight
+
+    def compile_to_cvxpy(
+        self, weights: Expression, trades: Expression
+    ) -> list[Constraint]:
+        return [cp.sum_largest(weights, self.top_n) <= self.sum_limit]
+
+    def violation_expr(self, weights: Expression, trades: Expression) -> Expression:
+        # Scalar violation: positive only when the top-N sum exceeds the cap.
+        return cp.pos(cp.sum_largest(weights, self.top_n) - self.sum_limit)
+
+
 class MinWeight:
     """Require each asset weight to be at least ``limit``.
 

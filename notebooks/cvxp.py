@@ -5,8 +5,8 @@ import cvxpy as cp
 import numpy as np
 from pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from policy import LogConfig
-from portfolio.policy import FullyInvested, LongOnly, MinWeight, TurnoverLimit
-from portfolio.policy.constraints import MaxWeight, PortfolioConstraint
+from portfolio.policy import FullyInvested, LongOnly, TurnoverLimit
+from portfolio.policy.constraints import MaxWeight, MaxWeightTopN, PortfolioConstraint
 from portfolio.policy.moments import (
     HorizonMoments,
 )
@@ -86,14 +86,14 @@ assets = forecast_moms.assets
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(),
-    MaxWeight(limit=0.13, constraint_type="soft", soft_weight=500.0),
-    MinWeight(limit=0.01),
-    TurnoverLimit(limit=0.08),
+    MaxWeight(limit=0.06),
+    MaxWeightTopN(top_n=10, sum_limit=0.3),
+    TurnoverLimit(limit=0.35),
 ]
 
 
 x = multi_period_optimization(
-    type="cvar_cuts",
+    type="cvar_auto",
     horizons=h,
     n_assets=len(assets),
     risk_aversion=1.0,
@@ -107,3 +107,16 @@ x = multi_period_optimization(
 # %%
 
 x.target_weights_by_asset
+# %%
+w = np.array(list(x.target_weights_by_asset.values()))
+w0 = np.full(len(w), 1 / len(w))
+
+total_abs_drift = np.sum(np.abs(w - w0))
+one_way_turnover = 0.5 * total_abs_drift
+max_weight = w.max()
+min_weight = w.min()
+
+print("Total absolute drift:", total_abs_drift)
+print("One-way turnover:", one_way_turnover)
+print("Max weight:", max_weight)
+print("Min weight:", min_weight)

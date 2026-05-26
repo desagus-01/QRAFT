@@ -2,6 +2,7 @@ from portfolio.policy.constraints import (
     FullyInvested,
     LongOnly,
     MaxWeight,
+    MaxWeightTopN,
     MinWeight,
     PortfolioConstraint,
     TurnoverLimit,
@@ -12,6 +13,7 @@ __all__ = [
     "LongOnly",
     "FullyInvested",
     "MaxWeight",
+    "MaxWeightTopN",
     "MinWeight",
     "TurnoverLimit",
 ]

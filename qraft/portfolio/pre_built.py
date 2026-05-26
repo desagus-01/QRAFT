@@ -109,7 +109,20 @@ def cvar_cuts_objectives(
     )
 
 
-PreMadeObjectives = Literal["mean_covariance", "cvar_classic", "cvar_cuts"]
+PreMadeObjectives = Literal["mean_covariance", "cvar_auto", "cvar_classic", "cvar_cuts"]
+
+
+def _select_cvar_solver(
+    horizons: int, n_scenarios: int, problem_limit: int = 1_000
+) -> PreMadeObjectives:
+    """
+    Auto-pick CVaR formulation from problem size.
+
+    Uses cutting-planes for medium/large horizon-scenario grids, classical LP
+    for smaller ones.
+    """
+    problem_scale = horizons * n_scenarios
+    return "cvar_cuts" if problem_scale >= problem_limit else "cvar_classic"
 
 
 def _map_type_to_objective(
@@ -142,6 +155,11 @@ def multi_period_optimization(
     max_iter: int = 200,
     **solver_options,
 ):
+    if type == "cvar_auto":
+        type = _select_cvar_solver(
+            horizons=horizons, n_scenarios=moments.scenario_returns.shape[0]
+        )
+
     objective = _map_type_to_objective(
         type=type, risk_aversion=risk_aversion, cvar_alpha=cvar_alpha
     )
