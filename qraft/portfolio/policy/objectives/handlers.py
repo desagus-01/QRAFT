@@ -488,7 +488,6 @@ class TransactionCostHandler:
 
         params["tc_linear"].value = np.maximum(linear_coeff, 0.0)
 
-        # --- market impact: b * sigma_i / V_i^(p-1) ---
         sigma = np.sqrt(np.maximum(np.diag(moments.covariances[0]), 0.0))
 
         volume: NDArray[np.floating] | None = inputs.get("volume")
@@ -500,8 +499,9 @@ class TransactionCostHandler:
 
         params["tc_impact"].value = np.maximum(impact_coeff, 0.0)
 
-        # --- directional bias: uniform c_bias across all assets ---
-        params["tc_bias"].value = np.full(n, spec.c_bias)
+        params["tc_bias"].value = np.broadcast_to(
+            np.asarray(spec.c_bias, dtype=float), (n)
+        ).copy()
 
 
 @register_objective(HoldingCost)
