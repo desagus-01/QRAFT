@@ -118,4 +118,6 @@ print(f"cash per step : {forecast_moms.cash_return[0]:.6f}")
 print(f"avg equity μ  : {forecast_moms.mean.mean():.6f}")
 print(f"planned_cash  : {x.planned_cash}")
 print(f"objective     : {x.objective_value:.6f}")
+
 # %%
+x.target_weights_by_asset_with_cash()
