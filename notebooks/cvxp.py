@@ -5,7 +5,7 @@ import cvxpy as cp
 import numpy as np
 from pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from policy import LogConfig
-from portfolio.policy import FullyInvested, LongOnly, TurnoverLimit
+from portfolio.policy import LongOnly, TurnoverLimit
 from portfolio.policy.constraints import MaxWeight, MaxWeightTopN, PortfolioConstraint
 from portfolio.policy.moments import (
     HorizonMoments,
@@ -38,14 +38,14 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:60])
+tradable_assets = list(data.columns[10:90])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
 
 # %%
 # ── Build historical ScenarioPanel ───────────────────────────────────
-horizon = 30
+horizon = 20
 n_sims = 30_000
 
 prob_ex = state_smooth_probs(
@@ -81,49 +81,41 @@ h = 10
 forecast_moms = HorizonMoments.from_forecast_paths(
     forecasts,
     horizons=h,
-    expectation_tolerance=1.0,
+    expectation_tolerance=0.1,
     cash_path="~/Documents/projects/fund/QRAFT/data/cash.csv",
 )
-
-# %%
 
 
 # %%
 assets = forecast_moms.assets
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
-    FullyInvested(),
-    MaxWeight(limit=0.06),
+    # FullyInvested(),
+    MaxWeight(limit=0.09),
     MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
-    TurnoverLimit(limit=0.10),
+    TurnoverLimit(limit=0.30),
 ]
+
+n = len(assets)
+initial_cash = 0.3
 
 
 x = multi_period_optimization(
     objective_type="cvar_auto",
     horizons=h,
-    n_assets=len(assets),
-    risk_aversion=1.0,
+    n_assets=n,
+    risk_aversion=0.1,
     moments=forecast_moms,
-    current_weights=np.full(len(assets), 1 / len(assets)),
+    current_weights=np.full(n, (1.0 - initial_cash) / n),
+    current_cash=initial_cash,
     constraints=constraints,
-    # verbose=True,
     solver=cp.CLARABEL,
+    # verbose=True,
 )
 
 # %%
-
-x.target_weights_by_asset
+print(f"cash per step : {forecast_moms.cash_return[0]:.6f}")
+print(f"avg equity μ  : {forecast_moms.mean.mean():.6f}")
+print(f"planned_cash  : {x.planned_cash}")
+print(f"objective     : {x.objective_value:.6f}")
 # %%
-w = np.array(list(x.target_weights_by_asset.values()))
-w0 = np.full(len(w), 1 / len(w))
-
-total_abs_drift = np.sum(np.abs(w - w0))
-one_way_turnover = 0.5 * total_abs_drift
-max_weight = w.max()
-min_weight = w.min()
-
-print("Total absolute drift:", total_abs_drift)
-print("One-way turnover:", one_way_turnover)
-print("Max weight:", max_weight)
-print("Min weight:", min_weight)

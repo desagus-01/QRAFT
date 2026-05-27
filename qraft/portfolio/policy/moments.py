@@ -126,15 +126,20 @@ class HorizonMoments:
             )
 
     @staticmethod
-    def _get_cash_return(path: str) -> NDArray[np.floating]:
+    def _get_cash_return(
+        path: str,
+        step_size: int,
+        periods_per_year: int = 252,
+    ) -> NDArray[np.floating]:
         cash_return = pl.read_csv(path, try_parse_dates=True)
-
-        return (
+        annual_rate = (
             cash_return.filter(pl.col("date") == pl.col("date").max())
             .drop("date")
             .to_numpy()
             .ravel()
-        )
+        ) / 100
+        # Convert: (1 + r_annual)^(step/252) - 1
+        return (1.0 + annual_rate) ** (step_size / periods_per_year) - 1.0
 
     @property
     def n_horizons(self) -> int:
@@ -255,6 +260,8 @@ class HorizonMoments:
         subset: AssetSubset = "tradable",
         pnl_type: PnL_OPTIONS = "relative",
         expectation_tolerance: float | None = 1.0,
+        step_size: int = 1,
+        periods_per_year: int = 252,
     ) -> "HorizonMoments":
         """
         Build stacked multi-horizon moments from simulated price paths.
@@ -307,5 +314,7 @@ class HorizonMoments:
             mean=means,
             scenario_returns=inc_returns,
             scenario_probs=prob,
-            cash_return=cls._get_cash_return(path=cash_path),
+            cash_return=cls._get_cash_return(
+                path=cash_path, step_size=step_size, periods_per_year=periods_per_year
+            ),
         )

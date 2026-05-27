@@ -56,6 +56,8 @@ class ExpectedReturnHandler:
         weights_h: cp.Expression,
         trades_h: cp.Expression,
         horizon: int,
+        *,
+        cash_h: cp.Expression | None = None,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
         decay_factor = spec.decay**horizon
         return (decay_factor * (params["mean"][horizon, :] @ weights_h), [])
@@ -72,26 +74,61 @@ class ExpectedReturnHandler:
 
 @register_objective(CashReturn)
 class CashReturnHandler:
+    """
+    Reward the return earned on the explicit scalar cash position.
+
+    This handler ignores ``weights_h`` and ``trades_h``; it uses only the
+    ``cash_h`` keyword argument supplied by :class:`MultiPeriodOptimizer`.
+    """
+
     def allocate(
         self, spec: CashReturn, horizons: int, n_assets: int, **_kwargs
     ) -> dict[str, Any]:
-        return {"cash_return": cp.Parameter((horizons), name="cash_return")}
+        return {"cash_return": cp.Parameter(horizons, name="cash_return")}
 
-    # TODO: This MUST pull cash weight
     def compile(
         self,
         spec: CashReturn,
         params: dict[str, Any],
-        cash_weight_h: cp.Expression,
+        weights_h: cp.Expression,
         trades_h: cp.Expression,
         horizon: int,
+        *,
+        cash_h: cp.Expression | None = None,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
-        return ((params["cash_return"][horizon, :] @ cash_weight_h), [])
+        if cash_h is None:
+            raise ValueError(
+                "CashReturnHandler.compile requires cash_h to be provided. "
+                "Ensure the optimizer has explicit cash enabled."
+            )
+        return (params["cash_return"][horizon] * cash_h, [])
 
     def update(
         self, spec: CashReturn, params: dict[str, Any], inputs: dict[str, Any]
     ) -> None:
-        params["cash_return"].value = inputs["cash_return"]
+        """
+        Populate the cash return parameter from ``inputs["moments"].cash_return``.
+
+        Expected ``inputs`` keys:
+          ``"moments"`` – a :class:`HorizonMoments` instance whose
+          ``cash_return`` field is a 1-D array of shape ``(1,)`` or
+          ``(horizons,)``.
+        """
+        moments = inputs["moments"]
+        cash_ret = np.asarray(moments.cash_return, dtype=float).ravel()
+        horizons = params["cash_return"].shape[0]
+
+        if cash_ret.size == 1:
+            # Single rate — broadcast to every planning horizon.
+            cash_ret = np.full(horizons, cash_ret[0])
+        elif cash_ret.size != horizons:
+            raise ValueError(
+                f"HorizonMoments.cash_return has {cash_ret.size} value(s) but "
+                f"the optimizer was built with {horizons} horizon(s). "
+                "Provide either a scalar or a vector of length horizons."
+            )
+
+        params["cash_return"].value = cash_ret
 
 
 @register_objective(CVaRCuttingPlane)
@@ -128,6 +165,8 @@ class CVaRCuttingPlaneHandler:
         weights_h: cp.Expression,
         trades_h: cp.Expression,
         horizon: int,
+        *,
+        cash_h: cp.Expression | None = None,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
         theta = params[f"theta_{horizon}"]
         zeta = params[f"zeta_{horizon}"]
@@ -330,6 +369,8 @@ class CVaRRiskHandler:
         weights_h: cp.Expression,
         trades_h: cp.Expression,
         horizon: int,
+        *,
+        cash_h: cp.Expression | None = None,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
         R = params[f"R_{horizon}"]
         p = params["probs"]
@@ -380,6 +421,8 @@ class CovarianceRiskHandler:
         weights_h: cp.Expression,
         trades_h: cp.Expression,
         horizon: int,
+        *,
+        cash_h: cp.Expression | None = None,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
         # sum_squares(affine_in_w) is always convex → DCP + DPP compliant.
         return (-cp.sum_squares(params[f"cov_sqrt_{horizon}"].T @ weights_h), [])
@@ -457,15 +500,11 @@ class TransactionCostHandler:
         weights_h: cp.Expression,
         trades_h: cp.Expression,
         horizon: int,
+        *,
+        cash_h: cp.Expression | None = None,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
-        # 1. Linear term: sum_i a_i * |z_i|
-        #    cp.multiply(param, abs(z)) is DPP because param is nonneg
-        #    and abs() is convex, so nonneg * convex stays DPP.
         linear = cp.sum(cp.multiply(params["tc_linear"], cp.abs(trades_h)))
 
-        # 2. Power-law impact term: sum_i c_i * |z_i|^p
-        #    cp.power(cp.abs(z), p) is convex for p >= 1 (CVXPY power-cone).
-        #    nonneg parameter * convex = DPP compliant.
         impact = cp.sum(
             cp.multiply(
                 params["tc_impact"],
@@ -473,10 +512,6 @@ class TransactionCostHandler:
             )
         )
 
-        # 3. Directional bias term: sum_i c_i * z_i
-        #    This is *affine* in z (not absolute value), so it is both
-        #    convex and concave — valid in any DCP problem, DPP compliant
-        #    because the parameter is just a coefficient of a linear expression.
         bias = params["tc_bias"] @ trades_h
 
         # All three are costs (positive = bad), so negate for maximisation.
@@ -485,31 +520,17 @@ class TransactionCostHandler:
     def update(
         self, spec: TransactionCost, params: dict[str, Any], inputs: dict[str, Any]
     ) -> None:
-        """
-        Expected ``inputs`` keys:
-          ``"moments"``  – a ``HorizonMoments`` instance.
-          ``"volume"``   – per-asset ADV, shape ``(n_assets,)`` (optional).
-          ``"prices"``   – per-asset current prices, shape ``(n_assets,)``
-                           (optional, required only when pershare_cost > 0).
-        """
         moments = inputs["moments"]
         n = moments.n_assets
 
-        # --- linear coefficient: base spread + optional per-share fee ---
-        # Base uniform cost (e.g. half bid-ask as a fraction of notional).
         linear_coeff = np.full(n, spec.cost)
 
         if spec.pershare_cost > 0.0:
             prices: NDArray[np.floating] | None = inputs.get("prices")
             if prices is not None and np.all(prices > 0):
-                # Per-share cost → weight-space: pershare / price_i
-                # A $0.005/share fee on a $5 stock = 0.1% of notional;
-                # on a $500 stock = 0.001%.  This correctly penalises
-                # cheap stocks more than expensive ones.
                 linear_coeff = linear_coeff + spec.pershare_cost / np.asarray(prices)
             else:
-                # Prices unavailable or zero — degrade gracefully.
-                pass  # pershare term silently omitted
+                pass
 
         params["tc_linear"].value = np.maximum(linear_coeff, 0.0)
 
@@ -575,22 +596,19 @@ class HoldingCostHandler:
         weights_h: cp.Expression,
         trades_h: cp.Expression,
         horizon: int,
+        *,
+        cash_h: cp.Expression | None = None,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
         short_rate = params["short_rate"]
         long_rate = params["long_rate"]
         div_rate = params["div_rate"]
 
-        # cp.neg(w) = max(-w, 0): the magnitude of short positions.
-        # cp.pos(w) = max( w, 0): the magnitude of long  positions.
-        # Both are convex.  Scaling by a nonneg param keeps DPP.
         short_cost = short_rate * cp.sum(cp.neg(weights_h))
         long_cost = long_rate * cp.sum(cp.pos(weights_h))
 
         # Dividend income: affine in w, always DCP + DPP.
         div_income = div_rate * cp.sum(weights_h)
 
-        # Net contribution to the maximisation objective:
-        # costs subtract, income adds.
         return (-short_cost - long_cost + div_income, [])
 
     def update(
@@ -604,9 +622,6 @@ class HoldingCostHandler:
         """
         ppy = spec.periods_per_year
 
-        # Linear approximation: annual_pct / (100 * ppy).
-        # Exact geometric: (1 + annual_pct/100)^(1/ppy) - 1.
-        # For small fees (< 20% p.a.) the difference is negligible.
         params["short_rate"].value = spec.short_fees / (100.0 * ppy)
         params["long_rate"].value = spec.long_fees / (100.0 * ppy)
         params["div_rate"].value = spec.dividends / (100.0 * ppy)

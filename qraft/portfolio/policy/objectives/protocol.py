@@ -27,9 +27,11 @@ class MPOObjectiveHandler(Protocol):
         weights_at_horizon: cp.Expression,
         trades_at_horizon: cp.Expression,
         horizon: int,
+        *,
+        cash_h: cp.Expression | None = None,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
         """
-        Called ONCE after allocate()
+        Called ONCE after allocate().
 
         Build and return the CVXPY expression for this term.
         Must use cp.Parameter objects (not raw numpy) so the expression

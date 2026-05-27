@@ -40,6 +40,10 @@ class ExpectedReturn:
 
 @dataclass(frozen=True)
 class CashReturn:
+    """
+    Reward the return earned on the explicit cash position.
+    """
+
     pass
 
 
@@ -73,6 +77,7 @@ class WeightedTerm:
     weight: float
     spec: (
         ExpectedReturn
+        | CashReturn
         | CovarianceRisk
         | TransactionCost
         | HoldingCost

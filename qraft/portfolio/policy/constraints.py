@@ -19,10 +19,20 @@ class PortfolioConstraint(Protocol):
     def soft_weight(self) -> float: ...
 
     def compile_to_cvxpy(
-        self, weights: Expression, trades: Expression
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
     ) -> list[Constraint]: ...
 
-    def violation_expr(self, weights: Expression, trades: Expression) -> Expression: ...
+    def violation_expr(
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
+    ) -> Expression: ...
 
 
 class LongOnly:
@@ -35,11 +45,21 @@ class LongOnly:
         self.soft_weight = soft_weight
 
     def compile_to_cvxpy(
-        self, weights: Expression, trades: Expression
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
     ) -> list[Constraint]:
         return [weights >= 0]
 
-    def violation_expr(self, weights: Expression, trades: Expression) -> Expression:
+    def violation_expr(
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
+    ) -> Expression:
         # pos(-w_i) = max(-w_i, 0): positive only when w_i < 0 (short).
         return cp.pos(-weights)
 
@@ -54,11 +74,21 @@ class FullyInvested:
         self.soft_weight = soft_weight
 
     def compile_to_cvxpy(
-        self, weights: Expression, trades: Expression
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
     ) -> list[Constraint]:
         return cast(list[Constraint], [cp.sum(weights) == 1])
 
-    def violation_expr(self, weights: Expression, trades: Expression) -> Expression:
+    def violation_expr(
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
+    ) -> Expression:
         # Equality constraint: violation = |sum(w) - 1|.
         return cp.abs(cp.sum(weights) - 1)
 
@@ -84,11 +114,21 @@ class MaxWeight:
         self.soft_weight = soft_weight
 
     def compile_to_cvxpy(
-        self, weights: Expression, trades: Expression
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
     ) -> list[Constraint]:
         return [weights <= self.limit]
 
-    def violation_expr(self, weights: Expression, trades: Expression) -> Expression:
+    def violation_expr(
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
+    ) -> Expression:
         # pos(w_i - limit): positive only when w_i exceeds the cap.
         return cp.pos(weights - self.limit)
 
@@ -119,11 +159,21 @@ class MaxWeightTopN:
         self.soft_weight = soft_weight
 
     def compile_to_cvxpy(
-        self, weights: Expression, trades: Expression
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
     ) -> list[Constraint]:
         return [cp.sum_largest(weights, self.top_n) <= self.sum_limit]
 
-    def violation_expr(self, weights: Expression, trades: Expression) -> Expression:
+    def violation_expr(
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
+    ) -> Expression:
         # Scalar violation: positive only when the top-N sum exceeds the cap.
         return cp.pos(cp.sum_largest(weights, self.top_n) - self.sum_limit)
 
@@ -149,11 +199,21 @@ class MinWeight:
         self.soft_weight = soft_weight
 
     def compile_to_cvxpy(
-        self, weights: Expression, trades: Expression
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
     ) -> list[Constraint]:
         return [weights >= self.limit]
 
-    def violation_expr(self, weights: Expression, trades: Expression) -> Expression:
+    def violation_expr(
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
+    ) -> Expression:
         # pos(limit - w_i): positive only when w_i falls below the floor.
         return cp.pos(self.limit - weights)
 
@@ -178,10 +238,34 @@ class TurnoverLimit:
         self.soft_weight = soft_weight
 
     def compile_to_cvxpy(
-        self, weights: Expression, trades: Expression
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
     ) -> list[Constraint]:
+        """
+        Enforce the one-way turnover limit.
+
+        When ``cash_trade_h`` is provided (explicit-cash mode), turnover
+        includes the cash leg:  0.5 * (||z_risky||_1 + |z_cash|) <= limit.
+        """
+        if cash_trade_h is not None:
+            return [0.5 * (cp.norm1(trades) + cp.abs(cash_trade_h)) <= self.limit]
         return [0.5 * cp.norm1(trades) <= self.limit]
 
-    def violation_expr(self, weights: Expression, trades: Expression) -> Expression:
-        # Scalar: pos(||z||_1 - limit).
+    def violation_expr(
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
+    ) -> Expression:
+        """
+        Soft-constraint violation for one-way turnover.
+
+        When ``cash_trade_h`` is provided, turnover includes the cash leg.
+        """
+        if cash_trade_h is not None:
+            return cp.pos(0.5 * (cp.norm1(trades) + cp.abs(cash_trade_h)) - self.limit)
         return cp.pos(0.5 * cp.norm1(trades) - self.limit)
