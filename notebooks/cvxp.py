@@ -79,9 +79,16 @@ forecasts = run_n_steps_forecast(
 # %%
 h = 10
 forecast_moms = HorizonMoments.from_forecast_paths(
-    forecasts, horizons=h, expectation_tolerance=1.0
+    forecasts,
+    horizons=h,
+    expectation_tolerance=1.0,
+    cash_path="~/Documents/projects/fund/QRAFT/data/cash.csv",
 )
 
+# %%
+
+
+# %%
 assets = forecast_moms.assets
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
@@ -93,7 +100,7 @@ constraints: list[PortfolioConstraint] = [
 
 
 x = multi_period_optimization(
-    type="cvar_auto",
+    objective_type="cvar_auto",
     horizons=h,
     n_assets=len(assets),
     risk_aversion=1.0,

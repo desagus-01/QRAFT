@@ -110,6 +110,7 @@ class HorizonMoments:
     mean: NDArray[np.floating]
     scenario_returns: NDArray[np.floating]
     scenario_probs: ProbVector
+    cash_return: NDArray[np.floating]
 
     def __post_init__(self) -> None:
         n_h, n_a = self.mean.shape
@@ -123,6 +124,17 @@ class HorizonMoments:
                 f"scenario_returns has {self.scenario_returns.shape[0]} paths "
                 f"but scenario_probs has length {len(self.scenario_probs)}"
             )
+
+    @staticmethod
+    def _get_cash_return(path: str) -> NDArray[np.floating]:
+        cash_return = pl.read_csv(path, try_parse_dates=True)
+
+        return (
+            cash_return.filter(pl.col("date") == pl.col("date").max())
+            .drop("date")
+            .to_numpy()
+            .ravel()
+        )
 
     @property
     def n_horizons(self) -> int:
@@ -238,6 +250,7 @@ class HorizonMoments:
     def from_forecast_paths(
         cls,
         forecast_paths: ForecastPaths,
+        cash_path: str,
         horizons: int | None = None,
         subset: AssetSubset = "tradable",
         pnl_type: PnL_OPTIONS = "relative",
@@ -248,21 +261,6 @@ class HorizonMoments:
 
         Moments at each horizon h use the incremental period-over-period
         return from t_{h-1} to t_h, not the cumulative return from t_0.
-
-        Parameters
-        ----------
-        forecast_paths:
-            Simulated price paths and associated metadata.
-        horizons:
-            Number of forecast horizons to compute. Defaults to all available
-            horizons in ``forecast_paths``.
-        subset:
-            Which assets to include (``"tradable"``, ``"factors"``, ``"all"``).
-        pnl_type:
-            Return type — ``"relative"`` default, ``"absolute"``, or ``"log"``.
-        expectation_tolerance:
-            If provided, drop any asset whose expected return breaches
-            ``±expectation_tolerance`` at any horizon.
         """
         pnl_by_asset = incremental_returns_from_forecast_paths(
             forecast_paths=forecast_paths,
@@ -309,4 +307,5 @@ class HorizonMoments:
             mean=means,
             scenario_returns=inc_returns,
             scenario_probs=prob,
+            cash_return=cls._get_cash_return(path=cash_path),
         )

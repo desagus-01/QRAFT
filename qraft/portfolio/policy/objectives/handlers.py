@@ -6,6 +6,7 @@ from numpy.typing import NDArray
 from portfolio.policy.moments import HorizonMoments
 from portfolio.policy.objectives.protocol import register_objective
 from portfolio.policy.objectives.specs import (
+    CashReturn,
     CovarianceRisk,
     CVaRCuttingPlane,
     CVaRRisk,
@@ -67,6 +68,30 @@ class ExpectedReturnHandler:
           ``"moments"``  – a ``HorizonMoments`` instance.
         """
         params["mean"].value = inputs["moments"].mean
+
+
+@register_objective(CashReturn)
+class CashReturnHandler:
+    def allocate(
+        self, spec: CashReturn, horizons: int, n_assets: int, **_kwargs
+    ) -> dict[str, Any]:
+        return {"cash_return": cp.Parameter((horizons), name="cash_return")}
+
+    # TODO: This MUST pull cash weight
+    def compile(
+        self,
+        spec: CashReturn,
+        params: dict[str, Any],
+        cash_weight_h: cp.Expression,
+        trades_h: cp.Expression,
+        horizon: int,
+    ) -> tuple[cp.Expression, list[cp.Constraint]]:
+        return ((params["cash_return"][horizon, :] @ cash_weight_h), [])
+
+    def update(
+        self, spec: CashReturn, params: dict[str, Any], inputs: dict[str, Any]
+    ) -> None:
+        params["cash_return"].value = inputs["cash_return"]
 
 
 @register_objective(CVaRCuttingPlane)

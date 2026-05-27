@@ -134,30 +134,32 @@ def _select_cvar_solver(
 
 
 def _map_type_to_objective(
-    type: PreMadeObjectives,
+    objective_type: PreMadeObjectives,
     risk_aversion: float,
     cvar_alpha: float | None,
 ) -> ObjectiveSpec:
-    if type == "mean_covariance":
+    if objective_type == "mean_covariance":
         return mean_covariance_objectives(risk_aversion=risk_aversion)
-    if type == "cvar_classic" and cvar_alpha is not None:
+    if objective_type == "cvar_classic" and cvar_alpha is not None:
         return cvar_classical_objectives(cvar_aversion=risk_aversion, alpha=cvar_alpha)
-    if type == "cvar_cuts" and cvar_alpha is not None:
+    if objective_type == "cvar_cuts" and cvar_alpha is not None:
         return cvar_cuts_objectives(cvar_aversion=risk_aversion, alpha=cvar_alpha)
-    raise ValueError(f"Your {type} is not valid, please choose a suitable one.")
+    raise ValueError(
+        f"Your {objective_type} is not valid, please choose a suitable one."
+    )
 
 
 def _structural_constraints(
-    trades: Expression,
-    weights: Expression,
+    horizon_trades: Expression,
+    horizon_weights: Expression,
     previous_weights: NDArray[np.floating] | Expression,
 ) -> list[Constraint]:
     """Self-financing and horizon-linking constraints."""
     return cast(
         list[Constraint],
         [
-            cp.sum(trades) == 0,
-            weights == previous_weights + trades,
+            cp.sum(horizon_trades) == 0,
+            horizon_weights == previous_weights + horizon_trades,
         ],
     )
 
@@ -264,12 +266,13 @@ class MultiPeriodOptimizer:
         self.weights = cp.Variable((horizons, n_assets), name="weights")
         self.trades = cp.Variable((horizons, n_assets), name="trades")
         self.current_weights = cp.Parameter(n_assets, name="current_weights")
-
         self._term_params: list[dict[str, Any]] = []
-        for term in objective.terms:
-            handler = get_objective_handler(term.spec)
+        for weighted_term in objective.terms:
+            term_handler = get_objective_handler(weighted_term.spec)
             self._term_params.append(
-                handler.allocate(term.spec, horizons, n_assets, n_scenarios=n_scenarios)
+                term_handler.allocate(
+                    weighted_term.spec, horizons, n_assets, n_scenarios=n_scenarios
+                )
             )
 
         self._build_problem()
@@ -277,7 +280,7 @@ class MultiPeriodOptimizer:
     @classmethod
     def from_pre_built(
         cls,
-        type: PreMadeObjectives,
+        objective_type: PreMadeObjectives,
         horizons: int,
         n_assets: int,
         n_scenarios: int,
@@ -291,7 +294,7 @@ class MultiPeriodOptimizer:
 
         Parameters
         ----------
-        type:
+        objective_type:
             Named objective recipe.  ``"cvar_auto"`` is resolved from
             ``horizons * n_scenarios`` before the problem is built.
         horizons:
@@ -314,13 +317,13 @@ class MultiPeriodOptimizer:
             Fully compiled, ready to call ``.solve()`` /
             ``.solve_iterative()`` many times.
         """
-        resolved_type: PreMadeObjectives = (
+        resolved_objective_type: PreMadeObjectives = (
             _select_cvar_solver(horizons=horizons, n_scenarios=n_scenarios)
-            if type == "cvar_auto"
-            else type
+            if objective_type == "cvar_auto"
+            else objective_type
         )
         objective = _map_type_to_objective(
-            type=resolved_type,
+            objective_type=resolved_objective_type,
             risk_aversion=risk_aversion,
             cvar_alpha=cvar_alpha,
         )
@@ -333,30 +336,51 @@ class MultiPeriodOptimizer:
         )
 
     def _build_problem(self) -> None:
-        prev = self.current_weights
-        terms: list[cp.Expression] = []
-        constraints: list[cp.Constraint] = []
+        previous_weights = self.current_weights
+        objective_expressions: list[cp.Expression] = []
+        compiled_constraints: list[cp.Constraint] = []
 
-        for h in range(self.horizons):
-            w_h, z_h = self.weights[h, :], self.trades[h, :]
-            constraints += _structural_constraints(z_h, w_h, prev)
+        for horizon_idx in range(self.horizons):
+            horizon_weights, horizon_trades = (
+                self.weights[horizon_idx, :],
+                self.trades[horizon_idx, :],
+            )
+            compiled_constraints += _structural_constraints(
+                horizon_trades, horizon_weights, previous_weights
+            )
             if self.constraints is not None:
-                for c in self.constraints:
-                    if c.constraint_type == "hard":
-                        constraints += c.compile_to_cvxpy(w_h, z_h)
+                for constraint in self.constraints:
+                    if constraint.constraint_type == "hard":
+                        compiled_constraints += constraint.compile_to_cvxpy(
+                            horizon_weights, horizon_trades
+                        )
                     else:  # ie soft
-                        violation = c.violation_expr(w_h, z_h)
-                        terms.append(-c.soft_weight * cp.sum(violation))
+                        constraint_violation = constraint.violation_expr(
+                            horizon_weights, horizon_trades
+                        )
+                        objective_expressions.append(
+                            -constraint.soft_weight * cp.sum(constraint_violation)
+                        )
 
-            for term, params in zip(self.objective.terms, self._term_params):
-                handler = get_objective_handler(term.spec)
-                expr, aux_constraints = handler.compile(term.spec, params, w_h, z_h, h)
-                terms.append(term.weight * expr)
-                constraints += aux_constraints
+            for weighted_term, term_params in zip(
+                self.objective.terms, self._term_params
+            ):
+                term_handler = get_objective_handler(weighted_term.spec)
+                term_expression, aux_constraints = term_handler.compile(
+                    weighted_term.spec,
+                    term_params,
+                    horizon_weights,
+                    horizon_trades,
+                    horizon_idx,
+                )
+                objective_expressions.append(weighted_term.weight * term_expression)
+                compiled_constraints += aux_constraints
 
-            prev = w_h
+            previous_weights = horizon_weights
 
-        self.problem = cp.Problem(cp.Maximize(cp.sum(terms)), constraints)
+        self.problem = cp.Problem(
+            cp.Maximize(cp.sum(objective_expressions)), compiled_constraints
+        )
 
     def solve(
         self,
@@ -366,10 +390,12 @@ class MultiPeriodOptimizer:
         **solver_options,
     ) -> MPOResult:
         self.current_weights.value = current_weights
-        full_inputs = {"moments": moments, **(inputs or {})}
+        solver_inputs = {"moments": moments, **(inputs or {})}
 
-        for term, params in zip(self.objective.terms, self._term_params):
-            get_objective_handler(term.spec).update(term.spec, params, full_inputs)
+        for weighted_term, term_params in zip(self.objective.terms, self._term_params):
+            get_objective_handler(weighted_term.spec).update(
+                weighted_term.spec, term_params, solver_inputs
+            )
 
         self.problem.solve(
             enforce_dpp=True,
@@ -379,22 +405,26 @@ class MultiPeriodOptimizer:
         if self.problem.status not in {"optimal", "optimal_inaccurate"}:
             raise RuntimeError(f"Optimization failed: {self.problem.status}")
 
-        weights_val = self.weights.value
-        trades_val = self.trades.value
-        obj_val = self.problem.value
+        optimal_weights = self.weights.value
+        optimal_trades = self.trades.value
+        optimal_objective_value = self.problem.value
 
-        if weights_val is None or trades_val is None or obj_val is None:
+        if (
+            optimal_weights is None
+            or optimal_trades is None
+            or optimal_objective_value is None
+        ):
             raise RuntimeError(
                 "Solver returned None values — unexpected state after optimal solve."
             )
 
         return MPOResult(
             assets=moments.assets,
-            planned_weights=weights_val,
-            planned_trades=trades_val,
+            planned_weights=optimal_weights,
+            planned_trades=optimal_trades,
             initial_weights=current_weights,
             status=cast(SolverStatus, self.problem.status),
-            objective_value=float(obj_val),
+            objective_value=float(optimal_objective_value),
             solver_stats=self.problem.solver_stats,
         )
 
@@ -407,22 +437,26 @@ class MultiPeriodOptimizer:
         **solver_options,
     ) -> MPOResult:
         self.current_weights.value = current_weights
-        full_inputs = {"moments": moments, **(inputs or {})}
+        solver_inputs = {"moments": moments, **(inputs or {})}
 
         # Initial parameter setup (all handlers)
-        for term, params in zip(self.objective.terms, self._term_params):
-            get_objective_handler(term.spec).update(term.spec, params, full_inputs)
+        for weighted_term, term_params in zip(self.objective.terms, self._term_params):
+            get_objective_handler(weighted_term.spec).update(
+                weighted_term.spec, term_params, solver_inputs
+            )
 
         # Identify cutting-plane CVaR terms that need iterative refinement
-        cvar_terms = [
-            (term, params)
-            for term, params in zip(self.objective.terms, self._term_params)
-            if isinstance(term.spec, CVaRCuttingPlane)
+        cutting_plane_terms = [
+            (weighted_term, term_params)
+            for weighted_term, term_params in zip(
+                self.objective.terms, self._term_params
+            )
+            if isinstance(weighted_term.spec, CVaRCuttingPlane)
         ]
 
-        weights_val: NDArray[np.floating] | None = None
-        trades_val: NDArray[np.floating] | None = None
-        obj_val: float | None = None
+        optimal_weights: NDArray[np.floating] | None = None
+        optimal_trades: NDArray[np.floating] | None = None
+        optimal_objective_value: float | None = None
 
         for iteration in range(max_iter):
             self.problem.solve(enforce_dpp=True, warm_start=True, **solver_options)
@@ -432,25 +466,28 @@ class MultiPeriodOptimizer:
                     f"Iteration {iteration}: solve failed with {self.problem.status}"
                 )
 
-            weights_val = self.weights.value
-            trades_val = self.trades.value
-            obj_val = self.problem.value
+            optimal_weights = self.weights.value
+            optimal_trades = self.trades.value
+            optimal_objective_value = self.problem.value
 
-            if not cvar_terms:
+            if not cutting_plane_terms:
                 break  # no cutting-plane CVaR → one-shot
 
             converged = True
-            for term, params in cvar_terms:
-                handler = get_refineable_handler(term.spec)
-                assert weights_val is not None
-                if not handler.refine(term.spec, params, weights_val, moments):
+            for weighted_term, term_params in cutting_plane_terms:
+                term_handler = get_refineable_handler(weighted_term.spec)
+                assert optimal_weights is not None
+                if not term_handler.refine(
+                    weighted_term.spec, term_params, optimal_weights, moments
+                ):
                     converged = False
 
             if converged:
                 break
         else:
             total_cuts = sum(
-                sum(params.get("cut_count", [0])) for _, params in cvar_terms
+                sum(term_params.get("cut_count", [0]))
+                for _, term_params in cutting_plane_terms
             )
             logger.warning(
                 "CVaR cutting-plane did not converge in %d iterations "
@@ -458,17 +495,21 @@ class MultiPeriodOptimizer:
                 max_iter,
                 total_cuts,
             )
-        if weights_val is None or trades_val is None or obj_val is None:
+        if (
+            optimal_weights is None
+            or optimal_trades is None
+            or optimal_objective_value is None
+        ):
             raise RuntimeError(
                 "Solver returned None values — unexpected state after optimal solve."
             )
 
         return MPOResult(
             assets=moments.assets,
-            planned_weights=weights_val,
-            planned_trades=trades_val,
+            planned_weights=optimal_weights,
+            planned_trades=optimal_trades,
             initial_weights=current_weights,
             status=cast(SolverStatus, self.problem.status),
-            objective_value=float(obj_val),
+            objective_value=float(optimal_objective_value),
             solver_stats=self.problem.solver_stats,
         )

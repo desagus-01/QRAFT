@@ -11,7 +11,7 @@ from portfolio.policy.optimization import (
 
 
 def multi_period_optimization(
-    type: PreMadeObjectives,
+    objective_type: PreMadeObjectives,
     horizons: int,
     n_assets: int,
     risk_aversion: float,
@@ -24,33 +24,9 @@ def multi_period_optimization(
 ) -> MPOResult:
     """
     Convenience wrapper around :class:`~portfolio.policy.optimization.MultiPeriodOptimizer`.
-
-
-    Parameters
-    ----------
-    type:
-        Objective recipe.  Ignored when *optimizer* is provided.
-    horizons:
-        Look-ahead periods.  Ignored when *optimizer* is provided.
-    n_assets:
-        Number of assets.  Ignored when *optimizer* is provided.
-    risk_aversion:
-        Risk / CVaR-aversion scalar.  Ignored when *optimizer* is provided.
-    moments:
-        Forecast moments for the current time step.
-    current_weights:
-        Portfolio weights at the start of the current time step.
-    cvar_alpha:
-        CVaR tail probability.  Ignored when *optimizer* is provided.
-    constraints:
-        Portfolio constraints.  Ignored when *optimizer* is provided.
-    max_iter:
-        Max cutting-plane iterations (CVaR-cuts only).
-    **solver_options:
-        Forwarded verbatim to the underlying CVXPY solver.
     """
     optimizer = MultiPeriodOptimizer.from_pre_built(
-        type=type,
+        objective_type=objective_type,
         horizons=horizons,
         n_assets=n_assets,
         n_scenarios=moments.scenario_returns.shape[0],

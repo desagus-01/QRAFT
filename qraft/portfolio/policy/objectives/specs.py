@@ -33,13 +33,14 @@ class CVaRCuttingPlane:
 class ExpectedReturn:
     """
     Reward expected return: mean @ weight
-
-    decay: in MPO, multiply forecast by decay^step.
-           1.0 = slow signal (trust far future),
-           0.0 = fast signal (only trust today).
     """
 
     decay: float = 1.0
+
+
+@dataclass(frozen=True)
+class CashReturn:
+    pass
 
 
 @dataclass(frozen=True)
