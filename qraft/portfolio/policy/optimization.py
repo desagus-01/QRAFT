@@ -291,27 +291,22 @@ class MPOResult:
         """
         return dict(zip(self.assets, self.target_weights.tolist()))
 
-    def target_weights_renormalized(self) -> dict[str, float]:
+    def target_weights_renormalized(
+        self, small_holding_limit: float = 0.01
+    ) -> dict[str, float]:
         """
-        Risky-only weights renormalized to sum to 1.
-
-        This is a bridge for downstream code that still expects a fully
-        invested risky-only dictionary.
-
-        Raises
-        ------
-        ValueError
-            If the risky allocation is zero or numerically zero.
+        Risky-only weights, where very small holdings are dropped and renormalized to sum to 1.
         """
         risky_sum = float(np.sum(self.target_weights))
-
-        if np.isclose(risky_sum, 0.0):
-            raise ValueError(
-                "Cannot renormalize risky weights because their sum is zero."
-            )
-
         normalized = self.target_weights / risky_sum
-        return dict(zip(self.assets, normalized.tolist()))
+        filtered = {
+            asset: w
+            for asset, w in zip(self.assets, normalized.tolist())
+            if w > small_holding_limit
+        }
+
+        total = sum(filtered.values())
+        return {asset: w / total for asset, w in filtered.items()}
 
     def target_weights_by_asset_with_cash(
         self,

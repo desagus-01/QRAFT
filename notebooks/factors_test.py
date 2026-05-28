@@ -2,7 +2,6 @@
 import logging
 
 import polars as pl
-
 from pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from policy import LogConfig
 from portfolio import (
