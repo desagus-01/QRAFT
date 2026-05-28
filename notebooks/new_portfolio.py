@@ -3,17 +3,18 @@ import logging
 
 import cvxpy as cp
 import numpy as np
-from pipelines.forecasting import AssetUniverse, run_n_steps_forecast
-from policy import LogConfig
-from portfolio.forecast import portfolio_forecast
-from portfolio.policy import LongOnly, TurnoverLimit
-from portfolio.policy.constraints import MaxWeight, PortfolioConstraint
-from portfolio.policy.moments import (
-    HorizonMoments,
+from construction.optimization.constraints import (
+    LongOnly,
+    MaxWeight,
+    PortfolioConstraint,
+    TurnoverLimit,
 )
-from portfolio.pre_built import multi_period_optimization
-from probability.distributions import state_smooth_probs
-from scenarios.panel import ScenarioPanel
+from construction.optimization.moments import HorizonMoments
+from construction.optimization.pre_built import multi_period_optimization
+from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
+from forecast.probability.distributions import state_smooth_probs
+from forecast.scenarios.panel import ScenarioPanel
+from policy import LogConfig
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
 
@@ -118,8 +119,3 @@ opt_weights_risk = mpo_res.target_weights_renormalized()
 # %%
 
 tradable_paths = forecasts.tradable_paths
-portfolio_forecast(
-    asset_forecasts=tradable_paths,
-    path_probs=forecasts.path_probs,
-    initial_asset_shares=opt_weights_risk,
-)

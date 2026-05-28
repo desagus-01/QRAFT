@@ -4,11 +4,10 @@ from dataclasses import dataclass
 
 import numpy as np
 import polars as pl
+from forecast.probability.distributions import uniform_probs
+from forecast.scenarios.types import ProbVector, validate_prob_vector
 from numpy.typing import NDArray
 from polars import DataFrame
-
-from probability.distributions import uniform_probs
-from scenarios.types import ProbVector, validate_prob_vector
 
 
 def redistribute_prob_mass(
@@ -119,7 +118,7 @@ class ScenarioPanel:
             pl.any_horizontal(pl.all().is_null())
         ).to_series()
 
-        if not bool(null_mask.any()):
+        if not null_mask.any():
             return self
 
         keep_mask = ~null_mask
@@ -175,7 +174,7 @@ class ScenarioPanel:
         """
         if len(mask) != self.values.height:
             raise ValueError(f"mask length {len(mask)} != rows {self.values.height}")
-        if not bool(mask.any()):
+        if not mask.any():
             raise ValueError("filter_rows would remove every row")
 
         new_values = self.values.filter(mask)

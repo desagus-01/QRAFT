@@ -5,14 +5,14 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
+from forecast.pipelines.fitted_universe import FittedUniverse
+from forecast.scenarios.copula_marginal import CopulaMarginalModel
+from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.resampling import weighted_bootstrapping_idx
+from forecast.scenarios.types import ProbVector, validate_prob_vector
+from forecast.time_series.transforms.inverses import apply_inverse_transforms
 from numpy.typing import NDArray
-from pipelines.fitted_universe import FittedUniverse
 from polars import DataFrame
-from scenarios.copula_marginal import CopulaMarginalModel
-from scenarios.panel import ScenarioPanel
-from scenarios.resampling import weighted_bootstrapping_idx
-from scenarios.types import ProbVector, validate_prob_vector
-from time_series.transforms.inverses import apply_inverse_transforms
 
 logger = logging.getLogger(__name__)
 

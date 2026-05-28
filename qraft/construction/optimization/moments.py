@@ -3,15 +3,15 @@ from dataclasses import dataclass
 
 import numpy as np
 import polars as pl
-from numpy.typing import NDArray
-from pipelines.forecasting import AssetSubset, ForecastPaths
-from portfolio.forecast import PnL_OPTIONS, pnl_from_values
-from scenarios.types import ProbVector
-from time_series.estimation import (
+from construction.forecast import PnL_OPTIONS, pnl_from_values
+from forecast.pipelines.forecasting import AssetSubset, ForecastPaths
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.estimation import (
     weighted_correlation,
     weighted_covariance,
     weighted_mean,
 )
+from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 

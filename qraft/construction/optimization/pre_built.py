@@ -1,15 +1,15 @@
 from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
-from portfolio.policy.constraints import PortfolioConstraint
-from portfolio.policy.moments import HorizonMoments
-from portfolio.policy.objectives.specs import CVaRCuttingPlane
-from portfolio.policy.optimization import (
+from construction.optimization.constraints import PortfolioConstraint
+from construction.optimization.moments import HorizonMoments
+from construction.optimization.objectives.specs import CVaRCuttingPlane
+from construction.optimization.optimization import (
     MPOResult,
     MultiPeriodOptimizer,
     PreMadeObjectives,
 )
+from numpy.typing import NDArray
 
 
 def multi_period_optimization(
