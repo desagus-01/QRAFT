@@ -61,6 +61,15 @@ class PortfolioState:
         return np.dot(self.initial_prices, self.shares) + self.cash
 
     @property
+    def cash_weight(self) -> NDArray[np.floating]:
+        return self.cash / self.portfolio_value
+
+    @property
+    def asset_weights(self) -> NDArray[np.floating]:
+        values = self.initial_prices * self.shares
+        return values / self.portfolio_value
+
+    @property
     def portfolio_weights(self) -> dict[str, NDArray[np.floating]]:
         values = self.initial_prices * self.shares
         values_inc_cash = np.append(values, self.cash)

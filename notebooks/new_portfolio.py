@@ -2,7 +2,8 @@
 import logging
 
 import numpy as np
-from construction.policy.types import EqualWeightPolicy
+from construction.optimization.moments import HorizonMoments
+from construction.policy.types import MPOPolicy, PolicyInputs
 from construction.state import PortfolioState
 from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
@@ -71,11 +72,22 @@ forecasts = run_n_steps_forecast(
     back_to_price=True,
 )
 # %%
+step = 10
+forecast_moms = HorizonMoments.from_forecast_paths(
+    forecasts,
+    horizons=step,
+    expectation_tolerance=0.1,
+    cash_path="~/Documents/projects/fund/QRAFT/data/cash.csv",
+)
 
+
+p_in = PolicyInputs(step=step, moments=forecast_moms)
+
+# %%
 no_shares = np.zeros(len(forecasts.universe.assets), dtype=int)
 state = PortfolioState.from_forecast(
     asset_forecasts=forecasts, shares=no_shares, cash=100_000
 )
 # %%
-policy = EqualWeightPolicy(target_cash_weight=0.5)
-a = policy.decide(state=state, inputs="a")
+policy = MPOPolicy(name="cvar_auto", risk_aversion=0.2)
+a = policy.decide(state=state, inputs=p_in)

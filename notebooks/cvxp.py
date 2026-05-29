@@ -105,7 +105,7 @@ initial_cash = 0.3
 
 x = multi_period_optimization(
     objective_type="cvar_auto",
-    horizons=h,
+    step=h,
     n_assets=n,
     risk_aversion=0.1,
     moments=forecast_moms,
