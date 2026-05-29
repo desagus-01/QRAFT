@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Sequence
 
 import numpy as np
 from forecast.pipelines.forecasting import ForecastPaths
@@ -8,7 +7,7 @@ from numpy.typing import NDArray
 
 @dataclass(frozen=True, slots=True)
 class PortfolioState:
-    asset_order: Sequence[str]
+    asset_order: list[str]
     initial_prices: NDArray[np.floating]
     shares: NDArray[np.int32]
     cash: float
@@ -60,3 +59,11 @@ class PortfolioState:
     @property
     def portfolio_value(self) -> NDArray[np.floating]:
         return np.dot(self.initial_prices, self.shares) + self.cash
+
+    @property
+    def portfolio_weights(self) -> dict[str, NDArray[np.floating]]:
+        values = self.initial_prices * self.shares
+        values_inc_cash = np.append(values, self.cash)
+        assets_inc_cash = self.asset_order + ["cash"]
+        weights = values_inc_cash / self.portfolio_value
+        return dict(zip(assets_inc_cash, weights))

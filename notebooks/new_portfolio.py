@@ -76,3 +76,4 @@ state = PortfolioState.from_forecast(
     asset_forecasts=forecasts, shares=no_shares, cash=100_000
 )
 # %%
+state.portfolio_weights
