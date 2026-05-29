@@ -2,6 +2,7 @@
 import logging
 
 import numpy as np
+from construction.policy.types import EqualWeightPolicy
 from construction.state import PortfolioState
 from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
@@ -76,4 +77,5 @@ state = PortfolioState.from_forecast(
     asset_forecasts=forecasts, shares=no_shares, cash=100_000
 )
 # %%
-state.portfolio_weights
+policy = EqualWeightPolicy(target_cash_weight=0.5)
+a = policy.decide(state=state, inputs="a")
