@@ -1,16 +1,8 @@
 # %%
 import logging
 
-import cvxpy as cp
 import numpy as np
-from construction.optimization.constraints import (
-    LongOnly,
-    MaxWeight,
-    PortfolioConstraint,
-    TurnoverLimit,
-)
-from construction.optimization.moments import HorizonMoments
-from construction.optimization.pre_built import multi_period_optimization
+from construction.state import PortfolioState
 from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
 from forecast.scenarios.panel import ScenarioPanel
@@ -27,6 +19,8 @@ data, factors_cols = import_tickers_and_factors(
     "./data/tiingo_factors.csv",
 )
 
+min_price = 15
+
 cols_to_keep = [
     col
     for col in data.columns
@@ -34,13 +28,13 @@ cols_to_keep = [
     or (
         data[col].null_count() == 0
         and data[col].dtype.is_numeric()
-        and float(data[col].min()) >= 1  # type: ignore[arg-type]
+        and float(data[col].min()) >= np.log(15)  # type: ignore[arg-type]
     )
 ]
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:18])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -75,47 +69,10 @@ forecasts = run_n_steps_forecast(
     target_copula="t",
     back_to_price=True,
 )
-
-
 # %%
-rebalancing_period = 10
-forecast_moms = HorizonMoments.from_forecast_paths(
-    forecasts,
-    horizons=rebalancing_period,
-    expectation_tolerance=0.1,
-    cash_path="~/Documents/projects/fund/QRAFT/data/cash.csv",
-)
 
-
-# %%
-assets = forecast_moms.assets
-constraints: list[PortfolioConstraint] = [
-    LongOnly(),
-    MaxWeight(limit=0.09),
-    # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
-    TurnoverLimit(limit=0.30),
-]
-
-n = len(assets)
-initial_cash = 0.3
-
-
-mpo_res = multi_period_optimization(
-    objective_type="cvar_auto",
-    horizons=rebalancing_period,
-    n_assets=n,
-    risk_aversion=0.1,
-    moments=forecast_moms,
-    current_weights=np.full(n, (1.0 - initial_cash) / n),
-    current_cash=initial_cash,
-    constraints=constraints,
-    solver=cp.CLARABEL,
-    # verbose=True,
+no_shares = np.zeros(len(forecasts.universe.assets), dtype=int)
+state = PortfolioState.from_forecast(
+    asset_forecasts=forecasts, shares=no_shares, cash=100_000
 )
 # %%
-opt_weights_cash = mpo_res.target_weights_by_asset_with_cash()
-
-opt_weights_risk = mpo_res.target_weights_renormalized()
-# %%
-
-tradable_paths = forecasts.tradable_paths

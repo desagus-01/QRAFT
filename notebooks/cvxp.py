@@ -6,7 +6,6 @@ import numpy as np
 from construction.optimization.constraints import (
     LongOnly,
     MaxWeight,
-    MaxWeightTopN,
     PortfolioConstraint,
     TurnoverLimit,
 )
@@ -95,7 +94,7 @@ constraints: list[PortfolioConstraint] = [
     LongOnly(),
     # FullyInvested(),
     MaxWeight(limit=0.09),
-    MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
+    # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
     TurnoverLimit(limit=0.30),
 ]
 

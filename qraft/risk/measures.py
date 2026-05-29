@@ -5,11 +5,11 @@ from typing import Literal
 
 import numpy as np
 import polars as pl
+from construction.forecast import PortfolioForecast
+from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.types import ProbVector
 from numpy.lib.array_utils import normalize_axis_index
 from numpy.typing import NDArray
-from portfolio.forecast import PortfolioForecast
-from scenarios.panel import ScenarioPanel
-from scenarios.types import ProbVector
 
 
 @dataclass(frozen=True, slots=True)

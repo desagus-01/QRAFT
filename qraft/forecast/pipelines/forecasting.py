@@ -111,7 +111,7 @@ class ForecastPaths:
         return first.shape[1]
 
     @property
-    def asset_names(self) -> list[str]:
+    def assets_and_factors_names(self) -> list[str]:
         return list(self.asset_paths.keys())
 
     @property
