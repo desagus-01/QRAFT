@@ -66,9 +66,9 @@ class HoldingCost:
     Cost of holding positions overnight.
     """
 
-    short_fees: float = 5.0
-    long_fees: float = 0.0
-    dividends: float = 0.0
+    short_fees: float
+    long_fees: float
+    dividends: float
     periods_per_year: int = 252
 
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence, cast
@@ -6,28 +8,26 @@ import cvxpy as cp
 import numpy as np
 from construction.optimization.constraints import PortfolioConstraint
 from construction.optimization.moments import HorizonMoments
+from construction.optimization.objectives import (
+    handlers as _objective_handlers,  # noqa: F401
+)
 from construction.optimization.objectives.protocol import (
     get_objective_handler,
     get_refineable_handler,
 )
-from construction.optimization.objectives import handlers as _objective_handlers  # noqa: F401
 from construction.optimization.objectives.specs import (
-    CashReturn,
-    CovarianceRisk,
     CVaRCuttingPlane,
-    CVaRRisk,
-    ExpectedReturn,
-    HoldingCost,
     ObjectiveSpec,
-    TransactionCost,
-    WeightedTerm,
+)
+from construction.optimization.presets import (
+    PreMadeObjectives,
+    build_preset_objective,
 )
 from cvxpy import Constraint, Expression
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
-PreMadeObjectives = Literal["mean_covariance", "cvar_auto", "cvar_classic", "cvar_cuts"]
 
 SolverStatus = Literal[
     "optimal",
@@ -38,119 +38,6 @@ SolverStatus = Literal[
     "unbounded_inaccurate",
     "solver_error",
 ]
-
-
-def mean_covariance_objectives(risk_aversion: float) -> ObjectiveSpec:
-    return ObjectiveSpec(
-        terms=(
-            WeightedTerm(1.0, ExpectedReturn(decay=0.9)),
-            WeightedTerm(1.0, CashReturn()),
-            WeightedTerm(risk_aversion, CovarianceRisk()),
-            WeightedTerm(
-                1.0,
-                TransactionCost(
-                    cost=0.0005,
-                    pershare_cost=0.005,
-                    market_impact=0.8,
-                    exponent=1.5,
-                    c_bias=0.0003,
-                ),
-            ),
-            WeightedTerm(
-                1.0,
-                HoldingCost(
-                    short_fees=0.0,
-                    long_fees=0.3,
-                    dividends=0.0,
-                    periods_per_year=252,
-                ),
-            ),
-        )
-    )
-
-
-def cvar_classical_objectives(
-    cvar_aversion: float, alpha: float = 0.05
-) -> ObjectiveSpec:
-    return ObjectiveSpec(
-        terms=(
-            WeightedTerm(1.0, ExpectedReturn()),
-            WeightedTerm(1.0, CashReturn()),
-            WeightedTerm(cvar_aversion, CVaRRisk(alpha=alpha)),
-            WeightedTerm(
-                1.0,
-                TransactionCost(
-                    cost=0.0005,
-                    pershare_cost=0.005,
-                    market_impact=0.8,
-                    exponent=1.5,
-                    c_bias=0.0003,
-                ),
-            ),
-            WeightedTerm(
-                1.0,
-                HoldingCost(
-                    short_fees=0.0,
-                    long_fees=0.3,
-                    dividends=0.0,
-                    periods_per_year=252,
-                ),
-            ),
-        )
-    )
-
-
-def cvar_cuts_objectives(cvar_aversion: float, alpha: float = 0.05) -> ObjectiveSpec:
-    return ObjectiveSpec(
-        terms=(
-            WeightedTerm(1.0, ExpectedReturn()),
-            WeightedTerm(1.0, CashReturn()),
-            WeightedTerm(cvar_aversion, CVaRCuttingPlane(alpha=alpha)),
-            WeightedTerm(
-                1.0,
-                TransactionCost(
-                    cost=0.0005,
-                    pershare_cost=0.005,
-                    market_impact=0.8,
-                    exponent=1.5,
-                    c_bias=0.0003,
-                ),
-            ),
-            WeightedTerm(
-                1.0,
-                HoldingCost(
-                    short_fees=0.0,
-                    long_fees=0.3,
-                    dividends=0.0,
-                    periods_per_year=252,
-                ),
-            ),
-        )
-    )
-
-
-def _select_cvar_solver(
-    horizons: int, n_scenarios: int, problem_limit: int = 1_000
-) -> PreMadeObjectives:
-    """Auto-pick CVaR formulation from problem size."""
-    problem_scale = horizons * n_scenarios
-    return "cvar_cuts" if problem_scale >= problem_limit else "cvar_classic"
-
-
-def _map_type_to_objective(
-    objective_type: PreMadeObjectives,
-    risk_aversion: float,
-    cvar_alpha: float | None,
-) -> ObjectiveSpec:
-    if objective_type == "mean_covariance":
-        return mean_covariance_objectives(risk_aversion=risk_aversion)
-    if objective_type == "cvar_classic" and cvar_alpha is not None:
-        return cvar_classical_objectives(cvar_aversion=risk_aversion, alpha=cvar_alpha)
-    if objective_type == "cvar_cuts" and cvar_alpha is not None:
-        return cvar_cuts_objectives(cvar_aversion=risk_aversion, alpha=cvar_alpha)
-    raise ValueError(
-        f"Your {objective_type} is not valid, please choose a suitable one."
-    )
 
 
 def _structural_constraints(
@@ -421,15 +308,12 @@ class MultiPeriodOptimizer:
         Compile and return a :class:`MultiPeriodOptimizer` from a named
         pre-built objective recipe — **without solving it**.
         """
-        resolved_objective_type: PreMadeObjectives = (
-            _select_cvar_solver(horizons=horizons, n_scenarios=n_scenarios)
-            if objective_type == "cvar_auto"
-            else objective_type
-        )
-        objective = _map_type_to_objective(
-            objective_type=resolved_objective_type,
+        objective = build_preset_objective(
+            objective_type=objective_type,
             risk_aversion=risk_aversion,
-            cvar_alpha=cvar_alpha,
+            alpha=cvar_alpha,
+            horizons=horizons,
+            n_scenarios=n_scenarios,
         )
         return cls(
             objective=objective,

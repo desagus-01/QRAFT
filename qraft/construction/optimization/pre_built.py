@@ -3,12 +3,9 @@ from typing import Any
 import numpy as np
 from construction.optimization.constraints import PortfolioConstraint
 from construction.optimization.moments import HorizonMoments
-from construction.optimization.objectives.specs import CVaRCuttingPlane
-from construction.optimization.optimization import (
-    MPOResult,
-    MultiPeriodOptimizer,
-    PreMadeObjectives,
-)
+from construction.optimization.optimization import MPOResult
+from construction.optimization.presets import PreMadeObjectives
+from construction.optimization.problem import build_preset_problem
 from numpy.typing import NDArray
 
 
@@ -30,35 +27,24 @@ def multi_period_optimization(
     """
     Convenience wrapper around :class:`~portfolio.policy.optimization.MultiPeriodOptimizer`.
     """
-    optimizer = MultiPeriodOptimizer.from_pre_built(
+    problem = build_preset_problem(
         objective_type=objective_type,
+        risk_aversion=risk_aversion,
+        horizons=step,
+        n_scenarios=moments.scenario_returns.shape[0],
+        alpha=cvar_alpha,
+        constraints=constraints,
+        allow_borrow=allow_borrow,
+        max_iter=max_iter,
+        **solver_options,
+    )
+
+    return problem.solve(
         horizons=step,
         n_assets=n_assets,
         n_scenarios=moments.scenario_returns.shape[0],
-        risk_aversion=risk_aversion,
-        cvar_alpha=cvar_alpha,
-        constraints=constraints,
-        allow_borrow=allow_borrow,
-    )
-
-    uses_cutting_plane = any(
-        isinstance(term.spec, CVaRCuttingPlane) for term in optimizer.objective.terms
-    )
-
-    if uses_cutting_plane:
-        return optimizer.solve_iterative(
-            moments=moments,
-            current_weights=current_weights,
-            current_cash=current_cash,
-            inputs=inputs,
-            max_iter=max_iter,
-            **solver_options,
-        )
-
-    return optimizer.solve(
         moments=moments,
         current_weights=current_weights,
         current_cash=current_cash,
         inputs=inputs,
-        **solver_options,
     )
