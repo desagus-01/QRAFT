@@ -2,11 +2,10 @@ import warnings
 from typing import Literal
 
 import numpy as np
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.estimation import riccati_root
 from numpy.typing import NDArray
 from scipy.linalg import solve, sqrtm
-
-from scenarios.types import ProbVector
-from time_series.estimation import riccati_root
 
 
 def _validate_torsion_args(

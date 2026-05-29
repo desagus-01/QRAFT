@@ -1,12 +1,11 @@
 from typing import Sequence
 
-from polars.dataframe.frame import DataFrame
-
-from time_series.tests.seasonality import (
+from forecast.time_series.tests.seasonality import (
     SEASONAL_PERIODS,
     SeasonalityPeriodTest,
     periodogram_seasonality_test,
 )
+from polars.dataframe.frame import DataFrame
 
 
 def seasonality_diagnostic(

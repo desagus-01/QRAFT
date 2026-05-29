@@ -2,10 +2,9 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 import numpy as np
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.estimation import OLSResults, weighted_ols
 from numpy.typing import NDArray
-
-from scenarios.types import ProbVector
-from time_series.estimation import OLSResults, weighted_ols
 
 
 @dataclass(frozen=True, slots=True)

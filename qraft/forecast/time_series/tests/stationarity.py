@@ -3,10 +3,16 @@ from typing import Callable, Literal, NamedTuple
 
 import numpy as np
 import polars as pl
-from numpy import polyval
-from numpy.typing import NDArray
-from scipy.stats import norm
-
+from forecast.time_series.estimation import (
+    EquationTypes,
+    OLSEquation,
+    add_deterministics_to_eq,
+    weighted_ols,
+)
+from forecast.time_series.tests.types import (
+    HypTestRes,
+    format_hyp_test_result,
+)
 from globals import (
     EQ_TYPE_ADDED_DETS,
     KPSS_CRIT_VALUES,
@@ -14,16 +20,9 @@ from globals import (
     MACKIN_TAU_CUTOFFS,
     MACKIN_TAU_PVALS,
 )
-from time_series.estimation import (
-    EquationTypes,
-    OLSEquation,
-    add_deterministics_to_eq,
-    weighted_ols,
-)
-from time_series.tests.types import (
-    HypTestRes,
-    format_hyp_test_result,
-)
+from numpy import polyval
+from numpy.typing import NDArray
+from scipy.stats import norm
 
 InferenceLabel = Literal[
     "stationary",

@@ -3,12 +3,11 @@ from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+from forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from matplotlib.axes import Axes
 from numpy._typing._array_like import NDArray
 from scipy.stats import f as f_dist
 from typing_extensions import Literal
-
-from time_series.tests.types import HypTestRes, format_hyp_test_result
 
 SEASONAL_PERIODS = Literal["weekly", "monthly", "quarterly", "semi-annual", "annual"]
 

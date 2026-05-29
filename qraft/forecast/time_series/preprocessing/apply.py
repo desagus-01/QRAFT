@@ -2,25 +2,24 @@ import logging
 
 import numpy as np
 import polars as pl
-from polars.dataframe.frame import DataFrame
-
-from scenarios.types import ProbVector
-from time_series.preprocessing.types import (
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.preprocessing.types import (
     TransformDecision,
 )
-from time_series.transforms.deseason import (
+from forecast.time_series.transforms.deseason import (
     deterministic_seasonal_adjustment,
 )
-from time_series.transforms.detrend import (
+from forecast.time_series.transforms.detrend import (
     add_detrend_column,
     add_differenced_columns,
 )
-from time_series.transforms.inverses import (
+from forecast.time_series.transforms.inverses import (
     DifferenceInverseSpec,
     InverseSpec,
     PolynomialInverseSpec,
     SeasonalInverseSpec,
 )
+from polars.dataframe.frame import DataFrame
 
 logger = logging.getLogger(__name__)
 

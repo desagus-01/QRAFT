@@ -3,14 +3,13 @@ import warnings
 from re import fullmatch
 
 import numpy as np
+from forecast.time_series.models.fitted_types import AutoARMARes
 from numpy._typing import NDArray
+from policy import MeanModelConfig
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import arma_order_select_ic
 from typing_extensions import Literal
-
-from policy import MeanModelConfig
-from time_series.models.fitted_types import AutoARMARes
 
 logger = logging.getLogger(__name__)
 

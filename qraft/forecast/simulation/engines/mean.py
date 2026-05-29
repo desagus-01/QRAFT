@@ -3,10 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from forecast.simulation.engines.utils import (
+    as_sims_by_horizon,
+    lag_matrix,
+    mean_params,
+)
+from forecast.time_series.models.model_types import CompiledParams
 from numpy._typing import NDArray
-
-from simulation.engines.utils import as_sims_by_horizon, lag_matrix, mean_params
-from time_series.models.model_types import CompiledParams
 
 
 @dataclass

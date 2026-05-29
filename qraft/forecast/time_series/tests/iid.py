@@ -4,14 +4,13 @@ from typing import Any, Callable
 import numpy as np
 import polars as pl
 import scipy.stats as st
+from forecast.scenarios.panel import compensate_prob
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.estimation import weighted_covariance, weighted_mean
+from forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from numpy.typing import NDArray
-from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
-
 from policy import IIDConfig
-from scenarios.panel import compensate_prob
-from scenarios.types import ProbVector
-from time_series.estimation import weighted_covariance, weighted_mean
-from time_series.tests.types import HypTestRes, format_hyp_test_result
+from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 from utils.helpers import (
     get_assets_names,
     split_df_in_half,

@@ -6,10 +6,9 @@ from typing import NamedTuple
 import numpy as np
 import polars as pl
 import polars.selectors as cs
-from numpy.typing import NDArray
-
+from forecast.scenarios.types import CorrInfo, ProbVector, View
 from globals import sign_operations
-from scenarios.types import CorrInfo, ProbVector, View
+from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 

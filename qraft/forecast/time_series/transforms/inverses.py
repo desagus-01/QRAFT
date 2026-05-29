@@ -1,9 +1,8 @@
 from dataclasses import dataclass
 
 import numpy as np
+from forecast.time_series.transforms.deseason import HarmonicTerm
 from numpy._typing import NDArray
-
-from time_series.transforms.deseason import HarmonicTerm
 
 
 @dataclass(frozen=True)

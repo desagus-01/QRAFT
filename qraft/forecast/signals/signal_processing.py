@@ -2,9 +2,9 @@ import math
 from typing import Literal
 
 import polars as pl
+from forecast.signals.raw_signals import Signal
 from polars import DataFrame
 from polars._typing import RankMethod
-from signals.raw_signals import Signal
 
 Distortion = Literal[
     "identity",

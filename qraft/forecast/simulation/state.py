@@ -4,10 +4,9 @@ from dataclasses import asdict, dataclass
 from typing import Mapping, Self
 
 import numpy as np
+from forecast.time_series.models.fitted_types import UnivariateRes
+from forecast.time_series.models.model_types import UnivariateModel
 from numpy._typing import NDArray
-
-from time_series.models.fitted_types import UnivariateRes
-from time_series.models.model_types import UnivariateModel
 
 
 @dataclass(slots=True)

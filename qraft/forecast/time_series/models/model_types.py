@@ -4,9 +4,8 @@ from dataclasses import dataclass
 from typing import Mapping
 
 import numpy as np
+from forecast.time_series.models.fitted_types import MeanKind, UnivariateRes, VolKind
 from numpy._typing import NDArray
-
-from time_series.models.fitted_types import MeanKind, UnivariateRes, VolKind
 
 
 @dataclass(frozen=True, slots=True)

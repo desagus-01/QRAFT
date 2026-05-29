@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import numpy as np
+from forecast.simulation.engines.mean import mean_simulation_paths
+from forecast.simulation.engines.utils import as_sims_by_horizon
+from forecast.simulation.engines.volatility import garch_simulation_paths
+from forecast.simulation.state import SimulationForecast
 from numpy._typing import NDArray
-
-from simulation.engines.mean import mean_simulation_paths
-from simulation.engines.utils import as_sims_by_horizon
-from simulation.engines.volatility import garch_simulation_paths
-from simulation.state import SimulationForecast
 
 
 def simulate_asset_paths(

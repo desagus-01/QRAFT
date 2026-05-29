@@ -2,11 +2,10 @@ from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
 import numpy as np
+from forecast.scenarios.types import ProbVector
 from numpy.typing import NDArray
 from scipy import stats
 from scipy.linalg import sqrtm
-
-from scenarios.types import ProbVector
 
 EquationTypes = Literal["nc", "c", "ct", "ctt"]
 

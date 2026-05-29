@@ -4,11 +4,10 @@ from dataclasses import dataclass
 import cvxpy as cp
 import numpy as np
 from cvxpy.constraints.constraint import Constraint as CvxConstraint
+from forecast.scenarios.types import ConstraintDiag, ProbVector, View
+from globals import model_cfg
 from numpy._typing import NDArray
 from pydantic import validate_call
-
-from globals import model_cfg
-from scenarios.types import ConstraintDiag, ProbVector, View
 from utils.helpers import select_operator, weighted_moments
 
 logger = logging.getLogger(__name__)

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import numpy as np
+from forecast.time_series.models.model_types import CompiledParams
 from numpy._typing import NDArray
-
-from time_series.models.model_types import CompiledParams
 
 
 def as_sims_by_horizon(

@@ -1,9 +1,8 @@
 import operator as _op
 
+from forecast.scenarios.types import ConstraintSigns
 from numpy import array, asarray, inf
 from pydantic import ConfigDict
-
-from scenarios.types import ConstraintSigns
 
 sign_operations = {
     (ConstraintSigns.equal): _op.eq,

@@ -4,12 +4,11 @@ from dataclasses import dataclass, replace
 from typing import Literal, Self
 
 import polars as pl
+from forecast.probability.sampling import marginal_quantile_mapping, sample_copula
+from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.types import ProbVector, validate_prob_vector
 from numpy import interp
 from polars import DataFrame
-
-from probability.sampling import marginal_quantile_mapping, sample_copula
-from scenarios.panel import ScenarioPanel
-from scenarios.types import ProbVector, validate_prob_vector
 
 
 def _compute_cdf_and_pobs(

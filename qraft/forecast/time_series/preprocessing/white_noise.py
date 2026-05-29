@@ -1,18 +1,17 @@
 import logging
 
 import polars as pl
-from polars.dataframe.frame import DataFrame
-
-from policy import IIDConfig
-from scenarios.copula_marginal import CopulaMarginalModel
-from scenarios.panel import ScenarioPanel
-from scenarios.types import ProbVector
-from time_series.tests.iid import (
+from forecast.scenarios.copula_marginal import CopulaMarginalModel
+from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.tests.iid import (
     TestResultByAsset,
     copula_lag_independence_test,
     ellipsoid_lag_test,
     univariate_kolmogrov_smirnov_test,
 )
+from polars.dataframe.frame import DataFrame
+from policy import IIDConfig
 
 logger = logging.getLogger(__name__)
 

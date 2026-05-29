@@ -1,9 +1,8 @@
 import numpy as np
+from forecast.scenarios.types import ProbVector
 from numpy import random
 from numpy._typing import NDArray
 from polars import DataFrame
-
-from scenarios.types import ProbVector
 
 
 def weighted_bootstrapping_idx(

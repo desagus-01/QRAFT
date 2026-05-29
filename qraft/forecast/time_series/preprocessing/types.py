@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from polars.dataframe.frame import DataFrame
-
-from time_series.transforms.inverses import (
+from forecast.time_series.transforms.inverses import (
     InverseSpec,
 )
+from polars.dataframe.frame import DataFrame
 
 
 @dataclass(frozen=True)

@@ -3,10 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import polars as pl
+from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.types import ProbVector, View
 from polars import DataFrame
-
-from scenarios.panel import ScenarioPanel
-from scenarios.types import ProbVector, View
 
 
 @dataclass(frozen=True)

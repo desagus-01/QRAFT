@@ -4,10 +4,9 @@ from typing import Literal
 import numpy as np
 import polars as pl
 import polars.selectors as cs
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.estimation import weighted_ols
 from numpy._typing import NDArray
-
-from scenarios.types import ProbVector
-from time_series.estimation import weighted_ols
 
 TrendTypes = Literal["polynomial", "difference"]
 

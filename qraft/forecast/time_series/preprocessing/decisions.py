@@ -2,13 +2,12 @@ import logging
 from typing import Literal
 
 import numpy as np
-
-from time_series.preprocessing.types import (
+from forecast.time_series.preprocessing.types import (
     TransformDecision,
 )
-from time_series.selection.trend import AssetTrendDiagnostic, TrendSelection
-from time_series.transforms.detrend import TrendCandidate
-from time_series.tests.seasonality import SEASONAL_MAP, SeasonalityPeriodTest
+from forecast.time_series.selection.trend import AssetTrendDiagnostic, TrendSelection
+from forecast.time_series.tests.seasonality import SEASONAL_MAP, SeasonalityPeriodTest
+from forecast.time_series.transforms.detrend import TrendCandidate
 
 logger = logging.getLogger(__name__)
 

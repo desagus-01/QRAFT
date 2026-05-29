@@ -2,9 +2,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
-from numpy.typing import NDArray
-from polars import DataFrame
-from portfolio.positions import (
+from construction.positions import (
     WEIGHT_MODE,
     initial_portfolio_values_from_shares,
     portfolio_values_static_weights,
@@ -12,8 +10,10 @@ from portfolio.positions import (
     portfolio_weights_forecast_static,
     validate_target_weights,
 )
-from scenarios.panel import ScenarioPanel
-from scenarios.types import ProbVector, validate_prob_vector
+from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.types import ProbVector, validate_prob_vector
+from numpy.typing import NDArray
+from polars import DataFrame
 from utils.visuals import plot_simulation_results
 
 PnL_OPTIONS = Literal["relative", "absolute", "log"]

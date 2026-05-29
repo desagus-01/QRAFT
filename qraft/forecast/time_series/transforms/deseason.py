@@ -3,15 +3,14 @@ from typing import Literal
 
 import numpy as np
 import polars as pl
-from numpy._typing import NDArray
-from polars.dataframe.frame import DataFrame
-
-from time_series.estimation import (
+from forecast.time_series.estimation import (
     OLSEquation,
     OLSResults,
     add_deterministics_to_eq,
     weighted_ols,
 )
+from numpy._typing import NDArray
+from polars.dataframe.frame import DataFrame
 
 
 @dataclass(frozen=True)

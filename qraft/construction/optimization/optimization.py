@@ -4,15 +4,14 @@ from typing import Any, Literal, Sequence, cast
 
 import cvxpy as cp
 import numpy as np
-from cvxpy import Constraint, Expression
-from numpy.typing import NDArray
-from portfolio.policy import PortfolioConstraint
-from portfolio.policy.moments import HorizonMoments
-from portfolio.policy.objectives.protocol import (
+from construction.optimization.constraints import PortfolioConstraint
+from construction.optimization.moments import HorizonMoments
+from construction.optimization.objectives.protocol import (
     get_objective_handler,
     get_refineable_handler,
 )
-from portfolio.policy.objectives.specs import (
+from construction.optimization.objectives import handlers as _objective_handlers  # noqa: F401
+from construction.optimization.objectives.specs import (
     CashReturn,
     CovarianceRisk,
     CVaRCuttingPlane,
@@ -23,6 +22,8 @@ from portfolio.policy.objectives.specs import (
     TransactionCost,
     WeightedTerm,
 )
+from cvxpy import Constraint, Expression
+from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 

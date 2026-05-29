@@ -2,10 +2,9 @@ from typing import Any
 
 import cvxpy as cp
 import numpy as np
-from numpy.typing import NDArray
-from portfolio.policy.moments import HorizonMoments
-from portfolio.policy.objectives.protocol import register_objective
-from portfolio.policy.objectives.specs import (
+from construction.optimization.moments import HorizonMoments
+from construction.optimization.objectives.protocol import register_objective
+from construction.optimization.objectives.specs import (
     CashReturn,
     CovarianceRisk,
     CVaRCuttingPlane,
@@ -14,6 +13,7 @@ from portfolio.policy.objectives.specs import (
     HoldingCost,
     TransactionCost,
 )
+from numpy.typing import NDArray
 
 
 def _project_on_psd_cone_and_factorize(

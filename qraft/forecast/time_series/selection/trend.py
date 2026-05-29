@@ -1,19 +1,18 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from polars import DataFrame
-
-from scenarios.types import ProbVector
-from time_series.tests.stationarity import (
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.tests.stationarity import (
     StationarityInference,
     stationarity_tests,
 )
-from time_series.transforms.detrend import (
+from forecast.time_series.transforms.detrend import (
     CandidateBatch,
     TrendCandidate,
     build_difference_candidates,
     build_polynomial_candidates,
 )
+from polars import DataFrame
 
 TrendTypes = Literal["deterministic", "stochastic"]
 

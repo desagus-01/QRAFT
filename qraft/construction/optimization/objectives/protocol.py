@@ -48,10 +48,6 @@ class MPOObjectiveHandler(Protocol):
 
 
 class RefineableMPOObjectiveHandler(MPOObjectiveHandler, Protocol):
-    """Extension of MPOObjectiveHandler for handlers that support iterative
-    cut refinement (e.g. cutting-plane CVaR approximations).
-    """
-
     def refine(
         self,
         spec,
