@@ -4,6 +4,8 @@ import logging
 import numpy as np
 from construction.optimization.constraints import (
     LongOnly,
+    PortfolioConstraint,
+    TurnoverLimit,
 )
 from construction.optimization.moments import HorizonMoments
 from construction.policy.types import MPOPolicy, PolicyInputs
@@ -77,13 +79,11 @@ forecasts = run_n_steps_forecast(
 # %%
 step = 10
 forecast_moms = HorizonMoments.from_forecast_paths(
-    forecasts,
-    horizons=step,
-    expectation_tolerance=0.1,
-    cash_path="~/Documents/projects/fund/QRAFT/data/cash.csv",
+    forecasts, horizons=step, expectation_tolerance=0.1, cash_path="data/cash.csv"
 )
 
 
+# %%
 p_in = PolicyInputs(step=step, moments=forecast_moms)
 
 # %%
@@ -92,35 +92,18 @@ state = PortfolioState.from_forecast(
     asset_forecasts=forecasts, shares=no_shares, cash=100_000
 )
 # %%
-# constraints: list[PortfolioConstraint] = [
-#     LongOnly(),
-#     # FullyInvested(),
-#     # MaxWeight(limit=0.09),
-#     # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
-#     TurnoverLimit(limit=0.80),
-# ]
-#
-#
-# policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.2, constraints=constraints)
-# a = policy.decide(state=state, inputs=p_in)
-#
-# %%
-# %%
-for gamma in [0.0, 0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]:
-    policy = MPOPolicy(
-        name="cvar_cuts",
-        risk_aversion=gamma,
-        constraints=[
-            LongOnly(),
-            # TurnoverLimit(limit=0.80),
-        ],
-    )
-    a = policy.decide(state=state, inputs=p_in)
+constraints: list[PortfolioConstraint] = [
+    LongOnly(),
+    # FullyInvested(),
+    # MaxWeight(limit=0.09),
+    # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
+    TurnoverLimit(limit=0.80),
+]
 
-    print(
-        gamma,
-        a.target_cash_weight,
-        a.target_weights_risk.sum(),
-        a.diagnostics.objective_value,
-        a.target_weights_risk.max(),
-    )
+
+policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.2, constraints=constraints)
+policy.decide(state=state, inputs=p_in, verbose=True)
+# %%
+
+policy = MPOPolicy(name="mean_covariance", risk_aversion=0.2, constraints=constraints)
+policy.decide(state=state, inputs=p_in, verbose=True)

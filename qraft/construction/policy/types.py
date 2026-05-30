@@ -96,7 +96,9 @@ class MPOPolicy:
     allow_borrow: bool = False
     max_iter: int = 200
 
-    def decide(self, state: PortfolioState, inputs: PolicyInputs) -> PolicyDecision:
+    def decide(
+        self, state: PortfolioState, inputs: PolicyInputs, **solver_options
+    ) -> PolicyDecision:
         problem = build_preset_problem(
             objective_type=self.name,
             risk_aversion=self.risk_aversion,
@@ -106,5 +108,6 @@ class MPOPolicy:
             constraints=self.constraints,
             allow_borrow=self.allow_borrow,
             max_iter=self.max_iter,
+            **solver_options,
         )
         return CustomMPOPolicy(problem=problem, name=self.name).decide(state, inputs)
