@@ -87,10 +87,13 @@ forecast_moms = HorizonMoments.from_forecast_paths(
 p_in = PolicyInputs(step=step, moments=forecast_moms)
 
 # %%
-no_shares = np.zeros(len(forecasts.universe.assets), dtype=int)
+rng = np.random.default_rng(seed=1)
+rand_shares = rng.integers(low=10, high=65, size=len(forecasts.universe.assets))
+# %%
 state = PortfolioState.from_forecast(
-    asset_forecasts=forecasts, shares=no_shares, cash=100_000
+    asset_forecasts=forecasts, shares=rand_shares, cash=100_000
 )
+
 # %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
@@ -101,9 +104,12 @@ constraints: list[PortfolioConstraint] = [
 ]
 
 
-policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.2, constraints=constraints)
-policy.decide(state=state, inputs=p_in, verbose=True)
+policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.002, constraints=constraints)
+cvar_dec = policy.decide(state=state, inputs=p_in)
 # %%
 
 policy = MPOPolicy(name="mean_covariance", risk_aversion=0.2, constraints=constraints)
-policy.decide(state=state, inputs=p_in, verbose=True)
+pm_cov_dec = policy.decide(state=state, inputs=p_in, verbose=True)
+# %%
+
+pm_cov_dec.total_target_weights_dict

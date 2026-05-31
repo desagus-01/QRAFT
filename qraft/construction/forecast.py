@@ -29,30 +29,6 @@ PortfolioPanelKind = Literal[
 
 @dataclass(frozen=True, slots=True)
 class PortfolioForecast:
-    """
-    Full Monte Carlo portfolio forecast.
-
-    Shape conventions
-    -----------------
-    values:
-        Shape (n_paths, n_periods). Includes t0 in column 0.
-
-    incremental_pnl:
-        Shape (n_paths, n_periods - 1) in the normal case.
-        Each column is the incremental return/PnL from one period to the next.
-
-    cumulative_performance:
-        Derived from incremental_pnl.
-        Shape (n_paths, n_periods). Column 0 is always zero.
-
-    path_probs:
-        One probability per simulated path.
-
-    asset_weights:
-        Dict asset -> array of shape (n_paths, n_periods).
-        Includes t0 weights in column 0.
-    """
-
     values: NDArray[np.floating]
     incremental_pnl: NDArray[np.floating]
     pnl_type: PnL_OPTIONS
