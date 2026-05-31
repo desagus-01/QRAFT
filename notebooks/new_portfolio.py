@@ -8,7 +8,7 @@ from construction.optimization.constraints import (
     TurnoverLimit,
 )
 from construction.optimization.moments import HorizonMoments
-from construction.policy.types import MPOPolicy, PolicyInputs
+from construction.policies import MPOPolicy, PolicyInputs
 from construction.state import PortfolioState
 from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
@@ -84,7 +84,8 @@ forecast_moms = HorizonMoments.from_forecast_paths(
 
 
 # %%
-p_in = PolicyInputs(step=step, moments=forecast_moms)
+cash_return = HorizonMoments.get_cash_return("data/cash.csv", 1)
+forecast_cash = np.broadcast_to(cash_return, (n_sims, forecast_horizon))
 
 # %%
 rng = np.random.default_rng(seed=1)
@@ -103,13 +104,24 @@ constraints: list[PortfolioConstraint] = [
     TurnoverLimit(limit=0.80),
 ]
 
-
+p_in = PolicyInputs(step=step, moments=forecast_moms)
 policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.002, constraints=constraints)
 cvar_dec = policy.decide(state=state, inputs=p_in)
 # %%
+# weight * price = market value
 
-policy = MPOPolicy(name="mean_covariance", risk_aversion=0.2, constraints=constraints)
-pm_cov_dec = policy.decide(state=state, inputs=p_in, verbose=True)
-# %%
 
-pm_cov_dec.total_target_weights_dict
+portfolio_forecasts = np.einsum(
+    "a,aph->ph", cvar_dec.target_weights_risk, forecasts.price_stack
+)
+
+
+portfolio_perf = portfolio_forecasts / portfolio_forecasts[:, [0]]
+
+
+asset_returns = (
+    np.diff(forecasts.price_stack, axis=2) / forecasts.price_stack[:, :, :-1]
+)
+
+
+asset_pnl = np.diff(forecasts.price_stack, axis=2)

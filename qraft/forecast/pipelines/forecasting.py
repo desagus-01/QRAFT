@@ -101,6 +101,10 @@ class ForecastPaths:
             )
 
     @property
+    def price_stack(self) -> NDArray[np.floating]:
+        return np.stack(list(self.tradable_paths.values()), axis=0)
+
+    @property
     def n_paths(self) -> int:
         first = next(iter(self.asset_paths.values()))
         return first.shape[0]

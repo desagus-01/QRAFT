@@ -126,7 +126,7 @@ class HorizonMoments:
             )
 
     @staticmethod
-    def _get_cash_return(
+    def get_cash_return(
         path: str,
         step_size: int,
         periods_per_year: int = 252,
@@ -314,7 +314,7 @@ class HorizonMoments:
             mean=means,
             scenario_returns=inc_returns,
             scenario_probs=prob,
-            cash_return=cls._get_cash_return(
+            cash_return=cls.get_cash_return(
                 path=cash_path, step_size=step_size, periods_per_year=periods_per_year
             ),
         )
