@@ -1,9 +1,9 @@
 import logging
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 import polars as pl
-from construction.forecast import PnL_OPTIONS, pnl_from_values
 from forecast.pipelines.forecasting import AssetSubset, ForecastPaths
 from forecast.scenarios.types import ProbVector
 from forecast.time_series.estimation import (
@@ -14,6 +14,34 @@ from forecast.time_series.estimation import (
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
+PnL_OPTIONS = Literal["relative", "absolute", "log"]
+
+
+def pnl_from_values(
+    values: NDArray[np.floating],
+    mode: PnL_OPTIONS = "relative",
+) -> NDArray[np.floating]:
+    if mode not in {"relative", "absolute", "log"}:
+        raise ValueError(f"Unknown mode: {mode!r}")
+
+    if values.ndim != 2:
+        raise ValueError(
+            f"values must be 2-D (n_paths, n_periods); got shape {values.shape}"
+        )
+
+    prev = values[:, :-1]
+    curr = values[:, 1:]
+
+    if mode == "absolute":
+        return curr - prev
+
+    if mode == "relative":
+        denom = prev.astype(float, copy=True)
+        return (curr - prev) / denom
+
+    denom = prev.astype(float, copy=True)
+    ratio = curr / denom
+    return np.log(ratio)
 
 
 def incremental_returns_for_asset(

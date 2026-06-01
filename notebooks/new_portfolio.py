@@ -2,7 +2,6 @@
 import logging
 
 import numpy as np
-from construction.forecast_2 import PortfolioExecution
 from construction.optimization.constraints import (
     FullyInvested,
     LongOnly,
@@ -16,6 +15,7 @@ from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
 from forecast.scenarios.panel import ScenarioPanel
 from policy import LogConfig
+from risk.portfolio_execution import PortfolioExecution
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
 
@@ -37,7 +37,7 @@ cols_to_keep = [
     or (
         data[col].null_count() == 0
         and data[col].dtype.is_numeric()
-        and float(data[col].min()) >= np.log(15)  # type: ignore[arg-type]
+        and float(data[col].min()) >= np.log(min_price)  # type: ignore[arg-type]
     )
 ]
 
@@ -106,9 +106,7 @@ constraints: list[PortfolioConstraint] = [
 cvar_policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.2, constraints=constraints)
 cvar_dec = cvar_policy.decide(state=state, moments=forecast_moms)
 
-mc_policy = MPOPolicy(
-    name="mean_covariance", risk_aversion=0.3, constraints=constraints
-)
+mc_policy = MPOPolicy(name="mean_covariance", risk_aversion=1, constraints=constraints)
 mc_dec = mc_policy.decide(state=state, moments=forecast_moms)
 
 
@@ -121,3 +119,4 @@ PortfolioExecution.from_policy_and_forecasts(
 PortfolioExecution.from_policy_and_forecasts(
     policy_decision=mc_dec, forecasts=forecasts, state=state, assets=assets
 ).plot("cum_performance")
+# %%

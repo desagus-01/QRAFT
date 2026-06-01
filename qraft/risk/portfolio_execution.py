@@ -25,7 +25,6 @@ def create_cash_forecasts(
     return cash_allocation * cash_cumulative_growth
 
 
-# This needs to be created from policy + MC forecast...
 @dataclass(frozen=True, slots=True)
 class PortfolioExecution:
     initial_value: NDArray[np.floating]

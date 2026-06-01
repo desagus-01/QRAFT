@@ -5,7 +5,6 @@ from typing import Literal
 
 import numpy as np
 import polars as pl
-from construction.forecast import PortfolioForecast
 from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.types import ProbVector
 from numpy.lib.array_utils import normalize_axis_index
@@ -89,15 +88,15 @@ class LossDistribution:
 
         return cls(panel=loss_panel, horizon=horizon)
 
-    @classmethod
-    def from_portfolio_forecast(
-        cls,
-        portfolio_forecast: PortfolioForecast,
-        horizon: int,
-    ) -> LossDistribution:
-        horizon_panel = portfolio_forecast.at_period(horizon)
-        return cls.from_panel(horizon_panel, horizon=horizon, loss_col="loss")
-
+    # @classmethod
+    # def from_portfolio_forecast(
+    #     cls,
+    #     portfolio_forecast: PortfolioForecast,
+    #     horizon: int,
+    # ) -> LossDistribution:
+    #     horizon_panel = portfolio_forecast.at_period(horizon)
+    #     return cls.from_panel(horizon_panel, horizon=horizon, loss_col="loss")
+    #
     @property
     def values(self) -> NDArray[np.floating]:
         return self.panel.values["loss"].to_numpy()
