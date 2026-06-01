@@ -103,10 +103,9 @@ constraints: list[PortfolioConstraint] = [
 ]
 
 # %%
-cvar_policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.01, constraints=constraints)
+cvar_policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.2, constraints=constraints)
 cvar_dec = cvar_policy.decide(state=state, moments=forecast_moms)
 
-# %%
 mc_policy = MPOPolicy(
     name="mean_covariance", risk_aversion=0.3, constraints=constraints
 )
@@ -115,10 +114,10 @@ mc_dec = mc_policy.decide(state=state, moments=forecast_moms)
 
 # %%
 
-i = PortfolioExecution.from_policy_and_forecasts(
+PortfolioExecution.from_policy_and_forecasts(
     policy_decision=cvar_dec, forecasts=forecasts, state=state, assets=assets
-)
+).plot("cum_performance")
 
-o = PortfolioExecution.from_policy_and_forecasts(
+PortfolioExecution.from_policy_and_forecasts(
     policy_decision=mc_dec, forecasts=forecasts, state=state, assets=assets
-)
+).plot("cum_performance")

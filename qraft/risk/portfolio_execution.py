@@ -6,6 +6,7 @@ from construction.optimization.moments import HorizonMoments
 from construction.policies import PolicyDecision
 from construction.state import PortfolioState
 from forecast.pipelines.forecasting import ForecastPaths
+from forecast.scenarios.types import ProbVector
 from numpy.typing import NDArray
 from utils.visuals import plot_simulation_results
 
@@ -29,6 +30,7 @@ def create_cash_forecasts(
 class PortfolioExecution:
     initial_value: NDArray[np.floating]
     forecast_values: NDArray[np.floating]
+    path_probs: ProbVector
 
     @classmethod
     def from_policy_and_forecasts(
@@ -60,6 +62,7 @@ class PortfolioExecution:
         return cls(
             initial_value=state.portfolio_value,
             forecast_values=portfolio_forecasts + cash_forecasts,
+            path_probs=forecasts.path_probs,
         )
 
     @property
