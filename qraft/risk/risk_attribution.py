@@ -6,14 +6,13 @@ from typing import Literal, NamedTuple
 
 import numpy as np
 import polars as pl
+from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.dimensionality_reduction import minimum_torsion_matrix
+from forecast.time_series.estimation import weighted_covariance
 from numpy.typing import NDArray
 from polars import DataFrame
-
-from portfolio.attribution.performance import PortfolioPerformanceAttribution
-from scenarios.panel import ScenarioPanel
-from scenarios.types import ProbVector
-from time_series.dimensionality_reduction import minimum_torsion_matrix
-from time_series.estimation import weighted_covariance
+from risk.performance_attribution import PortfolioPerformanceAttribution
 from utils.visuals import plot_effective_bets
 
 logger = logging.getLogger(__name__)

@@ -1,24 +1,23 @@
 from dataclasses import dataclass
 
 import numpy as np
-from numpy.typing import NDArray
-from polars import DataFrame
-
-from portfolio.forecast import PortfolioForecast
-from scenarios.panel import ScenarioPanel
-from scenarios.types import ProbVector
-from time_series.estimation import (
+from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.types import ProbVector
+from forecast.time_series.estimation import (
     EquationTypes,
     OLSEquation,
     OLSResults,
     add_deterministics_to_eq,
     weighted_ols,
 )
-from time_series.feature_selection import (
+from forecast.time_series.feature_selection import (
     Criterion,
     ForwardRegressionResult,
     forward_regression,
 )
+from numpy.typing import NDArray
+from polars import DataFrame
+from risk.portfolio_execution import PortfolioExecution
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,7 +202,7 @@ def _extract_ols_components(
         name: float(coeffs[i]) for i, name in enumerate(ols_results.feature_names_order)
     }
 
-    shift_term = float(name_to_coeff.get("const", 0.0))
+    shift_term = name_to_coeff.get("const", 0.0)
 
     exposures = np.array(
         [name_to_coeff[factor] for factor in selected_factors],
@@ -214,18 +213,16 @@ def _extract_ols_components(
 
 
 def portfolio_factor_attribution(
-    portfolio_forecast: PortfolioForecast,
+    portfolio_forecast: PortfolioExecution,
     factors_forecast: dict[str, NDArray[np.floating]],
     original_data: DataFrame,
     horizon: int,
-    factor_names: list[str] | None = None,
     eq_type: EquationTypes = "c",
     is_log_price: bool = True,
     auto_select_factors: bool = False,
     criterion: Criterion | None = None,
 ) -> PortfolioPerformanceAttribution:
-    if factor_names is None:
-        factor_names = list(factors_forecast.keys())
+    factor_names = list(factors_forecast.keys())
 
     factors_cum = _factors_n_horizon_performance(
         factors_forecast=factors_forecast,

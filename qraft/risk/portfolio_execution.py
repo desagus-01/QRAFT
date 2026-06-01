@@ -68,6 +68,9 @@ class PortfolioExecution:
     def cumulative_returns(self) -> NDArray[np.floating]:
         return self.forecast_values / self.initial_value - 1
 
+    def performance_at_period(self, period: int) -> NDArray[np.floating]:
+        return self.cumulative_returns[:, period]
+
     def plot(self, type: Literal["value", "cum_performance"]) -> None:
         value_to_plot = (
             self.forecast_values if type == "value" else self.cumulative_returns

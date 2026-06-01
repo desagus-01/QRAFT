@@ -15,7 +15,9 @@ from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
 from forecast.scenarios.panel import ScenarioPanel
 from policy import LogConfig
+from risk.performance_attribution import portfolio_factor_attribution
 from risk.portfolio_execution import PortfolioExecution
+from risk.risk_attribution import PortfolioRiskAttribution
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
 
@@ -43,7 +45,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:60])
+tradable_assets = list(data.columns[10:90])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -89,7 +91,7 @@ assets = list(forecast_moms.assets)
 # %%
 # %%
 rng = np.random.default_rng(seed=1)
-rand_shares = rng.integers(low=10, high=65, size=len(forecast_moms.assets))
+rand_shares = rng.integers(low=10, high=75, size=len(forecast_moms.assets))
 # %%
 state = PortfolioState.from_forecast_and_assets(
     asset_forecasts=forecasts, assets=assets, shares=rand_shares, cash=100_000
@@ -112,11 +114,26 @@ mc_dec = mc_policy.decide(state=state, moments=forecast_moms)
 
 # %%
 
-PortfolioExecution.from_policy_and_forecasts(
+i = PortfolioExecution.from_policy_and_forecasts(
     policy_decision=cvar_dec, forecasts=forecasts, state=state, assets=assets
-).plot("cum_performance")
+)
 
-PortfolioExecution.from_policy_and_forecasts(
+s = PortfolioExecution.from_policy_and_forecasts(
     policy_decision=mc_dec, forecasts=forecasts, state=state, assets=assets
-).plot("cum_performance")
+)
 # %%
+
+factor_att = portfolio_factor_attribution(
+    portfolio_forecast=i,
+    factors_forecast=forecasts.factor_paths,
+    original_data=historical_panel.to_frame(),
+    horizon=19,
+    auto_select_factors=True,
+    criterion="bic",
+)
+
+factor_att.full_exposures
+# %%
+risk_att = PortfolioRiskAttribution.from_performance_attribution(factor_att)
+
+risk_att.effective_bets()
