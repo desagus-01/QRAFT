@@ -12,27 +12,6 @@ class PortfolioState:
     shares: NDArray[np.int32]
     cash: float
 
-    @classmethod
-    def from_forecast(
-        cls, asset_forecasts: ForecastPaths, shares: NDArray[np.int32], cash: float
-    ):
-        if asset_forecasts.universe is None:
-            raise ValueError(
-                "ForecastPaths.universe must be set to construct a PortfolioState"
-            )
-
-        tradable_assets = asset_forecasts.universe.assets
-        initial_prices = np.asarray(
-            [asset_forecasts.initial_prices[asset] for asset in tradable_assets]
-        )
-
-        return cls(
-            asset_order=tradable_assets,
-            initial_prices=initial_prices,
-            shares=shares,
-            cash=cash,
-        )
-
     def __post_init__(self) -> None:
         if self.shares.shape[0] != len(self.asset_order):
             raise ValueError(
@@ -42,6 +21,30 @@ class PortfolioState:
             raise ValueError(
                 "Number of initial prices do NOT match with the number of assets you have"
             )
+
+    @classmethod
+    def from_forecast_and_assets(
+        cls,
+        asset_forecasts: ForecastPaths,
+        assets: list[str],
+        shares: NDArray[np.int32],
+        cash: float,
+    ):
+        if asset_forecasts.universe is None:
+            raise ValueError(
+                "ForecastPaths.universe must be set to construct a PortfolioState"
+            )
+
+        initial_prices = np.asarray(
+            [asset_forecasts.initial_prices[asset] for asset in assets]
+        )
+
+        return cls(
+            asset_order=assets,
+            initial_prices=initial_prices,
+            shares=shares,
+            cash=cash,
+        )
 
     @property
     def initial_prices_dict(self) -> dict[str, NDArray[np.floating]]:
@@ -70,7 +73,7 @@ class PortfolioState:
         return values / self.portfolio_value
 
     @property
-    def portfolio_weights(self) -> dict[str, NDArray[np.floating]]:
+    def portfolio_weights_dict(self) -> dict[str, NDArray[np.floating]]:
         values = self.initial_prices * self.shares
         values_inc_cash = np.append(values, self.cash)
         assets_inc_cash = self.asset_order + ["cash"]

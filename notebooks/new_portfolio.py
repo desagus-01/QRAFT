@@ -2,13 +2,15 @@
 import logging
 
 import numpy as np
+from construction.forecast_2 import PortfolioExecution
 from construction.optimization.constraints import (
+    FullyInvested,
     LongOnly,
     PortfolioConstraint,
     TurnoverLimit,
 )
 from construction.optimization.moments import HorizonMoments
-from construction.policies import MPOPolicy, PolicyInputs
+from construction.policies import MPOPolicy
 from construction.state import PortfolioState
 from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
@@ -41,7 +43,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:30])
+tradable_assets = list(data.columns[10:60])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -82,46 +84,41 @@ forecast_moms = HorizonMoments.from_forecast_paths(
     forecasts, horizons=step, expectation_tolerance=0.1, cash_path="data/cash.csv"
 )
 
+assets = list(forecast_moms.assets)
 
 # %%
-cash_return = HorizonMoments.get_cash_return("data/cash.csv", 1)
-forecast_cash = np.broadcast_to(cash_return, (n_sims, forecast_horizon))
-
 # %%
 rng = np.random.default_rng(seed=1)
-rand_shares = rng.integers(low=10, high=65, size=len(forecasts.universe.assets))
+rand_shares = rng.integers(low=10, high=65, size=len(forecast_moms.assets))
 # %%
-state = PortfolioState.from_forecast(
-    asset_forecasts=forecasts, shares=rand_shares, cash=100_000
+state = PortfolioState.from_forecast_and_assets(
+    asset_forecasts=forecasts, assets=assets, shares=rand_shares, cash=100_000
 )
-
-# %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
-    # FullyInvested(),
+    FullyInvested(),
     # MaxWeight(limit=0.09),
     # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
     TurnoverLimit(limit=0.80),
 ]
 
-p_in = PolicyInputs(step=step, moments=forecast_moms)
-policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.002, constraints=constraints)
-cvar_dec = policy.decide(state=state, inputs=p_in)
 # %%
-# weight * price = market value
+cvar_policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.01, constraints=constraints)
+cvar_dec = cvar_policy.decide(state=state, moments=forecast_moms)
+
+# %%
+mc_policy = MPOPolicy(
+    name="mean_covariance", risk_aversion=0.3, constraints=constraints
+)
+mc_dec = mc_policy.decide(state=state, moments=forecast_moms)
 
 
-portfolio_forecasts = np.einsum(
-    "a,aph->ph", cvar_dec.target_weights_risk, forecasts.price_stack
+# %%
+
+i = PortfolioExecution.from_policy_and_forecasts(
+    policy_decision=cvar_dec, forecasts=forecasts, state=state, assets=assets
 )
 
-
-portfolio_perf = portfolio_forecasts / portfolio_forecasts[:, [0]]
-
-
-asset_returns = (
-    np.diff(forecasts.price_stack, axis=2) / forecasts.price_stack[:, :, :-1]
+o = PortfolioExecution.from_policy_and_forecasts(
+    policy_decision=mc_dec, forecasts=forecasts, state=state, assets=assets
 )
-
-
-asset_pnl = np.diff(forecasts.price_stack, axis=2)

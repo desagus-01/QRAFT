@@ -280,7 +280,7 @@ class HorizonMoments:
         n_assets = len(assets)
         horizons = next(iter(pnl_by_asset.values())).shape[1]
         prob = forecast_paths.path_probs
-        n_paths = forecast_paths.n_paths
+        n_paths = forecast_paths.n_simulations
 
         inc_returns = np.empty((n_paths, horizons, n_assets), dtype=float)
         for col_idx, (asset, asset_returns) in enumerate(pnl_by_asset.items()):

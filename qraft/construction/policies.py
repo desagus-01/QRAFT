@@ -12,12 +12,6 @@ from numpy.typing import NDArray
 
 
 @dataclass(frozen=True, slots=True)
-class PolicyInputs:
-    step: int
-    moments: HorizonMoments
-
-
-@dataclass(frozen=True, slots=True)
 class PolicyDecision:
     asset_order: list[str]
     target_weights_risk: NDArray[np.floating]
@@ -40,7 +34,7 @@ class PolicyDecision:
 class PolicyProtocol(Protocol):
     name: str
 
-    def decide(self, state: PortfolioState, inputs: PolicyInputs) -> PolicyDecision:
+    def decide(self, state: PortfolioState, moments: HorizonMoments) -> PolicyDecision:
         pass
 
 
@@ -49,7 +43,7 @@ class EqualWeightPolicy:
     target_cash_weight: float
     name: str = "equal_weight"
 
-    def decide(self, state: PortfolioState, inputs: PolicyInputs) -> PolicyDecision:
+    def decide(self, state: PortfolioState, moments: HorizonMoments) -> PolicyDecision:
         risky_weights = 1.0 - self.target_cash_weight
         n_assets = len(state.asset_order)
         target_weights = np.full(n_assets, risky_weights / n_assets)
@@ -75,12 +69,12 @@ class CustomMPOPolicy:
     problem: MPOProblem
     name: str = "custom_mpo"
 
-    def decide(self, state: PortfolioState, inputs: PolicyInputs) -> PolicyDecision:
+    def decide(self, state: PortfolioState, moments: HorizonMoments) -> PolicyDecision:
         result = self.problem.solve(
-            horizons=inputs.step,
-            n_assets=inputs.moments.n_assets,
-            n_scenarios=inputs.moments.scenario_returns.shape[0],
-            moments=inputs.moments,
+            horizons=moments.n_horizons,
+            n_assets=moments.n_assets,
+            n_scenarios=moments.scenario_returns.shape[0],
+            moments=moments,
             current_weights=state.asset_weights,
             current_cash=float(state.cash_weight),
         )
@@ -97,17 +91,17 @@ class MPOPolicy:
     max_iter: int = 200
 
     def decide(
-        self, state: PortfolioState, inputs: PolicyInputs, **solver_options
+        self, state: PortfolioState, moments: HorizonMoments, **solver_options
     ) -> PolicyDecision:
         problem = build_preset_problem(
             objective_type=self.name,
             risk_aversion=self.risk_aversion,
             alpha=self.cvar_alpha,
-            horizons=inputs.step,
-            n_scenarios=inputs.moments.scenario_returns.shape[0],
+            horizons=moments.n_horizons,
+            n_scenarios=moments.scenario_returns.shape[0],
             constraints=self.constraints,
             allow_borrow=self.allow_borrow,
             max_iter=self.max_iter,
             **solver_options,
         )
-        return CustomMPOPolicy(problem=problem, name=self.name).decide(state, inputs)
+        return CustomMPOPolicy(problem=problem, name=self.name).decide(state, moments)

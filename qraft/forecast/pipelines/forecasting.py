@@ -102,10 +102,10 @@ class ForecastPaths:
 
     @property
     def price_stack(self) -> NDArray[np.floating]:
-        return np.stack(list(self.tradable_paths.values()), axis=0)
+        return self.price_stack_for(list(self.tradable_paths.keys()))
 
     @property
-    def n_paths(self) -> int:
+    def n_simulations(self) -> int:
         first = next(iter(self.asset_paths.values()))
         return first.shape[0]
 
@@ -131,6 +131,12 @@ class ForecastPaths:
             return {}
         factors_set = set(self.universe.factors)
         return {k: v for k, v in self.asset_paths.items() if k in factors_set}
+
+    def price_stack_for(self, assets: list[str]) -> NDArray[np.floating]:
+        missing = set(assets) - self.asset_paths.keys()
+        if missing:
+            raise ValueError(f"Assets not found in forecast: {missing}")
+        return np.stack([self.asset_paths[a] for a in assets], axis=0)
 
     def _paths_for(self, subset: AssetSubset) -> dict[str, NDArray[np.floating]]:
         if subset == "all":
