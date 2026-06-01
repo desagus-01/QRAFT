@@ -124,7 +124,7 @@ s = PortfolioExecution.from_policy_and_forecasts(
 # %%
 
 factor_att = portfolio_factor_attribution(
-    portfolio_forecast=i,
+    portfolio_forecast=s,
     factors_forecast=forecasts.factor_paths,
     original_data=historical_panel.to_frame(),
     horizon=19,

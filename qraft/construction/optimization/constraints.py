@@ -133,6 +133,36 @@ class MaxWeight:
         return cp.pos(weights - self.limit)
 
 
+class MinCashWeight:
+    def __init__(
+        self,
+        limit: float | NDArray[np.floating],
+        constraint_type: ConstraintType = "hard",
+        soft_weight: float = 1.0,
+    ):
+        self.limit = limit
+        self.constraint_type = constraint_type
+        self.soft_weight = soft_weight
+
+    def compile_to_cvxpy(
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
+    ) -> list[Constraint]:
+        return [cp.sum(weights) <= 1.0 - self.limit]
+
+    def violation_expr(
+        self,
+        weights: Expression,
+        trades: Expression,
+        *,
+        cash_trade_h: Expression | None = None,
+    ) -> Expression:
+        return cp.pos(cp.sum(weights) - (1.0 - self.limit))
+
+
 class MaxWeightTopN:
     """Cap the sum of the largest ``top_n`` weights at ``sum_limit``.
 
