@@ -19,6 +19,14 @@ from polars import DataFrame
 
 
 @dataclass(frozen=True, slots=True)
+class FactorAttributionModel:
+    exposures: dict[str, float]
+    shift_term: float
+    residuals: NDArray[np.floating]
+    r2: float
+
+
+@dataclass(frozen=True, slots=True)
 class FactorOLSResult:
     ols: OLSResults
     selected_factors: list[str]
@@ -147,10 +155,10 @@ def factor_ols_regression(
     )
 
 
-def extract_ols_components(
+def extract_factor_attribution_model(
     ols_results: OLSResults,
     selected_factors: list[str],
-) -> tuple[float, NDArray[np.floating]]:
+) -> FactorAttributionModel:
     if ols_results.feature_names_order is None:
         raise ValueError("OLSResults.feature_names_order is required")
 
@@ -159,11 +167,9 @@ def extract_ols_components(
         name: float(coeffs[i]) for i, name in enumerate(ols_results.feature_names_order)
     }
 
-    shift_term = name_to_coeff.get("const", 0.0)
-
-    exposures = np.array(
-        [name_to_coeff[factor] for factor in selected_factors],
-        dtype=float,
+    return FactorAttributionModel(
+        exposures={factor: name_to_coeff[factor] for factor in selected_factors},
+        shift_term=name_to_coeff.get("const", 0.0),
+        residuals=ols_results.residuals.flatten(),
+        r2=ols_results.r_squared,
     )
-
-    return shift_term, exposures

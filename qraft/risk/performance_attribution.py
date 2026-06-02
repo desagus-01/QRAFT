@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import cached_property
 
 import numpy as np
 from forecast.scenarios.panel import ScenarioPanel
@@ -12,44 +13,46 @@ from forecast.time_series.feature_selection import (
 from numpy.typing import NDArray
 from polars import DataFrame
 from risk.factor_ols import (
-    extract_ols_components,
+    FactorAttributionModel,
+    extract_factor_attribution_model,
     factor_ols_regression,
     factors_n_horizon_performance,
 )
-from risk.portfolio_execution import PortfolioExecution
+from risk.portfolio_execution import PortfolioSimulation
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class PortfolioPerformanceAttribution:
     horizon: int
-    portfolio_performance_forecast: NDArray[np.floating]
+    model: FactorAttributionModel
     factor_performance_forecast: dict[str, NDArray[np.floating]]
-    exposures: NDArray[np.floating]
-    shift_term: float
-    residuals: NDArray[np.floating]
+    portfolio_performance_forecast: NDArray[np.floating]
     path_probs: ProbVector
-    r2: float
+
+    @property
+    def exposures(self) -> dict[str, float]:
+        return self.model.exposures
+
+    @property
+    def r2(self) -> float:
+        return self.model.r2
 
     @property
     def factor_names(self) -> list[str]:
-        return list(self.factor_performance_forecast.keys())
+        return list(self.model.exposures.keys())
 
     @property
     def full_exposures(self) -> dict[str, float]:
-        exposures_dict: dict[str, float] = {
-            name: float(self.exposures[i]) for i, name in enumerate(self.factor_names)
-        }
-        exposures_dict["z0"] = 1.0
-        return exposures_dict
+        return {**self.model.exposures, "z0": 1.0}
 
     @property
     def joint_distribution(self) -> DataFrame:
         return self.joint_panel.values
 
-    @property
+    @cached_property
     def joint_panel(self) -> ScenarioPanel:
         values = DataFrame(self.factor_performance_forecast).with_columns(
-            z0=self.residuals + self.shift_term,
+            z0=self.model.residuals + self.model.shift_term,
             portfolio_performance=self.portfolio_performance_forecast,
         )
 
@@ -61,7 +64,7 @@ class PortfolioPerformanceAttribution:
 
 
 def portfolio_factor_attribution(
-    portfolio_forecast: PortfolioExecution,
+    portfolio_forecast: PortfolioSimulation,
     factors_forecast: dict[str, NDArray[np.floating]],
     original_data: DataFrame,
     horizon: int,
@@ -95,17 +98,14 @@ def portfolio_factor_attribution(
     selected = factor_result.selected_factors
     ols = factor_result.ols
 
-    shift_term, exposures = extract_ols_components(
+    model = extract_factor_attribution_model(
         ols_results=ols,
         selected_factors=selected,
     )
     return PortfolioPerformanceAttribution(
         horizon=horizon,
-        portfolio_performance_forecast=portfolio_cum,
+        model=model,
         factor_performance_forecast={k: factors_cum[k] for k in selected},
-        exposures=exposures,
-        shift_term=shift_term,
-        residuals=ols.residuals.flatten(),
+        portfolio_performance_forecast=portfolio_cum,
         path_probs=portfolio_forecast.path_probs,
-        r2=ols.r_squared,
     )

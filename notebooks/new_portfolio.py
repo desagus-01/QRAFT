@@ -15,9 +15,8 @@ from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
 from forecast.scenarios.panel import ScenarioPanel
 from policy import LogConfig
-from risk.performance_attribution import portfolio_factor_attribution
-from risk.portfolio_execution import PortfolioExecution
-from risk.risk_attribution import PortfolioRiskAttribution
+from risk.portfolio_execution import PortfolioSimulation
+from risk.risk_report import PortfolioRisk
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
 
@@ -45,7 +44,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:90])
+tradable_assets = list(data.columns[10:20])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -114,26 +113,20 @@ mc_dec = mc_policy.decide(state=state, moments=forecast_moms)
 
 # %%
 
-i = PortfolioExecution.from_policy_and_forecasts(
+i = PortfolioSimulation.from_policy_and_forecasts(
     policy_decision=cvar_dec, forecasts=forecasts, state=state, assets=assets
 )
 
-s = PortfolioExecution.from_policy_and_forecasts(
+s = PortfolioSimulation.from_policy_and_forecasts(
     policy_decision=mc_dec, forecasts=forecasts, state=state, assets=assets
 )
 # %%
 
-factor_att = portfolio_factor_attribution(
-    portfolio_forecast=s,
-    factors_forecast=forecasts.factor_paths,
+x = PortfolioRisk.build(
+    portfolio_simulation=i,
+    asset_forecasts=forecasts,
     original_data=historical_panel.to_frame(),
     horizon=19,
-    auto_select_factors=True,
-    criterion="bic",
 )
 
-factor_att.full_exposures
-# %%
-risk_att = PortfolioRiskAttribution.from_performance_attribution(factor_att)
-
-risk_att.effective_bets()
+x.effective_bets()

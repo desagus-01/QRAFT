@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Literal, NamedTuple
+from typing import Literal
 
 import numpy as np
 import polars as pl
@@ -19,23 +19,15 @@ from utils.visuals import plot_effective_bets
 logger = logging.getLogger(__name__)
 
 
-class RiskContributions(NamedTuple):
-    """
-    Risk contribution decomposition.
-
-    value:
-        Total portfolio risk measure value.
-
-    contributions:
-        Per-driver contribution to the total risk measure.
-    """
-
+@dataclass(frozen=True)
+class RiskContributions:
     risk_measure: str
     value: float
     contributions: dict[str, float]
 
 
-class EffectiveBets(NamedTuple):
+@dataclass(frozen=True)
+class EffectiveBets:
     factor_contributions: dict[str, float]
     effective_bets: float
 
@@ -45,35 +37,6 @@ class EffectiveBets(NamedTuple):
 
 @dataclass(frozen=True, slots=True)
 class PortfolioRiskAttribution:
-    """
-    Linear risk attribution for one forecast horizon.
-
-    joint_panel
-        ScenarioPanel containing risk drivers plus a required "loss" column.
-
-    exposures
-        Loss-space exposures.
-
-        The explanatory columns are kept in their original performance-driver
-        units, but exposures are sign-adjusted so that approximately:
-
-            loss = sum(exposures[k] * joint_panel[k])
-
-    Notes
-    -----
-    Because this is a risk attribution object:
-
-        .var()
-        .cvar()
-
-    return contribution decompositions, not scalar risk values.
-
-    For scalar portfolio VaR/CVaR, use:
-
-        .loss_distribution.var()
-        .loss_distribution.cvar()
-    """
-
     horizon: int
     exposures: dict[str, float]
     joint_panel: ScenarioPanel
@@ -101,24 +64,16 @@ class PortfolioRiskAttribution:
                 f"Exposure keys missing from joint_panel columns: {extra_exposures}"
             )
 
-        non_finite = [k for k, v in self.exposures.items() if not np.isfinite(float(v))]
+        non_finite = [k for k, v in self.exposures.items() if not np.isfinite(v)]
         if non_finite:
             raise ValueError(f"Exposures must be finite. Bad keys: {non_finite}")
 
     @property
     def joint_distribution(self) -> DataFrame:
-        """
-        Backwards-compatible view of the joint panel values.
-        Prefer joint_panel in new code.
-        """
         return self.joint_panel.values
 
     @property
     def probs(self) -> ProbVector:
-        """
-        Backwards-compatible view of the joint panel probabilities.
-        Prefer joint_panel.prob in new code.
-        """
         return self.joint_panel.prob
 
     @classmethod
@@ -126,20 +81,6 @@ class PortfolioRiskAttribution:
         cls,
         performance_attribution: PortfolioPerformanceAttribution,
     ) -> PortfolioRiskAttribution:
-        """
-        Convert performance attribution into loss-space risk attribution.
-
-        If performance attribution is:
-
-            portfolio_performance = beta * factors + z0
-
-        then risk attribution is:
-
-            loss = -portfolio_performance
-                 = (-beta) * factors + (-1) * z0
-
-        The factor columns stay in performance units; exposures are sign-adjusted.
-        """
         perf_panel = performance_attribution.joint_panel
 
         risk_values = perf_panel.values.with_columns(
@@ -160,11 +101,6 @@ class PortfolioRiskAttribution:
         )
 
     def var(self, alpha: float = 0.05) -> RiskContributions:
-        """
-        VaR contribution decomposition.
-
-        This returns contributions, not only the scalar VaR value.
-        """
         return var_contribution(
             panel=self.joint_panel,
             exposures=self.exposures,
@@ -172,11 +108,6 @@ class PortfolioRiskAttribution:
         )
 
     def cvar(self, alpha: float = 0.05) -> RiskContributions:
-        """
-        CVaR contribution decomposition.
-
-        This returns contributions, not only the scalar CVaR value.
-        """
         return cvar_contribution(
             panel=self.joint_panel,
             exposures=self.exposures,
@@ -188,11 +119,6 @@ class PortfolioRiskAttribution:
         method: Literal["approximate", "exact"] = "approximate",
         max_iter: int | None = None,
     ) -> EffectiveBets:
-        """
-        Compute effective bets using the risk-driver columns in joint_panel.
-
-        Excludes the required "loss" column.
-        """
         driver_cols = risk_driver_cols(self.joint_panel)
         factors = self.joint_panel.values.select(driver_cols).to_numpy()
 
@@ -206,12 +132,6 @@ class PortfolioRiskAttribution:
 
 
 def risk_driver_cols(panel: ScenarioPanel) -> list[str]:
-    """
-    Return risk-driver columns from a risk attribution panel.
-
-    The panel must contain a "loss" column. All other columns are treated as
-    explanatory risk drivers.
-    """
     if "loss" not in panel.values.columns:
         raise ValueError("panel must contain a 'loss' column")
 
