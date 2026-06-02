@@ -36,9 +36,13 @@ class PolicyProjection:
         decision: PolicyDecision,
         forecasts: ForecastPaths,
         state: PortfolioState,
-        assets: list[str],
-        cash_return: NDArray[np.floating],
     ):
+        if decision.cash_return is None:
+            raise ValueError(
+                "PolicyDecision.cash_return is required to project policy forecasts"
+            )
+
+        assets = decision.asset_order
         initial_prices = np.array([forecasts.initial_prices[asset] for asset in assets])
         allocated_shares = (
             decision.target_weights_risk * state.portfolio_value
@@ -51,7 +55,7 @@ class PolicyProjection:
         )
 
         cash_forecasts = create_cash_forecasts(
-            cash_return=cash_return,
+            cash_return=decision.cash_return,
             cash_weight=decision.target_cash_weight,
             portfolio_value=state.portfolio_value,
             forecast_shape=(forecasts.n_simulations, forecasts.n_horizons),

@@ -18,6 +18,7 @@ class PolicyDecision:
     asset_order: list[str]
     target_weights_risk: NDArray[np.floating]
     target_cash_weight: float
+    cash_return: NDArray[np.floating] | None = None
     diagnostics: Any | None = None
 
     @property
@@ -41,11 +42,14 @@ class PolicyProtocol(Protocol):
     ) -> PolicyDecision: ...
 
 
-def _decision_from_mpo(result: MPOResult) -> PolicyDecision:
+def _decision_from_mpo(
+    result: MPOResult, cash_return: NDArray[np.floating]
+) -> PolicyDecision:
     return PolicyDecision(
         asset_order=result.assets,
         target_weights_risk=result.target_weights,
         target_cash_weight=result.target_cash,
+        cash_return=cash_return,
         diagnostics=result,
     )
 
@@ -63,6 +67,7 @@ class EqualWeightPolicy:
             asset_order=state.asset_order,
             target_weights_risk=target_weights,
             target_cash_weight=self.target_cash_weight,
+            cash_return=np.zeros(1),
             diagnostics=None,
         )
 
@@ -121,7 +126,7 @@ class MPOPolicy:
             name=name,
         )
 
-    def compute_moments(self, forecasts: ForecastPaths) -> HorizonMoments:
+    def _compute_moments(self, forecasts: ForecastPaths) -> HorizonMoments:
         cfg = self.moments_config
         return HorizonMoments.from_forecast_paths(
             forecast_paths=forecasts,
@@ -135,10 +140,14 @@ class MPOPolicy:
         )
 
     def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
-        moments = self.compute_moments(forecasts)
+        moments = self._compute_moments(forecasts)
+        weights_by_asset = state.portfolio_weights_dict
+        current_weights = np.array(
+            [weights_by_asset[asset] for asset in moments.assets]
+        )
         result = self.problem.solve(
             moments=moments,
-            current_weights=state.asset_weights,
+            current_weights=current_weights,
             current_cash=float(state.cash_weight),
         )
-        return _decision_from_mpo(result)
+        return _decision_from_mpo(result, cash_return=moments.cash_return)

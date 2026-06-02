@@ -42,7 +42,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:30])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -78,8 +78,6 @@ forecasts = run_n_steps_forecast(
     back_to_price=True,
 )
 # %%
-step = 10
-# %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
     # FullyInvested(),
@@ -88,31 +86,33 @@ constraints: list[PortfolioConstraint] = [
     TurnoverLimit(limit=0.80),
 ]
 
-# %%
 policy = MPOPolicy.preset(
-    objective_type="mean_covariance",
-    risk_aversion=0.02,
+    objective_type="cvar_cuts",
+    risk_aversion=0.2,
     cash_path="data/cash.csv",
     constraints=constraints,
+    expectation_tolerance=0.1,
 )
-# %%
-assets = policy.compute_moments(forecasts).assets
 rng = np.random.default_rng(seed=1)
-rand_shares = rng.integers(low=10, high=75, size=len(assets))
+rand_shares = rng.integers(low=10, high=75, size=len(universe.assets))
+
 state = PortfolioState.from_forecast_and_assets(
-    asset_forecasts=forecasts, assets=assets, shares=rand_shares, cash=100_000
+    asset_forecasts=forecasts,
+    assets=universe.assets,
+    shares=rand_shares,
+    cash=100_000,
 )
 decision = policy.decide(state, forecasts)
-
 
 # %%
 s = PolicyProjection.from_decision(
     decision=decision,
     forecasts=forecasts,
     state=state,
-    assets=assets,
-    cash_return=policy.compute_moments(forecasts).cash_return,
 )
+
+s.plot(type="cum_performance")
+
 # %%
 
 x = PortfolioRisk.build(
@@ -124,4 +124,4 @@ x = PortfolioRisk.build(
     horizon=19,
 )
 
-x.risk_contribution("cvar")
+x.effective_bets().plot()
