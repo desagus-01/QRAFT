@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
-from construction.optimization.moments import HorizonMoments
 from construction.policies import PolicyDecision
 from construction.state import PortfolioState
 from forecast.pipelines.forecasting import ForecastPaths
@@ -32,16 +31,17 @@ class PolicyProjection:
     path_probs: ProbVector
 
     @classmethod
-    def from_policy_and_forecasts(
+    def from_decision(
         cls,
-        policy_decision: PolicyDecision,
+        decision: PolicyDecision,
         forecasts: ForecastPaths,
         state: PortfolioState,
         assets: list[str],
+        cash_return: NDArray[np.floating],
     ):
         initial_prices = np.array([forecasts.initial_prices[asset] for asset in assets])
         allocated_shares = (
-            policy_decision.target_weights_risk * state.portfolio_value
+            decision.target_weights_risk * state.portfolio_value
         ) / initial_prices
         price_stack = forecasts.price_stack_for(assets=assets)
         portfolio_forecasts = np.einsum(
@@ -50,10 +50,9 @@ class PolicyProjection:
             price_stack,
         )
 
-        cash_return = HorizonMoments.get_cash_return("data/cash.csv", 1)
         cash_forecasts = create_cash_forecasts(
             cash_return=cash_return,
-            cash_weight=policy_decision.target_cash_weight,
+            cash_weight=decision.target_cash_weight,
             portfolio_value=state.portfolio_value,
             forecast_shape=(forecasts.n_simulations, forecasts.n_horizons),
         )

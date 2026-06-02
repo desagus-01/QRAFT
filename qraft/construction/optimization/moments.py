@@ -309,3 +309,41 @@ class HorizonMoments:
                 path=cash_path, step_size=step_size, periods_per_year=periods_per_year
             ),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class MomentsConfig:
+    """
+    Configuration for deriving :class:`HorizonMoments` from
+    :class:`~forecast.pipelines.forecasting.ForecastPaths`.
+    Parameters
+    ----------
+    cash_path:
+        Path to a CSV file containing the cash / risk-free rate series.
+        Expected columns: ``date`` and one rate column (annual, in percent).
+    horizons:
+        Number of forecast steps to use.  ``None`` uses all steps available
+        in :class:`~forecast.pipelines.forecasting.ForecastPaths`.
+    subset:
+        Which tickers to include when computing moments.
+        ``"tradable"`` (default) excludes factor-only tickers.
+    pnl_type:
+        Return representation passed to the incremental-return calculation --
+        ``"relative"`` (default), ``"absolute"``, or ``"log"``.
+    expectation_tolerance:
+        Assets whose expected return exceeds +-tolerance at any horizon are
+        dropped before optimisation.  ``None`` disables the filter.
+    step_size:
+        Number of calendar periods per forecast step, used to annualise the
+        cash rate correctly.
+    periods_per_year:
+        Trading periods per year (default 252) used with ``step_size``.
+    """
+
+    cash_path: str
+    horizons: int | None = None
+    subset: AssetSubset = "tradable"
+    pnl_type: PnL_OPTIONS = "relative"
+    expectation_tolerance: float | None = 1.0
+    step_size: int = 1
+    periods_per_year: int = 252

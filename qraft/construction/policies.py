@@ -3,12 +3,13 @@ from typing import Any, Protocol, Sequence
 
 import numpy as np
 from construction.optimization.constraints import PortfolioConstraint
-from construction.optimization.moments import HorizonMoments
+from construction.optimization.moments import HorizonMoments, MomentsConfig, PnL_OPTIONS
 from construction.optimization.objectives.specs import HoldingCost, TransactionCost
 from construction.optimization.optimization import MPOResult
 from construction.optimization.presets import PreMadeObjectives
 from construction.optimization.problem import MPOProblem
 from construction.state import PortfolioState
+from forecast.pipelines.forecasting import ForecastPaths
 from numpy.typing import NDArray
 
 
@@ -36,7 +37,7 @@ class PolicyProtocol(Protocol):
     name: str
 
     def decide(
-        self, state: PortfolioState, moments: HorizonMoments
+        self, state: PortfolioState, forecasts: ForecastPaths
     ) -> PolicyDecision: ...
 
 
@@ -51,12 +52,10 @@ def _decision_from_mpo(result: MPOResult) -> PolicyDecision:
 
 @dataclass(frozen=True, slots=True)
 class EqualWeightPolicy:
-    """Allocate equally across all risky assets, holding a fixed cash weight."""
-
     target_cash_weight: float
     name: str = "equal_weight"
 
-    def decide(self, state: PortfolioState, moments: HorizonMoments) -> PolicyDecision:
+    def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
         risky_weights = 1.0 - self.target_cash_weight
         n_assets = len(state.asset_order)
         target_weights = np.full(n_assets, risky_weights / n_assets)
@@ -71,6 +70,7 @@ class EqualWeightPolicy:
 @dataclass(frozen=True, slots=True)
 class MPOPolicy:
     problem: MPOProblem
+    moments_config: MomentsConfig
     name: str = "mpo"
 
     @classmethod
@@ -78,8 +78,14 @@ class MPOPolicy:
         cls,
         objective_type: PreMadeObjectives,
         risk_aversion: float,
+        cash_path: str,
         *,
         name: str = "mpo",
+        horizons: int | None = None,
+        pnl_type: PnL_OPTIONS = "relative",
+        expectation_tolerance: float | None = 1.0,
+        step_size: int = 1,
+        periods_per_year: int = 252,
         alpha: float | None = 0.05,
         constraints: Sequence[PortfolioConstraint] = (),
         allow_borrow: bool = False,
@@ -90,17 +96,6 @@ class MPOPolicy:
         holding_cost_weight: float = 1.0,
         **solver_options: Any,
     ) -> "MPOPolicy":
-        """
-        Create an MPOPolicy from a named preset objective.
-        Examples
-        --------
-        >>> policy = MPOPolicy.preset("mean_covariance", risk_aversion=2.0)
-        >>> policy = MPOPolicy.preset(
-        ...     "cvar_auto",
-        ...     risk_aversion=3.0,
-        ...     constraints=(LongOnly(), TurnoverLimit(0.10)),
-        ... )
-        """
         return cls(
             problem=MPOProblem.preset(
                 objective_type,
@@ -115,10 +110,32 @@ class MPOPolicy:
                 holding_cost_weight=holding_cost_weight,
                 **solver_options,
             ),
+            moments_config=MomentsConfig(
+                cash_path=cash_path,
+                horizons=horizons,
+                pnl_type=pnl_type,
+                expectation_tolerance=expectation_tolerance,
+                step_size=step_size,
+                periods_per_year=periods_per_year,
+            ),
             name=name,
         )
 
-    def decide(self, state: PortfolioState, moments: HorizonMoments) -> PolicyDecision:
+    def compute_moments(self, forecasts: ForecastPaths) -> HorizonMoments:
+        cfg = self.moments_config
+        return HorizonMoments.from_forecast_paths(
+            forecast_paths=forecasts,
+            cash_path=cfg.cash_path,
+            horizons=cfg.horizons,
+            subset=cfg.subset,
+            pnl_type=cfg.pnl_type,
+            expectation_tolerance=cfg.expectation_tolerance,
+            step_size=cfg.step_size,
+            periods_per_year=cfg.periods_per_year,
+        )
+
+    def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
+        moments = self.compute_moments(forecasts)
         result = self.problem.solve(
             moments=moments,
             current_weights=state.asset_weights,

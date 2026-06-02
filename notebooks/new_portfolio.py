@@ -7,7 +7,6 @@ from construction.optimization.constraints import (
     PortfolioConstraint,
     TurnoverLimit,
 )
-from construction.optimization.moments import HorizonMoments
 from construction.policies import MPOPolicy
 from construction.policy_projection import PolicyProjection
 from construction.state import PortfolioState
@@ -80,20 +79,7 @@ forecasts = run_n_steps_forecast(
 )
 # %%
 step = 10
-forecast_moms = HorizonMoments.from_forecast_paths(
-    forecasts, horizons=step, expectation_tolerance=0.1, cash_path="data/cash.csv"
-)
-
-assets = list(forecast_moms.assets)
-
 # %%
-# %%
-rng = np.random.default_rng(seed=1)
-rand_shares = rng.integers(low=10, high=75, size=len(forecast_moms.assets))
-# %%
-state = PortfolioState.from_forecast_and_assets(
-    asset_forecasts=forecasts, assets=assets, shares=rand_shares, cash=100_000
-)
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
     # FullyInvested(),
@@ -104,14 +90,28 @@ constraints: list[PortfolioConstraint] = [
 
 # %%
 policy = MPOPolicy.preset(
-    objective_type="mean_covariance", risk_aversion=0.02, constraints=constraints
+    objective_type="mean_covariance",
+    risk_aversion=0.02,
+    cash_path="data/cash.csv",
+    constraints=constraints,
 )
-decision = policy.decide(state, forecast_moms)
+# %%
+assets = policy.compute_moments(forecasts).assets
+rng = np.random.default_rng(seed=1)
+rand_shares = rng.integers(low=10, high=75, size=len(assets))
+state = PortfolioState.from_forecast_and_assets(
+    asset_forecasts=forecasts, assets=assets, shares=rand_shares, cash=100_000
+)
+decision = policy.decide(state, forecasts)
 
 
 # %%
-s = PolicyProjection.from_policy_and_forecasts(
-    policy_decision=decision, forecasts=forecasts, state=state, assets=assets
+s = PolicyProjection.from_decision(
+    decision=decision,
+    forecasts=forecasts,
+    state=state,
+    assets=assets,
+    cash_return=policy.compute_moments(forecasts).cash_return,
 )
 # %%
 

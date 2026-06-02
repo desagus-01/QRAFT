@@ -38,7 +38,6 @@ class MPOProblem:
 
     constraints: tuple[PortfolioConstraint, ...] = ()
     allow_borrow: bool = False
-    cvar_alpha: float | None = 0.05
     max_iter: int = 200
     solver_options: Mapping[str, Any] = field(default_factory=dict)
 
