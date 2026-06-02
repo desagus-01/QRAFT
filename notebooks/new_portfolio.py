@@ -129,4 +129,5 @@ x = PortfolioRisk.build(
     horizon=19,
 )
 
-x.effective_bets()
+x.risk_contribution("var")
+x.risk_at_horizon("cvar", method="empirical")

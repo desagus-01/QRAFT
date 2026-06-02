@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from typing import Literal
 
+import numpy as np
 from forecast.pipelines.forecasting import ForecastPaths
+from numpy.typing import NDArray
 from polars import DataFrame
+from risk.measures import cvar, var
 from risk.performance_attribution import (
-    PortfolioPerformanceAttribution,
     portfolio_factor_attribution,
 )
 from risk.portfolio_execution import PortfolioSimulation
@@ -14,12 +16,15 @@ from risk.risk_attribution import (
     RiskContributions,
 )
 
+RiskMetrics = Literal["var", "cvar"]
+
 
 @dataclass(frozen=True, slots=True)
 class PortfolioRisk:
     horizon: int
     r2: float
-    performance_attribution: PortfolioPerformanceAttribution
+    simulation: PortfolioSimulation
+    # performance_attribution: PortfolioPerformanceAttribution
     risk_attribution: PortfolioRiskAttribution
 
     @classmethod
@@ -45,15 +50,46 @@ class PortfolioRisk:
         return cls(
             horizon=horizon,
             r2=performance_attribution.r2,
-            performance_attribution=performance_attribution,
+            simulation=portfolio_simulation,
+            # performance_attribution=performance_attribution,
             risk_attribution=risk_attribution,
         )
 
-    def var(self, alpha: float = 0.05) -> RiskContributions:
-        return self.risk_attribution.var(alpha=alpha)
+    def risk_contribution(
+        self, risk_metric: RiskMetrics, alpha: float = 0.05
+    ) -> RiskContributions:
+        return (
+            self.risk_attribution.var(alpha=alpha)
+            if risk_metric == "var"
+            else self.risk_attribution.cvar(alpha=alpha)
+        )
 
-    def cvar(self, alpha: float = 0.05) -> RiskContributions:
-        return self.risk_attribution.cvar(alpha=alpha)
+    def risk_at_horizon(
+        self,
+        risk_metric: RiskMetrics,
+        method: Literal["empirical", "quantile"] = "empirical",
+        alpha: float = 0.05,
+    ) -> NDArray[np.floating]:
+        losses = -self.simulation.performance_at_period(self.horizon)
+        return (
+            var(
+                losses,
+                prob=self.simulation.path_probs,
+                method=method,
+                alpha=alpha,
+                axis=0,
+                distribution_type="loss",
+            )
+            if risk_metric == "var"
+            else cvar(
+                losses,
+                prob=self.simulation.path_probs,
+                method=method,
+                alpha=alpha,
+                axis=0,
+                distribution_type="loss",
+            )
+        )
 
     def effective_bets(
         self,
