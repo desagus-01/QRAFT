@@ -50,25 +50,6 @@ def incremental_returns_for_asset(
     horizons: int,
     pnl_type: PnL_OPTIONS = "relative",
 ) -> NDArray[np.floating]:
-    """
-    Compute incremental period-over-period returns for a single asset.
-
-    Parameters
-    ----------
-    price_paths:
-        Simulated price paths of shape ``(n_paths, n_horizons)``.
-    initial_price:
-        The price at ``t_0`` (before the first forecast step).
-    horizons:
-        Number of forecast horizons to retain.
-    pnl_type:
-        Return type — ``"relative"`` (default), ``"absolute"``, or ``"log"``.
-
-    Returns
-    -------
-    NDArray of shape ``(n_paths, horizons)`` containing the incremental
-    return from ``t_{h-1}`` to ``t_h`` for each path and horizon.
-    """
     n_paths = price_paths.shape[0]
     t0_col = np.full((n_paths, 1), initial_price, dtype=float)
     values = np.concatenate([t0_col, price_paths], axis=1)
@@ -82,28 +63,6 @@ def incremental_returns_from_forecast_paths(
     subset: AssetSubset = "tradable",
     pnl_type: PnL_OPTIONS = "relative",
 ) -> dict[str, NDArray[np.floating]]:
-    """
-    Compute incremental period-over-period returns for every asset in a
-    :class:`ForecastPaths` object.
-
-    Parameters
-    ----------
-    forecast_paths:
-        Simulated price paths and associated metadata.
-    horizons:
-        Number of forecast horizons to retain. Defaults to all available
-        horizons in ``forecast_paths``.
-    subset:
-        Which assets to include (``"tradable"``, ``"factors"``, ``"all"``).
-    pnl_type:
-        Return type — ``"relative"`` (default), ``"absolute"``, or ``"log"``.
-
-    Returns
-    -------
-    dict mapping each asset name to an NDArray of shape
-    ``(n_paths, horizons)`` containing the incremental return from
-    ``t_{h-1}`` to ``t_h`` for each path and horizon.
-    """
     paths = forecast_paths._paths_for(subset)
     if not paths:
         raise ValueError(f"No paths available for subset={subset!r}")
@@ -176,6 +135,10 @@ class HorizonMoments:
     @property
     def n_assets(self) -> int:
         return int(self.mean.shape[1])
+
+    @property
+    def n_scenarios(self) -> int:
+        return int(self.scenario_returns.shape[0])
 
     @property
     def mean_frame(self) -> pl.DataFrame:

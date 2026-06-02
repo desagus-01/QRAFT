@@ -4,9 +4,10 @@ from typing import Any, Protocol, Sequence
 import numpy as np
 from construction.optimization.constraints import PortfolioConstraint
 from construction.optimization.moments import HorizonMoments
+from construction.optimization.objectives.specs import HoldingCost, TransactionCost
 from construction.optimization.optimization import MPOResult
 from construction.optimization.presets import PreMadeObjectives
-from construction.optimization.problem import MPOProblem, build_preset_problem
+from construction.optimization.problem import MPOProblem
 from construction.state import PortfolioState
 from numpy.typing import NDArray
 
@@ -34,12 +35,24 @@ class PolicyDecision:
 class PolicyProtocol(Protocol):
     name: str
 
-    def decide(self, state: PortfolioState, moments: HorizonMoments) -> PolicyDecision:
-        pass
+    def decide(
+        self, state: PortfolioState, moments: HorizonMoments
+    ) -> PolicyDecision: ...
+
+
+def _decision_from_mpo(result: MPOResult) -> PolicyDecision:
+    return PolicyDecision(
+        asset_order=result.assets,
+        target_weights_risk=result.target_weights,
+        target_cash_weight=result.target_cash,
+        diagnostics=result,
+    )
 
 
 @dataclass(frozen=True, slots=True)
 class EqualWeightPolicy:
+    """Allocate equally across all risky assets, holding a fixed cash weight."""
+
     target_cash_weight: float
     name: str = "equal_weight"
 
@@ -55,53 +68,60 @@ class EqualWeightPolicy:
         )
 
 
-def _decision_from_mpo(result: MPOResult) -> PolicyDecision:
-    return PolicyDecision(
-        asset_order=result.assets,
-        target_weights_risk=result.target_weights,
-        target_cash_weight=result.target_cash,
-        diagnostics=result,
-    )
-
-
 @dataclass(frozen=True, slots=True)
-class CustomMPOPolicy:
+class MPOPolicy:
     problem: MPOProblem
-    name: str = "custom_mpo"
+    name: str = "mpo"
+
+    @classmethod
+    def preset(
+        cls,
+        objective_type: PreMadeObjectives,
+        risk_aversion: float,
+        *,
+        name: str = "mpo",
+        alpha: float | None = 0.05,
+        constraints: Sequence[PortfolioConstraint] = (),
+        allow_borrow: bool = False,
+        max_iter: int = 200,
+        transaction_cost: TransactionCost | None = None,
+        transaction_cost_weight: float = 1.0,
+        holding_cost: HoldingCost | None = None,
+        holding_cost_weight: float = 1.0,
+        **solver_options: Any,
+    ) -> "MPOPolicy":
+        """
+        Create an MPOPolicy from a named preset objective.
+        Examples
+        --------
+        >>> policy = MPOPolicy.preset("mean_covariance", risk_aversion=2.0)
+        >>> policy = MPOPolicy.preset(
+        ...     "cvar_auto",
+        ...     risk_aversion=3.0,
+        ...     constraints=(LongOnly(), TurnoverLimit(0.10)),
+        ... )
+        """
+        return cls(
+            problem=MPOProblem.preset(
+                objective_type,
+                risk_aversion,
+                alpha=alpha,
+                constraints=constraints,
+                allow_borrow=allow_borrow,
+                max_iter=max_iter,
+                transaction_cost=transaction_cost,
+                transaction_cost_weight=transaction_cost_weight,
+                holding_cost=holding_cost,
+                holding_cost_weight=holding_cost_weight,
+                **solver_options,
+            ),
+            name=name,
+        )
 
     def decide(self, state: PortfolioState, moments: HorizonMoments) -> PolicyDecision:
         result = self.problem.solve(
-            horizons=moments.n_horizons,
-            n_assets=moments.n_assets,
-            n_scenarios=moments.scenario_returns.shape[0],
             moments=moments,
             current_weights=state.asset_weights,
             current_cash=float(state.cash_weight),
         )
         return _decision_from_mpo(result)
-
-
-@dataclass(frozen=True, slots=True)
-class MPOPolicy:
-    name: PreMadeObjectives
-    risk_aversion: float
-    cvar_alpha: float | None = 0.05
-    constraints: Sequence[PortfolioConstraint] = ()
-    allow_borrow: bool = False
-    max_iter: int = 200
-
-    def decide(
-        self, state: PortfolioState, moments: HorizonMoments, **solver_options
-    ) -> PolicyDecision:
-        problem = build_preset_problem(
-            objective_type=self.name,
-            risk_aversion=self.risk_aversion,
-            alpha=self.cvar_alpha,
-            horizons=moments.n_horizons,
-            n_scenarios=moments.scenario_returns.shape[0],
-            constraints=self.constraints,
-            allow_borrow=self.allow_borrow,
-            max_iter=self.max_iter,
-            **solver_options,
-        )
-        return CustomMPOPolicy(problem=problem, name=self.name).decide(state, moments)

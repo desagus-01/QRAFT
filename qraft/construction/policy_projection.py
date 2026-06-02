@@ -26,7 +26,7 @@ def create_cash_forecasts(
 
 
 @dataclass(frozen=True, slots=True)
-class PortfolioSimulation:
+class PolicyProjection:
     initial_value: NDArray[np.floating]
     forecast_values: NDArray[np.floating]
     path_probs: ProbVector

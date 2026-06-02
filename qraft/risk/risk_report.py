@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
+from construction.policy_projection import PolicyProjection
 from forecast.pipelines.forecasting import ForecastPaths
 from forecast.time_series.feature_selection import Criterion
 from numpy.typing import NDArray
@@ -10,7 +11,6 @@ from risk.measures import cvar, var
 from risk.performance_attribution import (
     portfolio_factor_attribution,
 )
-from risk.portfolio_execution import PortfolioSimulation
 from risk.risk_attribution import (
     EffectiveBets,
     PortfolioRiskAttribution,
@@ -24,14 +24,14 @@ RiskMetrics = Literal["var", "cvar"]
 class PortfolioRisk:
     horizon: int
     r2: float
-    simulation: PortfolioSimulation
+    policy_projection: PolicyProjection
     # performance_attribution: PortfolioPerformanceAttribution
     risk_attribution: PortfolioRiskAttribution
 
     @classmethod
     def build(
         cls,
-        portfolio_simulation: PortfolioSimulation,
+        policy_projection: PolicyProjection,
         asset_forecasts: ForecastPaths,
         original_data: DataFrame,
         auto_select_factors: bool,
@@ -39,7 +39,7 @@ class PortfolioRisk:
         horizon: int,
     ):
         performance_attribution = portfolio_factor_attribution(
-            portfolio_forecast=portfolio_simulation,
+            policy_projection=policy_projection,
             factors_forecast=asset_forecasts.factor_paths,
             original_data=original_data,
             horizon=horizon,
@@ -53,7 +53,7 @@ class PortfolioRisk:
         return cls(
             horizon=horizon,
             r2=performance_attribution.r2,
-            simulation=portfolio_simulation,
+            policy_projection=policy_projection,
             # performance_attribution=performance_attribution,
             risk_attribution=risk_attribution,
         )
@@ -73,11 +73,11 @@ class PortfolioRisk:
         method: Literal["empirical", "quantile"] = "empirical",
         alpha: float = 0.05,
     ) -> NDArray[np.floating]:
-        losses = -self.simulation.performance_at_period(self.horizon)
+        losses = -self.policy_projection.performance_at_period(self.horizon)
         return (
             var(
                 losses,
-                prob=self.simulation.path_probs,
+                prob=self.policy_projection.path_probs,
                 method=method,
                 alpha=alpha,
                 axis=0,
@@ -86,7 +86,7 @@ class PortfolioRisk:
             if risk_metric == "var"
             else cvar(
                 losses,
-                prob=self.simulation.path_probs,
+                prob=self.policy_projection.path_probs,
                 method=method,
                 alpha=alpha,
                 axis=0,

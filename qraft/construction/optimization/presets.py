@@ -34,7 +34,7 @@ def _default_holding_cost() -> HoldingCost:
     )
 
 
-def mean_covariance_objectives(
+def _mean_covariance_objectives(
     risk_aversion: float,
     *,
     transaction_cost: TransactionCost | None = None,
@@ -56,7 +56,7 @@ def mean_covariance_objectives(
     )
 
 
-def cvar_classical_objectives(
+def _cvar_classical_objectives(
     cvar_aversion: float,
     alpha: float = 0.05,
     *,
@@ -79,7 +79,7 @@ def cvar_classical_objectives(
     )
 
 
-def cvar_cuts_objectives(
+def _cvar_cuts_objectives(
     cvar_aversion: float,
     alpha: float = 0.05,
     *,
@@ -102,14 +102,14 @@ def cvar_cuts_objectives(
     )
 
 
-def select_cvar_solver(
+def _select_cvar_solver(
     horizons: int, n_scenarios: int, problem_limit: int = 1_000
 ) -> PreMadeObjectives:
     problem_scale = horizons * n_scenarios
     return "cvar_cuts" if problem_scale >= problem_limit else "cvar_classic"
 
 
-def build_preset_objective(
+def _build_preset_objective(
     objective_type: PreMadeObjectives,
     risk_aversion: float,
     *,
@@ -122,13 +122,13 @@ def build_preset_objective(
     holding_cost_weight: float = 1.0,
 ) -> ObjectiveSpec:
     resolved_objective_type: PreMadeObjectives = (
-        select_cvar_solver(horizons=horizons, n_scenarios=n_scenarios)
+        _select_cvar_solver(horizons=horizons, n_scenarios=n_scenarios)
         if objective_type == "cvar_auto"
         else objective_type
     )
 
     if resolved_objective_type == "mean_covariance":
-        return mean_covariance_objectives(
+        return _mean_covariance_objectives(
             risk_aversion=risk_aversion,
             transaction_cost=transaction_cost,
             transaction_cost_weight=transaction_cost_weight,
@@ -136,7 +136,7 @@ def build_preset_objective(
             holding_cost_weight=holding_cost_weight,
         )
     if resolved_objective_type == "cvar_classic" and alpha is not None:
-        return cvar_classical_objectives(
+        return _cvar_classical_objectives(
             cvar_aversion=risk_aversion,
             alpha=alpha,
             transaction_cost=transaction_cost,
@@ -145,7 +145,7 @@ def build_preset_objective(
             holding_cost_weight=holding_cost_weight,
         )
     if resolved_objective_type == "cvar_cuts" and alpha is not None:
-        return cvar_cuts_objectives(
+        return _cvar_cuts_objectives(
             cvar_aversion=risk_aversion,
             alpha=alpha,
             transaction_cost=transaction_cost,

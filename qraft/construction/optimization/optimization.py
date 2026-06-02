@@ -21,7 +21,7 @@ from construction.optimization.objectives.specs import (
 )
 from construction.optimization.presets import (
     PreMadeObjectives,
-    build_preset_objective,
+    _build_preset_objective,
 )
 from cvxpy import Constraint, Expression
 from numpy.typing import NDArray
@@ -308,7 +308,7 @@ class MultiPeriodOptimizer:
         Compile and return a :class:`MultiPeriodOptimizer` from a named
         pre-built objective recipe — **without solving it**.
         """
-        objective = build_preset_objective(
+        objective = _build_preset_objective(
             objective_type=objective_type,
             risk_aversion=risk_aversion,
             alpha=cvar_alpha,
@@ -322,6 +322,13 @@ class MultiPeriodOptimizer:
             constraints=constraints,
             n_scenarios=n_scenarios,
             allow_borrow=allow_borrow,
+        )
+
+    @property
+    def uses_cutting_plane(self) -> bool:
+        return any(
+            isinstance(weighted_term.spec, CVaRCuttingPlane)
+            for weighted_term in self.objective.terms
         )
 
     def _build_problem(self) -> None:

@@ -5,38 +5,103 @@ import numpy as np
 from construction.optimization.constraints import PortfolioConstraint
 from construction.optimization.moments import HorizonMoments
 from construction.optimization.objectives.specs import (
-    CVaRCuttingPlane,
     HoldingCost,
     ObjectiveSpec,
     TransactionCost,
     WeightedTerm,
 )
 from construction.optimization.optimization import MPOResult, MultiPeriodOptimizer
-from construction.optimization.presets import PreMadeObjectives, build_preset_objective
+from construction.optimization.presets import PreMadeObjectives, _build_preset_objective
 from numpy.typing import NDArray
 
 
 @dataclass(frozen=True, slots=True)
+class _PresetSpec:
+    """
+    Stores the parameters needed to build a preset ``ObjectiveSpec`` at
+    compile time
+    """
+
+    objective_type: PreMadeObjectives
+    risk_aversion: float
+    alpha: float | None
+    transaction_cost: TransactionCost | None
+    transaction_cost_weight: float
+    holding_cost: HoldingCost | None
+    holding_cost_weight: float
+
+
+@dataclass(frozen=True, slots=True)
 class MPOProblem:
-    """
-    Size-agnostic multi-period optimization definition.
+    objective: ObjectiveSpec | None = None
+    _preset: _PresetSpec | None = field(default=None, repr=False)
 
-    The problem carries the objective and optimization settings without allocating
-    CVXPY variables. ``compile`` binds it to a concrete horizon and asset universe.
-    """
-
-    objective: ObjectiveSpec
     constraints: tuple[PortfolioConstraint, ...] = ()
     allow_borrow: bool = False
     cvar_alpha: float | None = 0.05
     max_iter: int = 200
     solver_options: Mapping[str, Any] = field(default_factory=dict)
 
-    @property
-    def uses_cutting_plane(self) -> bool:
-        return any(
-            isinstance(weighted_term.spec, CVaRCuttingPlane)
-            for weighted_term in self.objective.terms
+    def __post_init__(self) -> None:
+        has_objective = self.objective is not None
+        has_preset = self._preset is not None
+        if has_objective == has_preset:  # both set, or neither set
+            raise ValueError(
+                "Exactly one of `objective` or `_preset` must be provided. "
+                "Use MPOProblem.preset() or MPOProblemBuilder.build()."
+            )
+
+    @classmethod
+    def preset(
+        cls,
+        objective_type: PreMadeObjectives,
+        risk_aversion: float,
+        *,
+        alpha: float | None = 0.05,
+        constraints: Sequence[PortfolioConstraint] = (),
+        allow_borrow: bool = False,
+        max_iter: int = 200,
+        transaction_cost: TransactionCost | None = None,
+        transaction_cost_weight: float = 1.0,
+        holding_cost: HoldingCost | None = None,
+        holding_cost_weight: float = 1.0,
+        **solver_options: Any,
+    ) -> "MPOProblem":
+        return cls(
+            _preset=_PresetSpec(
+                objective_type=objective_type,
+                risk_aversion=risk_aversion,
+                alpha=alpha,
+                transaction_cost=transaction_cost,
+                transaction_cost_weight=transaction_cost_weight,
+                holding_cost=holding_cost,
+                holding_cost_weight=holding_cost_weight,
+            ),
+            constraints=tuple(constraints),
+            allow_borrow=allow_borrow,
+            max_iter=max_iter,
+            solver_options=solver_options,
+        )
+
+    def _resolve_objective(self, horizons: int, n_scenarios: int) -> ObjectiveSpec:
+        """
+        Return the concrete ``ObjectiveSpec`` for the given problem size.
+        """
+        if self.objective is not None:
+            return self.objective
+
+        assert self._preset is not None  # enforced by __post_init__
+        p = self._preset
+        return _build_preset_objective(
+            objective_type=p.objective_type,
+            risk_aversion=p.risk_aversion,
+            alpha=p.alpha,
+            horizons=horizons,
+            n_scenarios=n_scenarios,
+            transaction_cost=p.transaction_cost,
+            transaction_cost_weight=p.transaction_cost_weight,
+            holding_cost=p.holding_cost,
+            holding_cost_weight=p.holding_cost_weight,
         )
 
     def compile(
@@ -45,8 +110,13 @@ class MPOProblem:
         n_assets: int,
         n_scenarios: int,
     ) -> MultiPeriodOptimizer:
+        """
+        Allocate CVXPY variables and return a compiled
+        :class:`MultiPeriodOptimizer` ready to be solved.
+        """
+        objective = self._resolve_objective(horizons=horizons, n_scenarios=n_scenarios)
         return MultiPeriodOptimizer(
-            objective=self.objective,
+            objective=objective,
             horizons=horizons,
             n_assets=n_assets,
             n_scenarios=n_scenarios,
@@ -57,23 +127,44 @@ class MPOProblem:
     def solve(
         self,
         *,
-        horizons: int,
-        n_assets: int,
-        n_scenarios: int,
         moments: HorizonMoments,
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
         **solver_options: Any,
     ) -> MPOResult:
+        """
+        Compile and solve the problem for the given moments and portfolio state.
+
+        All size parameters (``horizons``, ``n_assets``, ``n_scenarios``) are
+        derived directly from ``moments`` — callers do not need to pass them
+        separately.
+
+        Parameters
+        ----------
+        moments:
+            Horizon moments produced by :class:`HorizonMoments`.  Determines
+            the problem size and supplies all data parameters to the solver.
+        current_weights:
+            Current risky-asset weights, shape ``(n_assets,)``.
+        current_cash:
+            Current cash weight.  If ``None``, inferred as
+            ``1 - sum(current_weights)``.
+        inputs:
+            Optional extra inputs forwarded to objective handlers (e.g.
+            ``{"prices": ..., "volume": ...}`` for the transaction-cost term).
+        **solver_options:
+            Forwarded verbatim to the underlying CVXPY solver, merged with
+            any options stored on the problem.
+        """
         optimizer = self.compile(
-            horizons=horizons,
-            n_assets=n_assets,
-            n_scenarios=n_scenarios,
+            horizons=moments.n_horizons,
+            n_assets=moments.n_assets,
+            n_scenarios=moments.n_scenarios,
         )
         options = {**self.solver_options, **solver_options}
 
-        if self.uses_cutting_plane:
+        if optimizer.uses_cutting_plane:
             return optimizer.solve_iterative(
                 moments=moments,
                 current_weights=current_weights,
@@ -94,119 +185,86 @@ class MPOProblem:
 
 @dataclass(frozen=True, slots=True)
 class MPOProblemBuilder:
+    """
+    Immutable fluent builder for :class:`MPOProblem`.
+
+    Each method returns a new builder with the updated setting applied,
+    leaving the original unchanged.
+
+    Examples
+    --------
+    >>> problem = (
+    ...     MPOProblemBuilder()
+    ...     .add(ExpectedReturn(decay=0.9))
+    ...     .add(CovarianceRisk(), weight=2.0)
+    ...     .add(TransactionCost())
+    ...     .constrain(LongOnly(), TurnoverLimit(0.10))
+    ...     .build()
+    ... )
+    """
+
     terms: tuple[WeightedTerm, ...] = ()
     constraints_: tuple[PortfolioConstraint, ...] = ()
     allow_borrow_: bool = False
-    cvar_alpha_: float | None = 0.05
     max_iter_: int = 200
     solver_options_: Mapping[str, Any] = field(default_factory=dict)
 
     def add(self, spec: Any, weight: float = 1.0) -> "MPOProblemBuilder":
+        """Append a weighted objective term."""
         return MPOProblemBuilder(
             terms=(*self.terms, WeightedTerm(weight, spec)),
             constraints_=self.constraints_,
             allow_borrow_=self.allow_borrow_,
-            cvar_alpha_=self.cvar_alpha_,
             max_iter_=self.max_iter_,
             solver_options_=self.solver_options_,
         )
 
-    def constrain(
-        self,
-        *constraints: PortfolioConstraint,
-    ) -> "MPOProblemBuilder":
+    def constrain(self, *constraints: PortfolioConstraint) -> "MPOProblemBuilder":
+        """Append one or more portfolio constraints."""
         return MPOProblemBuilder(
             terms=self.terms,
             constraints_=(*self.constraints_, *constraints),
             allow_borrow_=self.allow_borrow_,
-            cvar_alpha_=self.cvar_alpha_,
             max_iter_=self.max_iter_,
             solver_options_=self.solver_options_,
         )
 
     def allow_borrow(self, value: bool = True) -> "MPOProblemBuilder":
+        """Allow (or disallow) negative cash weights."""
         return MPOProblemBuilder(
             terms=self.terms,
             constraints_=self.constraints_,
             allow_borrow_=value,
-            cvar_alpha_=self.cvar_alpha_,
-            max_iter_=self.max_iter_,
-            solver_options_=self.solver_options_,
-        )
-
-    def cvar_alpha(self, value: float | None) -> "MPOProblemBuilder":
-        return MPOProblemBuilder(
-            terms=self.terms,
-            constraints_=self.constraints_,
-            allow_borrow_=self.allow_borrow_,
-            cvar_alpha_=value,
             max_iter_=self.max_iter_,
             solver_options_=self.solver_options_,
         )
 
     def max_iter(self, value: int) -> "MPOProblemBuilder":
+        """Set the maximum cutting-plane iterations."""
         return MPOProblemBuilder(
             terms=self.terms,
             constraints_=self.constraints_,
             allow_borrow_=self.allow_borrow_,
-            cvar_alpha_=self.cvar_alpha_,
             max_iter_=value,
             solver_options_=self.solver_options_,
         )
 
     def solver_options(self, **options: Any) -> "MPOProblemBuilder":
+        """Merge extra CVXPY solver options."""
         return MPOProblemBuilder(
             terms=self.terms,
             constraints_=self.constraints_,
             allow_borrow_=self.allow_borrow_,
-            cvar_alpha_=self.cvar_alpha_,
             max_iter_=self.max_iter_,
             solver_options_={**self.solver_options_, **options},
         )
 
     def build(self) -> MPOProblem:
+        """Finalise and return the :class:`MPOProblem`."""
         return MPOProblem(
             objective=ObjectiveSpec(terms=self.terms),
             constraints=self.constraints_,
             allow_borrow=self.allow_borrow_,
-            cvar_alpha=self.cvar_alpha_,
             max_iter=self.max_iter_,
             solver_options=self.solver_options_,
         )
-
-
-def build_preset_problem(
-    objective_type: PreMadeObjectives,
-    risk_aversion: float,
-    *,
-    alpha: float | None = 0.05,
-    horizons: int,
-    n_scenarios: int,
-    constraints: Sequence[PortfolioConstraint] | None = None,
-    allow_borrow: bool = False,
-    max_iter: int = 200,
-    transaction_cost: TransactionCost | None = None,
-    transaction_cost_weight: float = 1.0,
-    holding_cost: HoldingCost | None = None,
-    holding_cost_weight: float = 1.0,
-    **solver_options: Any,
-) -> MPOProblem:
-    objective = build_preset_objective(
-        objective_type=objective_type,
-        risk_aversion=risk_aversion,
-        alpha=alpha,
-        horizons=horizons,
-        n_scenarios=n_scenarios,
-        transaction_cost=transaction_cost,
-        transaction_cost_weight=transaction_cost_weight,
-        holding_cost=holding_cost,
-        holding_cost_weight=holding_cost_weight,
-    )
-    return MPOProblem(
-        objective=objective,
-        constraints=tuple(constraints or ()),
-        allow_borrow=allow_borrow,
-        cvar_alpha=alpha,
-        max_iter=max_iter,
-        solver_options=solver_options,
-    )

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
+from construction.policy_projection import PolicyProjection
 from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.types import ProbVector
 from forecast.time_series.estimation import (
@@ -18,7 +19,6 @@ from risk.factor_ols import (
     factor_cumulative_returns,
     factor_ols_regression,
 )
-from risk.portfolio_execution import PortfolioSimulation
 
 
 @dataclass(frozen=True)
@@ -64,7 +64,7 @@ class PortfolioPerformanceAttribution:
 
 
 def portfolio_factor_attribution(
-    portfolio_forecast: PortfolioSimulation,
+    policy_projection: PolicyProjection,
     factors_forecast: dict[str, NDArray[np.floating]],
     original_data: DataFrame,
     horizon: int,
@@ -83,7 +83,7 @@ def portfolio_factor_attribution(
         is_log_price=is_log_price,
     )
 
-    portfolio_cum = portfolio_forecast.performance_at_period(period=horizon)
+    portfolio_cum = policy_projection.performance_at_period(period=horizon)
 
     factor_result = factor_ols_regression(
         factors_cum_forecast=factors_cum,
@@ -91,7 +91,7 @@ def portfolio_factor_attribution(
         factor_names=factor_names,
         auto_select_factors=auto_select_factors,
         criterion=criterion,
-        prob=portfolio_forecast.path_probs,
+        prob=policy_projection.path_probs,
         eq_type=eq_type,
     )
 
@@ -107,5 +107,5 @@ def portfolio_factor_attribution(
         model=model,
         factor_performance_forecast={k: factors_cum[k] for k in selected},
         portfolio_performance_forecast=portfolio_cum,
-        path_probs=portfolio_forecast.path_probs,
+        path_probs=policy_projection.path_probs,
     )

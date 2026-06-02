@@ -3,19 +3,18 @@ import logging
 
 import numpy as np
 from construction.optimization.constraints import (
-    FullyInvested,
     LongOnly,
     PortfolioConstraint,
     TurnoverLimit,
 )
 from construction.optimization.moments import HorizonMoments
 from construction.policies import MPOPolicy
+from construction.policy_projection import PolicyProjection
 from construction.state import PortfolioState
 from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
 from forecast.scenarios.panel import ScenarioPanel
 from policy import LogConfig
-from risk.portfolio_execution import PortfolioSimulation
 from risk.risk_report import PortfolioRisk
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
@@ -97,39 +96,32 @@ state = PortfolioState.from_forecast_and_assets(
 )
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
-    FullyInvested(),
+    # FullyInvested(),
     # MaxWeight(limit=0.09),
     # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
     TurnoverLimit(limit=0.80),
 ]
 
 # %%
-cvar_policy = MPOPolicy(name="cvar_cuts", risk_aversion=0.2, constraints=constraints)
-cvar_dec = cvar_policy.decide(state=state, moments=forecast_moms)
-
-mc_policy = MPOPolicy(name="mean_covariance", risk_aversion=1, constraints=constraints)
-mc_dec = mc_policy.decide(state=state, moments=forecast_moms)
+policy = MPOPolicy.preset(
+    objective_type="mean_covariance", risk_aversion=0.02, constraints=constraints
+)
+decision = policy.decide(state, forecast_moms)
 
 
 # %%
-
-i = PortfolioSimulation.from_policy_and_forecasts(
-    policy_decision=cvar_dec, forecasts=forecasts, state=state, assets=assets
-)
-
-s = PortfolioSimulation.from_policy_and_forecasts(
-    policy_decision=mc_dec, forecasts=forecasts, state=state, assets=assets
+s = PolicyProjection.from_policy_and_forecasts(
+    policy_decision=decision, forecasts=forecasts, state=state, assets=assets
 )
 # %%
 
 x = PortfolioRisk.build(
-    portfolio_simulation=i,
+    policy_projection=s,
     asset_forecasts=forecasts,
     original_data=historical_panel.to_frame(),
-    auto_select_factors=False,
+    auto_select_factors=True,
     criterion="bic",
     horizon=19,
 )
 
-x.risk_contribution("var")
-x.risk_at_horizon("cvar", method="empirical")
+x.risk_contribution("cvar")
