@@ -126,6 +126,8 @@ x = PortfolioRisk.build(
     portfolio_simulation=i,
     asset_forecasts=forecasts,
     original_data=historical_panel.to_frame(),
+    auto_select_factors=False,
+    criterion="bic",
     horizon=19,
 )
 

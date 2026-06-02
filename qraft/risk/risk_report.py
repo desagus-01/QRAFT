@@ -3,6 +3,7 @@ from typing import Literal
 
 import numpy as np
 from forecast.pipelines.forecasting import ForecastPaths
+from forecast.time_series.feature_selection import Criterion
 from numpy.typing import NDArray
 from polars import DataFrame
 from risk.measures import cvar, var
@@ -33,6 +34,8 @@ class PortfolioRisk:
         portfolio_simulation: PortfolioSimulation,
         asset_forecasts: ForecastPaths,
         original_data: DataFrame,
+        auto_select_factors: bool,
+        criterion: Criterion,
         horizon: int,
     ):
         performance_attribution = portfolio_factor_attribution(
@@ -40,8 +43,8 @@ class PortfolioRisk:
             factors_forecast=asset_forecasts.factor_paths,
             original_data=original_data,
             horizon=horizon,
-            auto_select_factors=True,
-            criterion="bic",
+            auto_select_factors=auto_select_factors,
+            criterion=criterion,
         )
         risk_attribution = PortfolioRiskAttribution.from_performance_attribution(
             performance_attribution

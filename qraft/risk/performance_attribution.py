@@ -15,8 +15,8 @@ from polars import DataFrame
 from risk.factor_ols import (
     FactorAttributionModel,
     extract_factor_attribution_model,
+    factor_cumulative_returns,
     factor_ols_regression,
-    factors_n_horizon_performance,
 )
 from risk.portfolio_execution import PortfolioSimulation
 
@@ -75,7 +75,7 @@ def portfolio_factor_attribution(
 ) -> PortfolioPerformanceAttribution:
     factor_names = list(factors_forecast.keys())
 
-    factors_cum = factors_n_horizon_performance(
+    factors_cum = factor_cumulative_returns(
         factors_forecast=factors_forecast,
         original_data=original_data,
         factors_names=factor_names,

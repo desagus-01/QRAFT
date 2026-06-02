@@ -48,7 +48,7 @@ def _get_t0_factor_values(
         }
 
 
-def factors_n_horizon_performance(
+def factor_cumulative_returns(
     factors_forecast: dict[str, NDArray[np.floating]],
     original_data: DataFrame,
     factors_names: list[str],
