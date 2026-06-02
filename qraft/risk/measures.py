@@ -8,7 +8,7 @@ from numpy.lib.array_utils import normalize_axis_index
 from numpy.typing import NDArray
 
 
-def _tail_cutoff(
+def tail_cutoff(
     distribution: NDArray[np.floating],
     prob: ProbVector | None,
     method: Literal["empirical", "quantile"],
@@ -44,7 +44,7 @@ def var(
 ) -> NDArray[np.floating]:
     axis = normalize_axis_index(axis, distribution.ndim)
 
-    cutoff = _tail_cutoff(
+    cutoff = tail_cutoff(
         distribution=distribution,
         prob=prob,
         method=method,
@@ -67,7 +67,7 @@ def cvar(
 ) -> NDArray[np.floating]:
     axis = normalize_axis_index(axis, distribution.ndim)
 
-    cutoff = _tail_cutoff(
+    cutoff = tail_cutoff(
         distribution=distribution,
         prob=prob if method == "empirical" else None,
         method=method,

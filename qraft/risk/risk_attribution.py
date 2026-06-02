@@ -12,6 +12,7 @@ from forecast.time_series.dimensionality_reduction import minimum_torsion_matrix
 from forecast.time_series.estimation import weighted_covariance
 from numpy.typing import NDArray
 from polars import DataFrame
+from risk.measures import var
 from risk.performance_attribution import PortfolioPerformanceAttribution
 from utils.visuals import plot_effective_bets
 
@@ -218,9 +219,6 @@ def risk_driver_cols(panel: ScenarioPanel) -> list[str]:
 
 
 def with_prob(panel: ScenarioPanel) -> DataFrame:
-    """
-    Attach ScenarioPanel probabilities as a temporary column.
-    """
     return panel.values.with_columns(prob=pl.Series(panel.prob))
 
 
@@ -255,21 +253,23 @@ def get_var_data(
 ) -> DataFrame:
     """
     Return all scenarios in the VaR/CVaR tail.
-
-    The returned DataFrame includes temporary columns:
-        prob
-        cum_prob
     """
     validate_alpha(alpha)
 
-    quantile = 1.0 - alpha
-
-    return (
-        with_prob(panel)
-        .sort("loss")
-        .with_columns(pl.col("prob").cum_sum().alias("cum_prob"))
-        .filter(pl.col("cum_prob") >= quantile)
+    panel_with_prob = with_prob(panel)
+    loss_array = panel_with_prob["loss"].to_numpy()
+    prob_array = panel_with_prob["prob"].to_numpy()
+    cutoff = float(
+        var(
+            loss_array,
+            prob=prob_array,
+            method="empirical",
+            alpha=alpha,
+            distribution_type="loss",
+        )
     )
+
+    return panel_with_prob.filter(pl.col("loss") >= cutoff).sort("loss")
 
 
 def get_var_row(
@@ -294,17 +294,6 @@ def cvar_contribution(
 ) -> RiskContributions:
     """
     Compute CVaR contribution decomposition from a risk attribution panel.
-
-    Parameters
-    ----------
-    panel
-        ScenarioPanel containing risk-driver columns plus a required "loss" column.
-
-    exposures
-        Loss-space exposures aligned with the risk-driver columns.
-
-    alpha
-        Tail probability. alpha=0.05 computes the 95% loss-tail CVaR.
     """
     driver_cols = validate_exposures_for_panel(panel, exposures)
     cvar_tail = get_var_data(panel, alpha)
@@ -328,9 +317,7 @@ def cvar_contribution(
         ).item()
     )
 
-    contributions = {
-        c: weighted_driver_means[c] * float(exposures[c]) for c in driver_cols
-    }
+    contributions = {c: weighted_driver_means[c] * exposures[c] for c in driver_cols}
 
     return RiskContributions(
         risk_measure="cvar",
@@ -360,8 +347,6 @@ def var_contribution(
     """
     driver_cols = validate_exposures_for_panel(panel, exposures)
     var_row = get_var_row(panel, alpha)
-
-    logger.debug("VaR row: %s", var_row)
 
     contributions = {
         c: float(var_row.select(c).item()) * float(exposures[c]) for c in driver_cols
@@ -395,12 +380,7 @@ def effective_bets(
 ) -> EffectiveBets:
     """
     Compute effective bets and minimum-torsion factor risk contributions.
-
-    This remains array-based because minimum torsion is a numerical transform
-    over a factor matrix. PortfolioRiskAttribution.effective_bets() provides
-    the domain-level wrapper.
     """
-    factor_joint_distribution = np.asarray(factor_joint_distribution, dtype=float)
 
     if factor_joint_distribution.ndim != 2:
         raise ValueError(
@@ -408,12 +388,7 @@ def effective_bets(
             f"(n_scenarios, n_factors); got shape={factor_joint_distribution.shape}"
         )
 
-    factor_keys = [
-        k for k, v in factor_exposures.items() if isinstance(v, (float, np.floating))
-    ]
-
-    if not factor_keys:
-        raise ValueError("factor_exposures cannot be empty")
+    factor_keys = list(factor_exposures.keys())
 
     if factor_joint_distribution.shape[1] != len(factor_keys):
         raise ValueError(
@@ -448,16 +423,7 @@ def effective_bets(
     )
 
     enb = float(
-        np.exp(
-            -np.sum(
-                factor_risk_contribution
-                * np.log(
-                    1.0
-                    + (factor_risk_contribution - 1.0)
-                    * (factor_risk_contribution > 1e-5)
-                )
-            )
-        )
+        np.exp(-np.sum(factor_risk_contribution * np.log(factor_risk_contribution)))
     )
 
     factor_contributions = {
