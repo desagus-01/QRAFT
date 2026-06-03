@@ -6,7 +6,7 @@ from typing import Literal
 
 import numpy as np
 from forecast.pipelines.fitted_universe import FittedUniverse
-from forecast.scenarios.copula_marginal import CopulaMarginalModel
+from forecast.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
 from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.resampling import weighted_bootstrapping_idx
 from forecast.scenarios.types import ProbVector, validate_prob_vector
@@ -204,9 +204,7 @@ def draw_innovations(
     seed: int | None,
     method: Method = "bootstrap",
     *,
-    target_copula: Literal["t", "norm"] | None = None,
-    copula_fit_method: Literal["ml", "irho", "itau"] | None = None,
-    target_marginals: dict[str, Literal["t", "norm"]] | None = None,
+    cma_config: CMAConfig | None = None,
 ) -> InnovationPaths:
     """Draw innovation (invariant) scenarios for simulation.
 
@@ -245,11 +243,6 @@ def draw_innovations(
         assets,
     )
 
-    if (target_copula is not None or target_marginals is not None) and method != "cma":
-        raise ValueError(
-            "You can only have target_marginal and/or target_copula when method is cma!"
-        )
-
     panel = invariants.drop_nulls()
 
     logger.info(
@@ -258,23 +251,12 @@ def draw_innovations(
     )
 
     if method == "cma":
-        if copula_fit_method is None:
-            copula_fit_method = "itau"
-            logger.info(
-                "No copula_fit_method provided; defaulting to '%s'", copula_fit_method
-            )
-
-        logger.info(
-            "Applying CMA update with target_copula=%s target_marginals=%s",
-            target_copula,
-            target_marginals,
-        )
+        if cma_config is None:
+            raise ValueError("method=cma requires a CMAConfig")
 
         panel = CopulaMarginalModel.from_panel(panel).update_distribution(
             seed=seed,
-            target_marginals=target_marginals,
-            target_copula=target_copula,
-            copula_fit_method=copula_fit_method,
+            cfg=cma_config,
         )
 
         logger.info("CMA update complete: n_scenarios=%d", panel.n_rows)
@@ -317,9 +299,7 @@ def run_n_steps_forecast(
     method: Method = "bootstrap",
     *,
     back_to_price: bool = True,
-    target_copula: Literal["t", "norm"] | None = None,
-    copula_fit_method: Literal["ml", "irho", "itau"] | None = None,
-    target_marginals: dict[str, Literal["t", "norm"]] | None = None,
+    cma_config: CMAConfig,
 ) -> ForecastPaths:
     """Run a full n-step forecasting pipeline for a set of assets.
 
@@ -370,9 +350,7 @@ def run_n_steps_forecast(
         n_sims=n_sims,
         seed=seed,
         method=method,
-        target_copula=target_copula,
-        target_marginals=target_marginals,
-        copula_fit_method=copula_fit_method,
+        cma_config=cma_config,
     )
 
     simulated = universe_fit.simulate(innovations.values)

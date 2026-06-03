@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from typing import Literal, Protocol, Sequence
+from typing import Protocol, Sequence
 
-from forecast.scenarios.copula_marginal import CopulaMarginalModel
+from forecast.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
 from forecast.scenarios.entropy_pooling import entropy_pooling_probs
 from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.types import ViewSpec
@@ -31,24 +31,13 @@ class Views:
 
 @dataclass(frozen=True)
 class CMA:
-    target_copula: Literal["t", "norm"] | None = None
-    target_marginals: dict[str, Literal["t", "norm"]] | None = None
-    copula_fit_method: Literal["ml", "irho", "itau"] = "itau"
+    config: CMAConfig
     seed: int | None = None
 
-    def __post_init__(self) -> None:
-        if self.target_copula is None and self.target_marginals is None:
-            raise ValueError(
-                "CMA needs at least one of target_copula or target_marginals"
-            )
-
     def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
-        clean = panel.drop_nulls()
+        clean: ScenarioPanel = panel.drop_nulls()
         return CopulaMarginalModel.from_panel(clean).update_distribution(
-            seed=self.seed,
-            target_marginals=self.target_marginals,
-            target_copula=self.target_copula,
-            copula_fit_method=self.copula_fit_method,
+            self.config, seed=self.seed
         )
 
 

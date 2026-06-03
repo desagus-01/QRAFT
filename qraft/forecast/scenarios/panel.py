@@ -14,7 +14,6 @@ def redistribute_prob_mass(
     prob: ProbVector,
     dropped_idx: NDArray[np.int_],
 ) -> ProbVector:
-    """Drop entries at ``dropped_idx`` and spread their mass across the rest."""
     if dropped_idx.size == 0:
         return prob.copy()
 
@@ -27,11 +26,6 @@ def redistribute_prob_mass(
 
 
 def compensate_prob(prob: ProbVector, n_remove: int) -> ProbVector:
-    """Drop the first ``n_remove`` entries and redistribute their mass.
-
-    Convenience wrapper around :func:`redistribute_prob_mass` for the common
-    "leading rows were trimmed" case (e.g. after differencing or lag alignment).
-    """
     if n_remove < 0:
         raise ValueError("n_remove must be non-negative")
     return redistribute_prob_mass(prob, np.arange(n_remove, dtype=np.int_))
@@ -39,17 +33,6 @@ def compensate_prob(prob: ProbVector, n_remove: int) -> ProbVector:
 
 @dataclass(frozen=True)
 class ScenarioPanel:
-    """Canonical (values × dates × prob) triple used throughout the pipeline.
-
-    Invariants (enforced in ``__post_init__``):
-      * ``values`` has no ``date`` column; dates live in ``dates``.
-      * ``values.height == len(prob)`` and ``== len(dates)`` when dates present.
-      * ``prob`` is a valid :data:`ProbVector`: 1-D, finite, non-negative,
-        summing to 1. Stored as a read-only array.
-      * ``dates.name == 'date'`` when present.
-      * The panel is non-empty.
-    """
-
     values: pl.DataFrame
     dates: pl.Series | None  # None so that simulations can also use this
     prob: ProbVector
@@ -85,10 +68,6 @@ class ScenarioPanel:
         df: pl.DataFrame,
         prob: ProbVector | None = None,
     ) -> ScenarioPanel:
-        """Build a panel from a DataFrame, splitting out the ``date`` column.
-
-        A uniform prior is assigned when ``prob`` is not provided.
-        """
         if "date" in df.columns:
             dates: pl.Series | None = df.get_column("date")
             values = df.drop("date")
@@ -108,12 +87,6 @@ class ScenarioPanel:
         return DataFrame({"date": self.dates}).hstack(self.values)
 
     def drop_nulls(self) -> ScenarioPanel:
-        """Drop every row that contains a null in any column.
-
-        The probability mass of each dropped row is redistributed evenly
-        across the remaining rows (unlike a simple prefix-trim, this is
-        correct for nulls that appear anywhere in the panel).
-        """
         null_mask = self.values.select(
             pl.any_horizontal(pl.all().is_null())
         ).to_series()
@@ -131,11 +104,6 @@ class ScenarioPanel:
         return ScenarioPanel(values=clean, dates=new_dates, prob=new_prob)
 
     def diff(self, lag: int = 1) -> ScenarioPanel:
-        """Apply a ``lag``-step first-difference to every column.
-
-        The leading ``lag`` rows are dropped (they become null) and their
-        probability mass is redistributed across the remainder.
-        """
         if lag < 1:
             raise ValueError("lag must be >= 1")
 
@@ -147,17 +115,9 @@ class ScenarioPanel:
         return ScenarioPanel(values=diffed, dates=new_dates, prob=new_prob)
 
     def with_prob(self, prob: ProbVector) -> ScenarioPanel:
-        """Return a new panel with a replaced probability vector."""
         return ScenarioPanel(values=self.values, dates=self.dates, prob=prob)
 
     def map_values_same_rows(self, values: pl.DataFrame) -> ScenarioPanel:
-        """Return a new panel with replaced values; row count must be unchanged.
-
-        ``dates`` and ``prob`` are always preserved.  Raises if ``values`` has
-        a different number of rows, making it impossible to silently drop dates.
-        Use :meth:`filter_rows` or :meth:`diff` / :meth:`drop_nulls` when the
-        row count must change.
-        """
         if values.height != self.values.height:
             raise ValueError(
                 f"map_values_same_rows requires identical row count; "
@@ -167,11 +127,6 @@ class ScenarioPanel:
         return ScenarioPanel(values=values, dates=self.dates, prob=self.prob)
 
     def filter_rows(self, mask: pl.Series) -> ScenarioPanel:
-        """Keep rows where *mask* is True, updating ``dates`` and ``prob``.
-
-        Probability mass from dropped rows is redistributed evenly across the
-        survivors (same policy as :meth:`drop_nulls`).
-        """
         if len(mask) != self.values.height:
             raise ValueError(f"mask length {len(mask)} != rows {self.values.height}")
         if not mask.any():
@@ -185,15 +140,9 @@ class ScenarioPanel:
 
     @property
     def has_dates(self) -> bool:
-        """True when a row-aligned ``date`` series is present."""
         return self.dates is not None
 
     def require_dates(self) -> pl.Series:
-        """Return the ``date`` series or raise if the panel has none.
-
-        Prefer this over ``panel.dates`` at call sites that genuinely need
-        dates; it makes the dependency explicit and the error message clear.
-        """
         if self.dates is None:
             raise ValueError(
                 "This operation requires a dated panel, but AssetPanel.dates is None."

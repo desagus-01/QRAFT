@@ -27,7 +27,6 @@ def _compute_cdf_and_pobs(
         raise ValueError(
             "compute_cdf_and_pobs expects null-free data; drop nulls first."
         )
-
     df = (
         data.select(pl.col(marginal_name))
         .with_row_index()
@@ -44,6 +43,21 @@ def _compute_cdf_and_pobs(
         )
 
     return df
+
+
+@dataclass(frozen=True)
+class CMAConfig:
+    """How to reshape the joint distribution under copula-marginal adjustment."""
+
+    target_copula: Literal["t", "norm"] | None = None
+    target_marginals: dict[str, Literal["t", "norm"]] | None = None
+    copula_fit_method: Literal["ml", "irho", "itau"] = "itau"
+
+    def __post_init__(self) -> None:
+        if self.target_copula is None and self.target_marginals is None:
+            raise ValueError(
+                "CMAConfig needs at least one of target_copula or target_marginals."
+            )
 
 
 # TODO: Need to find a way to allow nulls at the start
@@ -196,53 +210,17 @@ class CopulaMarginalModel:
 
     def update_distribution(
         self,
+        cfg: CMAConfig,
         seed: int | None = None,
-        target_marginals: dict[str, Literal["t", "norm"]] | None = None,
-        *,
-        target_copula: Literal["t", "norm"] | None = None,
-        copula_fit_method: Literal["ml", "irho", "itau"] | None = None,
     ) -> ScenarioPanel:
-        """Apply CMA updates to marginals and/or the copula and return a panel.
-
-        Parameters
-        ----------
-        seed : int | None, optional
-            RNG seed forwarded to copula resampling if requested.
-        target_marginals : dict[str, {"t", "norm"}] | None, optional
-            Per-asset target marginal families for quantile mapping.
-        target_copula : {"t", "norm"} | None, optional
-            Target parametric copula family. If provided, the copula will be
-            refit/resampled using ``copula_fit_method``.
-        copula_fit_method : {"ml", "irho", "itau"} | None, optional
-            Copula fitting method; if omitted defaults may be used by
-            underlying utilities.
-
-        Returns
-        -------
-        AssetPanel
-            Reconstructed scenarios with dates (if any) and probability vector
-            carried through.
-
-        Raises
-        ------
-        ValueError
-            If neither ``target_copula`` nor ``target_marginals`` is provided.
-        """
-        if target_copula is None and target_marginals is None:
-            raise ValueError("Choose a target marginal or target copula!")
-        if target_copula is not None and copula_fit_method is None:
-            raise ValueError(
-                "You must choose a copula fit method if you have selected a copula!"
-            )
-
-        model = self
-
-        if (target_copula is not None) and (copula_fit_method is not None):
+        """Apply CMA updates (marginals and/or copula) and return a panel."""
+        model: CopulaMarginalModel = self
+        if cfg.target_copula is not None:
             model = model.update_copula(
-                seed=seed, target_copula=target_copula, fit_method=copula_fit_method
+                seed=seed,
+                target_copula=cfg.target_copula,
+                fit_method=cfg.copula_fit_method,
             )
-
-        if target_marginals is not None:
-            model = model.update_marginals(target_marginals)
-
+        if cfg.target_marginals is not None:
+            model = model.update_marginals(cfg.target_marginals)
         return model.to_panel()
