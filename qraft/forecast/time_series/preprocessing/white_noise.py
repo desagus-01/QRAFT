@@ -1,6 +1,7 @@
 import logging
 
 import polars as pl
+from forecast.config import IIDConfig
 from forecast.scenarios.copula_marginal import CopulaMarginalModel
 from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.types import ProbVector
@@ -11,7 +12,6 @@ from forecast.time_series.tests.iid import (
     univariate_kolmogrov_smirnov_test,
 )
 from polars.dataframe.frame import DataFrame
-from policy import IIDConfig
 
 logger = logging.getLogger(__name__)
 

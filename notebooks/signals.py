@@ -1,8 +1,8 @@
 # %%
 import logging
 
+from forecast.config import LogConfig
 from pipelines.forecasting import AssetUniverse
-from policy import LogConfig
 from probability.distributions import state_smooth_probs
 from scenarios.panel import ScenarioPanel
 from signals.raw_signals import ewma_signal

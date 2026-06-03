@@ -2,8 +2,8 @@
 import logging
 
 import polars as pl
+from forecast.config import LogConfig
 from pipelines.forecasting import AssetUniverse, run_n_steps_forecast
-from policy import LogConfig
 from portfolio import (
     build_equal_weight_portfolio_from_df,
     equal_weight_target_weights,

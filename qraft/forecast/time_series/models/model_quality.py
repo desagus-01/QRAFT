@@ -4,9 +4,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
+from forecast.config import QualityConfig
 from numpy._typing import NDArray
-
-from policy import QualityConfig
 
 QualityEvent = Literal[
     "MEAN_FALLBACK_DEMEAN",

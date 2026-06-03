@@ -2,7 +2,7 @@ import math
 from dataclasses import dataclass
 from typing import TypedDict
 
-from policy import IIDConfig
+from forecast.config import IIDConfig
 
 _DEFAULT_ROUNDING = 4
 _DEFAULT_IID = IIDConfig()

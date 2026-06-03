@@ -12,10 +12,10 @@ from construction.optimization.constraints import (
 )
 from construction.optimization.moments import HorizonMoments
 from construction.optimization.pre_built import multi_period_optimization
+from forecast.config import LogConfig
 from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
 from forecast.scenarios.panel import ScenarioPanel
-from policy import LogConfig
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
 

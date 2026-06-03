@@ -2,6 +2,7 @@ import logging
 from typing import Mapping
 
 import numpy as np
+from forecast.config import MeanModelConfig, PipelineConfig, VolatilityModelConfig
 from forecast.time_series.models.fitted_types import (
     AutoARMARes,
     AutoGARCHRes,
@@ -23,7 +24,6 @@ from forecast.time_series.tests.iid import arch_test, ljung_box_test
 from forecast.time_series.tests.multiple import multiple_tests_rejected
 from numpy._typing import NDArray
 from polars import DataFrame
-from policy import MeanModelConfig, PipelineConfig, VolatilityModelConfig
 
 logger = logging.getLogger(__name__)
 

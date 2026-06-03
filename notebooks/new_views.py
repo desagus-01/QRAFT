@@ -2,12 +2,12 @@
 import logging
 
 import numpy as np
+from forecast.config import LogConfig
 from forecast.pipelines.forecasting import AssetUniverse
 from forecast.probability.distributions import state_smooth_probs
 from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.transforms import CMA, Views, apply_scenario_transforms
 from forecast.scenarios.types import CorrView, MeanView, RankingView
-from policy import LogConfig
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
 

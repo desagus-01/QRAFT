@@ -1,6 +1,7 @@
 import logging
 
 import polars as pl
+from forecast.config import PreprocessConfig
 from forecast.scenarios.types import ProbVector
 from forecast.time_series.preprocessing.apply import (
     apply_deseason,
@@ -22,7 +23,6 @@ from forecast.time_series.selection.seasonality import (
 from forecast.time_series.selection.trend import trend_diagnostic
 from forecast.time_series.transforms.inverses import InverseSpec
 from polars.dataframe.frame import DataFrame
-from policy import PreprocessConfig
 from utils.helpers import (
     get_assets_names,
 )

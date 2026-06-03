@@ -6,6 +6,7 @@ from typing import Mapping
 
 import numpy as np
 import polars as pl
+from forecast.config import PipelineConfig
 from forecast.pipelines.model_selection import get_univariate_results
 from forecast.pipelines.preprocess import run_univariate_preprocess
 from forecast.scenarios.panel import ScenarioPanel
@@ -16,7 +17,6 @@ from forecast.time_series.models.fitted_types import UnivariateRes
 from forecast.time_series.preprocessing.types import UnivariatePreprocess
 from forecast.time_series.transforms.inverses import InverseSpec
 from numpy.typing import NDArray
-from policy import PipelineConfig
 
 logger = logging.getLogger(__name__)
 
