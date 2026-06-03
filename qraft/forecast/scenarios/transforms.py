@@ -4,7 +4,7 @@ from typing import Literal, Protocol, Sequence
 from forecast.scenarios.copula_marginal import CopulaMarginalModel
 from forecast.scenarios.entropy_pooling import entropy_pooling_probs
 from forecast.scenarios.panel import ScenarioPanel
-from forecast.scenarios.types import View
+from forecast.scenarios.types import ViewSpec
 
 
 class ScenarioTransform(Protocol):
@@ -13,7 +13,7 @@ class ScenarioTransform(Protocol):
 
 @dataclass(frozen=True)
 class Views:
-    views: list[View]
+    specs: list[ViewSpec]
     confidence: float = 1.0
 
     def __post_init__(self) -> None:
@@ -24,7 +24,7 @@ class Views:
 
     def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
         posterior = entropy_pooling_probs(
-            prior=panel.prob, views=self.views, confidence=self.confidence
+            panel=panel, specs=self.specs, confidence=self.confidence
         )
         return panel.with_prob(posterior)
 

@@ -5,6 +5,8 @@ import numpy as np
 from forecast.pipelines.forecasting import AssetUniverse
 from forecast.probability.distributions import state_smooth_probs
 from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.transforms import CMA, Views, apply_scenario_transforms
+from forecast.scenarios.types import CorrView, MeanView, RankingView
 from policy import LogConfig
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
@@ -52,3 +54,21 @@ historical_panel = ScenarioPanel.from_frame(
     prob=prob_ex,
 )
 # %%
+historical_panel
+# %%
+views = Views(
+    [
+        MeanView("DHIL", ">=", 0.002),
+        CorrView(("MTX", "CUBE"), ">=", 0.75),
+        RankingView(["DHIL", "MTX", "NBIX"]),
+    ],
+    confidence=0.8,
+)
+
+cma = CMA(target_copula="t", target_marginals=None, seed=1)
+
+posterior_panel = apply_scenario_transforms(historical_panel, [views, cma])
+
+# %%
+
+posterior_panel

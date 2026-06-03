@@ -1,39 +1,47 @@
-from enum import Enum
+from dataclasses import dataclass
 from typing import Annotated, Literal, TypeAlias, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import AfterValidator, BaseModel, ConfigDict
+from pydantic import AfterValidator
+
+Sign: TypeAlias = Literal["<=", ">=", "=="]
 
 
-class ConstraintSigns(str, Enum):
-    equal_greater = "equal_greater"
-    equal_less = "equal_less"
-    equal = "equal"
+@dataclass(frozen=True)
+class MeanView:
+    asset: str
+    sign: Sign
+    target: float
 
 
-ConstraintSignLike: TypeAlias = (
-    ConstraintSigns | Literal["equal_greater", "equal_less", "equal"]
-)
+@dataclass(frozen=True)
+class StdView:
+    asset: str
+    sign: Sign
+    target: float
 
 
-class CorrInfo(BaseModel):
-    asset_pair: tuple[str, str]
-    corr: float
+@dataclass(frozen=True)
+class CorrView:
+    pair: tuple[str, str]
+    sign: Sign
+    target: float
 
 
-class View(BaseModel):
-    """
-    Allows to create a view on a single scenario
-    """
+@dataclass(frozen=True)
+class RankingView:
+    order: list[str]
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    type: str
-    risk_driver: tuple[str, str] | str
-    data: NDArray[np.floating]
-    views_target: NDArray[np.floating] | None
-    sign_type: ConstraintSignLike
-    mean_ref: NDArray[np.floating] | None = None
+
+@dataclass(frozen=True)
+class QuantileView:
+    asset: str
+    quantile: float
+    target_prob: float
+
+
+ViewSpec: TypeAlias = MeanView | StdView | CorrView | RankingView | QuantileView
 
 
 def validate_prob_vector(a: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -55,7 +63,7 @@ ProbVector = Annotated[NDArray[np.float64], AfterValidator(validate_prob_vector)
 
 class ConstraintDiag(TypedDict):
     risk_driver: tuple[str, str] | str
-    sign: ConstraintSignLike
-    constraint_value: NDArray[np.floating] | None
+    sign: Sign  # was ConstraintSignLike
+    constraint_value: float | None  # was NDArray | None
     active: bool
     sensitivity: float | None
