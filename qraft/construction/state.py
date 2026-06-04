@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
-from forecast.pipelines.forecasting import ForecastPaths
+from forecast.forecast_paths import ForecastPaths
 from numpy.typing import NDArray
 
 

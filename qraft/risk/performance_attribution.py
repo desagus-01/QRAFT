@@ -8,9 +8,6 @@ from forecast.scenarios.types import ProbVector
 from forecast.time_series.estimation import (
     EquationTypes,
 )
-from forecast.time_series.feature_selection import (
-    Criterion,
-)
 from numpy.typing import NDArray
 from polars import DataFrame
 from risk.factor_ols import (
@@ -18,6 +15,9 @@ from risk.factor_ols import (
     extract_factor_attribution_model,
     factor_cumulative_returns,
     factor_ols_regression,
+)
+from risk.feature_selection import (
+    Criterion,
 )
 
 

@@ -3,10 +3,10 @@ from typing import Literal
 
 import numpy as np
 from construction.policy_projection import PolicyProjection
-from forecast.pipelines.forecasting import ForecastPaths
-from forecast.time_series.feature_selection import Criterion
+from forecast.forecast_paths import ForecastPaths
 from numpy.typing import NDArray
 from polars import DataFrame
+from risk.feature_selection import Criterion
 from risk.measures import cvar, var
 from risk.performance_attribution import (
     portfolio_factor_attribution,

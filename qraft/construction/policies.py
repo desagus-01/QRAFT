@@ -9,7 +9,7 @@ from construction.optimization.optimization import MPOResult
 from construction.optimization.presets import PreMadeObjectives
 from construction.optimization.problem import MPOProblem
 from construction.state import PortfolioState
-from forecast.pipelines.forecasting import ForecastPaths
+from forecast.forecast_paths import ForecastPaths
 from numpy.typing import NDArray
 
 

@@ -9,13 +9,13 @@ from forecast.time_series.estimation import (
     add_deterministics_to_eq,
     weighted_ols,
 )
-from forecast.time_series.feature_selection import (
+from numpy.typing import NDArray
+from polars import DataFrame
+from risk.feature_selection import (
     Criterion,
     ForwardRegressionResult,
     forward_regression,
 )
-from numpy.typing import NDArray
-from polars import DataFrame
 
 
 @dataclass(frozen=True, slots=True)

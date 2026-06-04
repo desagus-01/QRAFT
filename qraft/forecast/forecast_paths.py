@@ -1,0 +1,179 @@
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, replace
+from typing import Literal
+
+import numpy as np
+from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.types import ProbVector, validate_prob_vector
+from numpy.typing import NDArray
+from polars import DataFrame
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class AssetUniverse:
+    """Classifies tickers as tradable assets or non-tradable factors.
+
+    Both assets and factors are forecast together (preserving cross-correlations),
+    but only assets participate in portfolio construction (weights, PnL, value).
+    """
+
+    assets: list[str]
+    factors: list[str]
+
+    def __post_init__(self) -> None:
+        overlap = set(self.assets) & set(self.factors)
+        if overlap:
+            raise ValueError(
+                f"Tickers appear in both assets and factors: {sorted(overlap)}"
+            )
+        if not self.assets:
+            raise ValueError("Must have at least one tradable asset")
+
+    @property
+    def all_tickers(self) -> list[str]:
+        """All tickers in forecast order (assets first, then factors)."""
+        return self.assets + self.factors
+
+    def is_factor(self, ticker: str) -> bool:
+        return ticker in set(self.factors)
+
+    def is_asset(self, ticker: str) -> bool:
+        return ticker in set(self.assets)
+
+
+@dataclass(frozen=True, slots=True)
+class InnovationPaths:
+    values: NDArray[np.floating]
+    path_probs: ProbVector
+
+
+AssetSubset = Literal["all", "tradable", "factors"]
+
+
+@dataclass(frozen=True, slots=True)
+class ForecastPaths:
+    asset_paths: dict[str, NDArray[np.floating]]
+    path_probs: ProbVector
+    initial_prices: dict[str, float]
+    universe: AssetUniverse | None = None
+
+    def __post_init__(self) -> None:
+        if not self.asset_paths:
+            raise ValueError("ForecastPaths.asset_paths cannot be empty")
+
+        validate_prob_vector(self.path_probs)
+
+        base_shape: tuple[int, int] | None = None
+
+        for asset, path in self.asset_paths.items():
+            if path.ndim != 2:
+                raise ValueError(
+                    f"Forecast for {asset} must have shape "
+                    f"(n_paths, n_horizons); got {path.shape}"
+                )
+
+            if base_shape is None:
+                base_shape = path.shape
+            elif path.shape != base_shape:
+                raise ValueError(
+                    f"Forecast shape mismatch for {asset}: {path.shape} != {base_shape}"
+                )
+
+            self.asset_paths[asset] = path
+
+        assert base_shape is not None
+        n_paths, _ = base_shape
+
+        if len(self.path_probs) != n_paths:
+            raise ValueError(
+                f"path_probs length {len(self.path_probs)} "
+                f"must equal number of paths {n_paths}"
+            )
+
+    @property
+    def price_stack(self) -> NDArray[np.floating]:
+        return self.price_stack_for(list(self.tradable_paths.keys()))
+
+    @property
+    def n_simulations(self) -> int:
+        first = next(iter(self.asset_paths.values()))
+        return first.shape[0]
+
+    @property
+    def n_horizons(self) -> int:
+        first = next(iter(self.asset_paths.values()))
+        return first.shape[1]
+
+    @property
+    def assets_and_factors_names(self) -> list[str]:
+        return list(self.asset_paths.keys())
+
+    @property
+    def tradable_paths(self) -> dict[str, NDArray[np.floating]]:
+        if self.universe is None:
+            return self.asset_paths
+        assets_set = set(self.universe.assets)
+        return {k: v for k, v in self.asset_paths.items() if k in assets_set}
+
+    @property
+    def factor_paths(self) -> dict[str, NDArray[np.floating]]:
+        if self.universe is None:
+            return {}
+        factors_set = set(self.universe.factors)
+        return {k: v for k, v in self.asset_paths.items() if k in factors_set}
+
+    def price_stack_for(self, assets: list[str]) -> NDArray[np.floating]:
+        missing = set(assets) - self.asset_paths.keys()
+        if missing:
+            raise ValueError(f"Assets not found in forecast: {missing}")
+        return np.stack([self.asset_paths[a] for a in assets], axis=0)
+
+    def _paths_for(self, subset: AssetSubset) -> dict[str, NDArray[np.floating]]:
+        if subset == "all":
+            return self.asset_paths
+        if subset == "tradable":
+            return self.tradable_paths
+        if subset == "factors":
+            return self.factor_paths
+        raise ValueError(f"Unknown subset: {subset}")
+
+    def at_step(
+        self,
+        step: int,
+        *,
+        subset: AssetSubset = "all",
+    ) -> ScenarioPanel:
+        """
+        Return a 2D scenario panel at one forecast step.
+
+        step is 1-based: step=1 is the first simulated forecast step.
+        t0 is excluded; ForecastPaths contains no t0 column.
+        """
+        if step < 1:
+            raise ValueError("step must be >= 1")
+
+        if step > self.n_horizons:
+            raise ValueError(
+                f"step={step} is out of range. Forecast has {self.n_horizons} steps."
+            )
+
+        idx = step - 1
+        paths = self._paths_for(subset)
+
+        if not paths:
+            raise ValueError(f"No paths available for subset={subset!r}")
+
+        values = DataFrame({asset: arr[:, idx] for asset, arr in paths.items()})
+
+        return ScenarioPanel(
+            values=values,
+            dates=None,
+            prob=self.path_probs,
+        )
+
+    def with_path_probs(self, path_probs: ProbVector) -> "ForecastPaths":
+        return replace(self, path_probs=path_probs)

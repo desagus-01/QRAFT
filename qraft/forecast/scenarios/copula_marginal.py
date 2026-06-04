@@ -17,12 +17,6 @@ def _compute_cdf_and_pobs(
     prob: ProbVector,
     compute_pobs: bool = True,
 ) -> pl.DataFrame:
-    """Compute empirical CDF (and optionally pseudo-observations) for one marginal.
-
-    Returns a DataFrame with columns ``[index, <marginal_name>, prob, cdf]``
-    and, when ``compute_pobs`` is True, also ``pobs`` aligned to the original
-    row order. Input must be null-free.
-    """
     if data.null_count().sum_horizontal().item() > 0:
         raise ValueError(
             "compute_cdf_and_pobs expects null-free data; drop nulls first."
@@ -79,9 +73,6 @@ class CopulaMarginalModel:
             )
 
     def _validate_frames(self) -> None:
-        """Raise if marginals / cdfs / copula differ in columns or height,
-        or if any frame height disagrees with ``len(self.prob)``.
-        """
         frames = {
             "marginals": self.marginals,
             "cdfs": self.cdfs,
@@ -106,11 +97,6 @@ class CopulaMarginalModel:
 
     @classmethod
     def from_panel(cls, panel: ScenarioPanel) -> CopulaMarginalModel:
-        """Construct a CopulaMarginalModel from an :class:`AssetPanel`.
-
-        The panel must be null-free; callers should run ``panel.drop_nulls()``
-        first when appropriate.
-        """
         cdf_cols: dict[str, pl.Series] = {}
         copula_cols: dict[str, pl.Series] = {}
         sorted_marginals: dict[str, pl.Series] = {}
@@ -135,19 +121,9 @@ class CopulaMarginalModel:
     def from_data_and_prob(
         cls, data: DataFrame, prob: ProbVector | None = None
     ) -> CopulaMarginalModel:
-        """Construct from a raw DataFrame and optional prior.
-
-        Delegates to :meth:`from_panel` after normalising via
-        :class:`AssetPanel`.
-        """
         return cls.from_panel(ScenarioPanel.from_frame(data, prob))
 
     def to_panel(self) -> ScenarioPanel:
-        """Convert back to an :class:`AssetPanel` by interpolating marginals.
-
-        Each marginal is reconstructed by mapping copula pseudo-observations
-        through the empirical CDF.
-        """
         interp_res = {}
         for asset in self.marginals.columns:
             interp_res[asset] = interp(

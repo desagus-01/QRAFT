@@ -4,7 +4,7 @@ from typing import Literal
 import numpy as np
 from construction.policies import PolicyDecision
 from construction.state import PortfolioState
-from forecast.pipelines.forecasting import ForecastPaths
+from forecast.forecast_paths import ForecastPaths
 from forecast.scenarios.types import ProbVector
 from numpy.typing import NDArray
 from utils.visuals import plot_simulation_results

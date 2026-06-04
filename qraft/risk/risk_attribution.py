@@ -8,10 +8,10 @@ import numpy as np
 import polars as pl
 from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.types import ProbVector
-from forecast.time_series.dimensionality_reduction import minimum_torsion_matrix
 from forecast.time_series.estimation import weighted_covariance
 from numpy.typing import NDArray
 from polars import DataFrame
+from risk.dimensionality_reduction import minimum_torsion_matrix
 from risk.measures import var
 from risk.performance_attribution import PortfolioPerformanceAttribution
 from utils.visuals import plot_effective_bets

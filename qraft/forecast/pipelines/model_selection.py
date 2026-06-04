@@ -2,7 +2,12 @@ import logging
 from typing import Mapping
 
 import numpy as np
-from forecast.config import MeanModelConfig, PipelineConfig, VolatilityModelConfig
+from forecast.config import (
+    DEFAULT_PIPELINE_CONFIG,
+    MeanModelConfig,
+    PipelineConfig,
+    VolatilityModelConfig,
+)
 from forecast.time_series.models.fitted_types import (
     AutoARMARes,
     AutoGARCHRes,
@@ -374,8 +379,6 @@ def get_univariate_results(
     Run mean and volatility modelling pipelines and aggregate results per asset, including quality.
     """
     if cfg is None:
-        from policy import DEFAULT_PIPELINE_CONFIG
-
         cfg = DEFAULT_PIPELINE_CONFIG
 
     mean_modelling, mean_audits = mean_modelling_pipeline(

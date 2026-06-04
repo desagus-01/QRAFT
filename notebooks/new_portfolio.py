@@ -73,11 +73,10 @@ forecasts = run_n_steps_forecast(
     n_sims=n_sims,
     seed=3,
     universe=universe,
-    method="cma",
-    target_copula="t",
-    back_to_price=True,
+    method="bootstrap",
 )
 # %%
+
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
     # FullyInvested(),
@@ -103,6 +102,7 @@ state = PortfolioState.from_forecast_and_assets(
     cash=100_000,
 )
 decision = policy.decide(state, forecasts)
+
 
 # %%
 s = PolicyProjection.from_decision(
