@@ -67,17 +67,15 @@ def _validate_current_state(
     n_assets: int,
     allow_borrow: bool,
 ) -> tuple[NDArray[np.floating], float]:
-    weights = np.asarray(current_weights, dtype=float)
-
-    if weights.shape != (n_assets,):
+    if current_weights.shape != (n_assets,):
         raise ValueError(
-            f"current_weights must have shape ({n_assets},); got {weights.shape}."
+            f"current_weights must have shape ({n_assets},); got {current_weights.shape}."
         )
 
-    if not np.all(np.isfinite(weights)):
+    if not np.all(np.isfinite(current_weights)):
         raise ValueError("current_weights contains NaN or inf.")
 
-    total_budget = float(np.sum(weights)) + current_cash
+    total_budget = float(np.sum(current_weights)) + current_cash
 
     if not np.isclose(total_budget, 1.0, atol=1e-6):
         raise ValueError(
@@ -91,7 +89,7 @@ def _validate_current_state(
             f"Got current_cash={current_cash:.12f}."
         )
 
-    return weights, current_cash
+    return current_weights, current_cash
 
 
 @dataclass(frozen=True, slots=True)

@@ -3,7 +3,9 @@ import logging
 
 import numpy as np
 from construction.optimization.constraints import (
+    FullyInvested,
     LongOnly,
+    MinCashWeight,
     PortfolioConstraint,
     TurnoverLimit,
 )
@@ -42,7 +44,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:30])
+tradable_assets = list(data.columns[10:80])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -76,10 +78,15 @@ forecasts = run_n_steps_forecast(
     method="bootstrap",
 )
 # %%
-
+# for path in forecasts.asset_paths.values():
+#     plot_simulation_results(path)
+#
+# %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
+    FullyInvested(constraint_type="soft", soft_weight=1.0),
     # FullyInvested(),
+    MinCashWeight(limit=0.4, constraint_type="soft", soft_weight=1.0),
     # MaxWeight(limit=0.09),
     # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
     TurnoverLimit(limit=0.80),
@@ -92,17 +99,21 @@ policy = MPOPolicy.preset(
     constraints=constraints,
     expectation_tolerance=0.1,
 )
+
+# %%
 rng = np.random.default_rng(seed=1)
 rand_shares = rng.integers(low=10, high=75, size=len(universe.assets))
-
 state = PortfolioState.from_forecast_and_assets(
     asset_forecasts=forecasts,
     assets=universe.assets,
     shares=rand_shares,
     cash=100_000,
 )
+
+# %%
 decision = policy.decide(state, forecasts)
 
+decision.total_target_weights_dict
 
 # %%
 s = PolicyProjection.from_decision(
@@ -119,9 +130,11 @@ x = PortfolioRisk.build(
     policy_projection=s,
     asset_forecasts=forecasts,
     original_data=historical_panel.to_frame(),
-    auto_select_factors=True,
+    auto_select_factors=False,
     criterion="bic",
     horizon=19,
 )
 
 x.effective_bets().plot()
+# %%
+x.risk_contribution("cvar")

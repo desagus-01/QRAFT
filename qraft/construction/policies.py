@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 
@@ -11,6 +12,8 @@ from construction.optimization.problem import MPOProblem
 from construction.state import PortfolioState
 from forecast.forecast_paths import ForecastPaths
 from numpy.typing import NDArray
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +129,22 @@ class MPOPolicy:
             name=name,
         )
 
-    def _compute_moments(self, forecasts: ForecastPaths) -> HorizonMoments:
+    @staticmethod
+    def _transfer_dropped_to_cash(
+        state: PortfolioState,
+        kept_assets: list[str],
+    ) -> tuple[float, set[str], float]:
+        """Return adjusted cash weight, the set of dropped asset names, and
+        the total weight transferred from dropped assets to cash.
+        """
+        weights_by_asset = state.portfolio_weights_dict
+        kept_set = set(kept_assets)
+        dropped = {a for a in state.asset_order if a not in kept_set}
+        dropped_weight = sum(float(weights_by_asset[a]) for a in dropped)
+        adjusted_cash = float(state.cash_weight) + dropped_weight
+        return adjusted_cash, dropped, dropped_weight
+
+    def compute_moments(self, forecasts: ForecastPaths) -> HorizonMoments:
         cfg = self.moments_config
         return HorizonMoments.from_forecast_paths(
             forecast_paths=forecasts,
@@ -140,7 +158,18 @@ class MPOPolicy:
         )
 
     def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
-        moments = self._compute_moments(forecasts)
+        moments = self.compute_moments(forecasts)
+        current_cash, dropped, dropped_weight = self._transfer_dropped_to_cash(
+            state, moments.assets
+        )
+        if dropped:
+            logger.warning(
+                "decide(): %d asset(s) dropped by compute_moments %s — "
+                "their combined weight (%.4f) transferred to cash for reallocation.",
+                len(dropped),
+                sorted(dropped),
+                dropped_weight,
+            )
         weights_by_asset = state.portfolio_weights_dict
         current_weights = np.array(
             [weights_by_asset[asset] for asset in moments.assets]
@@ -148,6 +177,6 @@ class MPOPolicy:
         result = self.problem.solve(
             moments=moments,
             current_weights=current_weights,
-            current_cash=float(state.cash_weight),
+            current_cash=current_cash,
         )
         return _decision_from_mpo(result, cash_return=moments.cash_return)
