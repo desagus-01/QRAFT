@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -19,6 +20,8 @@ from risk.factor_ols import (
 from risk.feature_selection import (
     Criterion,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,13 @@ def portfolio_factor_attribution(
     model = extract_factor_attribution_model(
         ols_results=ols,
         selected_factors=selected,
+    )
+    logger.info(
+        "Factor attribution: horizon=%d r2=%.4f selected_factors=%s exposures=%s",
+        horizon,
+        model.r2,
+        selected,
+        {k: f"{v:.4f}" for k, v in model.exposures.items()},
     )
     return PortfolioPerformanceAttribution(
         horizon=horizon,

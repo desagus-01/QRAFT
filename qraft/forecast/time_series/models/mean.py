@@ -98,6 +98,7 @@ def _arma_filter(
 def auto_arma(
     asset_array: NDArray[np.floating],
     cfg: MeanModelConfig | None = None,
+    asset_name: str | None = None,
     max_ar_order: int | None = None,
     max_ma_order: int | None = None,
     top_n_models: int | None = None,
@@ -150,14 +151,16 @@ def auto_arma(
                 res = model.fit(method="statespace")
         except ConvergenceWarning:
             logger.info(
-                "Model (%s, %s) failed to converge. Will be dropped from candidates list",
+                "Asset=%s Model (%s, %s) failed to converge. Will be dropped from candidates list",
+                asset_name,
                 ar_order,
                 ma_order,
             )
             continue
         except Exception as exc:
             logger.info(
-                "Model (%s, %s) failed with error=%s. Will be dropped from candidates list",
+                "Asset=%s Model (%s, %s) failed with error=%s. Will be dropped from candidates list",
+                asset_name,
                 ar_order,
                 ma_order,
                 type(exc).__name__,
@@ -168,7 +171,8 @@ def auto_arma(
 
         if not _arma_filter(params, cfg):
             logger.info(
-                "Model (%s, %s) failed ARMA admissibility checks; will drop it",
+                "Asset=%s Model (%s, %s) failed ARMA admissibility checks; will drop it",
+                asset_name,
                 ar_order,
                 ma_order,
             )

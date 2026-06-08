@@ -90,6 +90,7 @@ def _admissable_garch_model(
 def auto_garch(
     asset_array: NDArray[np.floating],
     cfg: VolatilityModelConfig | None = None,
+    asset_name: str | None = None,
 ) -> list[AutoGARCHRes]:
     if cfg is None:
         cfg = VolatilityModelConfig()
@@ -118,7 +119,8 @@ def auto_garch(
 
         if proposed_model.convergence_flag != 0:
             logger.info(
-                "GARCH%s dist=%s did not converge (flag=%s); dropping candidate",
+                "Asset=%s GARCH%s dist=%s did not converge (flag=%s); dropping candidate",
+                asset_name,
                 key,
                 distribution,
                 proposed_model.convergence_flag,
@@ -128,7 +130,8 @@ def auto_garch(
         params = proposed_model.params.to_dict()  # type: ignore[attr-defined]
         if not _admissable_garch_model(params, cfg):
             logger.info(
-                "GARCH%s dist=%s failed admissibility checks; dropping candidate",
+                "Asset=%s GARCH%s dist=%s failed admissibility checks; dropping candidate",
+                asset_name,
                 key,
                 distribution,
             )
@@ -165,12 +168,14 @@ def auto_garch(
         garch_candidates.append(base_res)
     else:
         logger.warning(
-            "Baseline GARCH(1, 0, 1) failed admissibility checks; keeping it as a last-resort fallback"
+            "Asset=%s Baseline GARCH(1, 0, 1) failed admissibility checks; keeping it as a last-resort fallback",
+            asset_name,
         )
 
     if not garch_candidates:
         logger.warning(
-            "No admissible GARCH candidates were fitted; returning baseline GARCH(1, 0, 1) as fallback"
+            "Asset=%s No admissible GARCH candidates were fitted; returning baseline GARCH(1, 0, 1) as fallback",
+            asset_name,
         )
         garch_candidates.append(base_res)
 

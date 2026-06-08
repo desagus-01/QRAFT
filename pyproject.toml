@@ -29,15 +29,6 @@ dependencies = [
 where = ["qraft"]
 
 
-# [tool.basedpyright]
-# typeCheckingMode = "recommended"
-# failOnWarnings = false
-# allowedUntypedLibraries = ['pydantic', 'requests']
-# reportExplicitAny = false
-# reportAny = false
-# reportMissingTypeStubs = false
-#
-
 [tool.pyrefly]
 python_version = "3.13"
 search_path = ["qraft"]

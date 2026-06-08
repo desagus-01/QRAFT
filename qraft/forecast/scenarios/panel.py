@@ -34,7 +34,7 @@ def compensate_prob(prob: ProbVector, n_remove: int) -> ProbVector:
 @dataclass(frozen=True)
 class ScenarioPanel:
     values: pl.DataFrame
-    dates: pl.Series | None  # None so that simulations can also use this
+    dates: pl.Series | None  # TODO: Change to just time to make simulations use it too
     prob: ProbVector
 
     def __post_init__(self) -> None:

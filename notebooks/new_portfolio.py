@@ -16,11 +16,13 @@ from forecast.config import LogConfig
 from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
 from forecast.scenarios.panel import ScenarioPanel
+from forecast.scenarios.transforms import Views, apply_scenario_transforms
+from forecast.scenarios.types import CorrView, MeanView, RankingView
 from risk.risk_report import PortfolioRisk
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
 
-setup_logging(LogConfig(level=logging.WARNING))
+setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -44,14 +46,14 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:80])
+tradable_assets = list(data.columns[10:30])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
 
 # %%
 # ── Build historical ScenarioPanel ───────────────────────────────────
-forecast_horizon = 20
+forecast_horizon = 10
 n_sims = 30_000
 
 prob_ex = state_smooth_probs(
@@ -60,27 +62,41 @@ prob_ex = state_smooth_probs(
     time_based=True,
 )
 
-historical_panel = ScenarioPanel.from_frame(
+original_panel = ScenarioPanel.from_frame(
     data,
     prob=prob_ex,
+)
+
+views = Views(
+    [
+        MeanView("DHIL", ">=", 0.002),
+        CorrView(("MTX", "CUBE"), ">=", 0.75),
+        RankingView(["DHIL", "MTX", "NBIX"]),
+    ],
+    confidence=0.8,
+)
+
+
+posterior_panel = apply_scenario_transforms(
+    original_panel,
+    [
+        views,
+    ],
 )
 
 
 # %%
 # ── Forecasting ──────────────────────────────────────────────────────
 forecasts = run_n_steps_forecast(
-    data=historical_panel.to_frame(),
-    prob=historical_panel.prob,
+    data=posterior_panel.to_frame(),
+    prob=posterior_panel.prob,
     horizon=forecast_horizon,
     n_sims=n_sims,
     seed=3,
     universe=universe,
     method="bootstrap",
 )
-# %%
-# for path in forecasts.asset_paths.values():
-#     plot_simulation_results(path)
-#
+
 # %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
@@ -113,7 +129,6 @@ state = PortfolioState.from_forecast_and_assets(
 # %%
 decision = policy.decide(state, forecasts)
 
-decision.total_target_weights_dict
 
 # %%
 s = PolicyProjection.from_decision(
@@ -129,10 +144,10 @@ s.plot(type="cum_performance")
 x = PortfolioRisk.build(
     policy_projection=s,
     asset_forecasts=forecasts,
-    original_data=historical_panel.to_frame(),
+    original_data=posterior_panel.to_frame(),
     auto_select_factors=False,
     criterion="bic",
-    horizon=19,
+    horizon=9,
 )
 
 x.effective_bets().plot()

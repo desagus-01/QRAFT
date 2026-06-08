@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -16,6 +17,8 @@ from risk.feature_selection import (
     ForwardRegressionResult,
     forward_regression,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +139,14 @@ def factor_ols_regression(
             prob=prob,
         )
         selected = [n for n in fwd_result.selected_features if n not in det_names]
+        dropped = [n for n in factor_names if n not in selected]
+        logger.info(
+            "Auto factor selection: criterion=%s selected=%s dropped=%s r2=%.4f",
+            criterion,
+            selected,
+            dropped,
+            fwd_result.final_model.r_squared,
+        )
         return FactorOLSResult(
             ols=fwd_result.final_model,
             selected_factors=selected,
@@ -147,6 +158,11 @@ def factor_ols_regression(
         independent_vars=ols_eq.ind_var,
         feature_names=full_names,
         prob=prob,
+    )
+    logger.info(
+        "Factor OLS regression: n_factors=%d r2=%.4f",
+        len(factor_names),
+        ols_result.r_squared,
     )
     return FactorOLSResult(
         ols=ols_result,

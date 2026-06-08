@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
@@ -13,6 +14,8 @@ from construction.optimization.objectives.specs import (
 from construction.optimization.optimization import MPOResult, MultiPeriodOptimizer
 from construction.optimization.presets import PreMadeObjectives, _build_preset_objective
 from numpy.typing import NDArray
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +165,14 @@ class MPOProblem:
             n_scenarios=moments.n_scenarios,
         )
         options = {**self.solver_options, **solver_options}
+
+        logger.debug(
+            "Dispatching MPO solve: horizons=%d n_assets=%d n_scenarios=%d cutting_plane=%s",
+            moments.n_horizons,
+            moments.n_assets,
+            moments.n_scenarios,
+            optimizer.uses_cutting_plane,
+        )
 
         if optimizer.uses_cutting_plane:
             return optimizer.solve_iterative(

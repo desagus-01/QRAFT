@@ -501,12 +501,22 @@ class MultiPeriodOptimizer:
                 "optimal solve."
             )
 
-        return self._build_result(
+        result = self._build_result(
             moments=moments,
             initial_weights=initial_weights,
             initial_cash=initial_cash,
             objective_value=float(objective_value),
         )
+        logger.info(
+            "MPO solve complete: status=%s objective=%.6f turnover=%.4f "
+            "n_assets=%d n_horizons=%d",
+            result.status,
+            result.objective_value,
+            result.turnover,
+            len(result.assets),
+            result.n_horizons,
+        )
+        return result
 
     def solve_iterative(
         self,
@@ -593,9 +603,20 @@ class MultiPeriodOptimizer:
                 "optimal solve."
             )
 
-        return self._build_result(
+        result = self._build_result(
             moments=moments,
             initial_weights=initial_weights,
             initial_cash=initial_cash,
             objective_value=float(objective_value),
         )
+        logger.info(
+            "MPO cutting-plane solve complete: status=%s objective=%.6f "
+            "iterations=%d turnover=%.4f n_assets=%d n_horizons=%d",
+            result.status,
+            result.objective_value,
+            iteration + 1,
+            result.turnover,
+            len(result.assets),
+            result.n_horizons,
+        )
+        return result

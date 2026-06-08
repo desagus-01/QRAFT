@@ -198,6 +198,7 @@ def get_appropriate_mean_model(
         candidate_models_res = auto_arma(
             asset_array=asset_array,
             cfg=cfg,
+            asset_name=asset_name,
         )
     except ValueError:
         logger.warning(
@@ -263,6 +264,7 @@ def run_best_garch(
         candidate_models_res = auto_garch(
             asset_array=asset_array,
             cfg=cfg,
+            asset_name=asset_name,
         )
     except ValueError as exc:
         logger.warning(

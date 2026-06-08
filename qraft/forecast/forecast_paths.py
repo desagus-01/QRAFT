@@ -175,5 +175,5 @@ class ForecastPaths:
             prob=self.path_probs,
         )
 
-    def with_path_probs(self, path_probs: ProbVector) -> "ForecastPaths":
+    def with_path_probs(self, path_probs: ProbVector) -> ForecastPaths:
         return replace(self, path_probs=path_probs)

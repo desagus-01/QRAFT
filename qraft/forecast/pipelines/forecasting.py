@@ -137,16 +137,6 @@ def run_n_steps_forecast(
     back_to_price: bool = True,
     cma_config: CMAConfig | None = None,
 ) -> ForecastPaths:
-    logger.info(
-        "Starting n-step forecast: assets=%s factors=%s horizon=%d n_sims=%d method=%s seed=%s",
-        universe.assets,
-        universe.factors,
-        horizon,
-        n_sims,
-        method,
-        seed,
-    )
-
     _validate_method_options(method, horizon, universe)
 
     universe_fit = FittedUniverse.fit(data=data, prob=prob, assets=universe.all_tickers)
