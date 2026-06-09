@@ -46,6 +46,29 @@ class PortfolioState:
             cash=cash,
         )
 
+    @classmethod
+    def from_cash(
+        cls,
+        cash: float,
+        assets: list[str],
+        asset_forecasts: ForecastPaths,
+    ):
+        if asset_forecasts.universe is None:
+            raise ValueError(
+                "ForecastPaths.universe must be set to construct a PortfolioState"
+            )
+
+        initial_prices = np.asarray(
+            [asset_forecasts.initial_prices[asset] for asset in assets]
+        )
+
+        return cls(
+            asset_order=assets,
+            initial_prices=initial_prices,
+            shares=np.zeros(len(assets), dtype=np.int32),
+            cash=cash,
+        )
+
     @property
     def initial_prices_dict(self) -> dict[str, NDArray[np.floating]]:
         return dict(zip(self.asset_order, self.initial_prices))

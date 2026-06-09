@@ -80,9 +80,19 @@ def cvar(
 
     if distribution_type == "pnl":
         tail_mask = distribution <= expanded_cutoff
-        tail_values = np.where(tail_mask, distribution, np.nan)
-        return -np.nanmean(tail_values, axis=axis)
+    else:
+        tail_mask = distribution >= expanded_cutoff
 
-    tail_mask = distribution >= expanded_cutoff
-    tail_values = np.where(tail_mask, distribution, np.nan)
-    return np.nanmean(tail_values, axis=axis)
+    if prob is not None:
+        shape = [1] * distribution.ndim
+        shape[axis] = prob.shape[0]
+        prob_reshaped = prob.reshape(shape)
+
+        weighted_sum = np.sum(prob_reshaped * distribution * tail_mask, axis=axis)
+        weight_sum = np.sum(prob_reshaped * tail_mask, axis=axis)
+        result = np.where(weight_sum > 0, weighted_sum / weight_sum, 0.0)
+    else:
+        tail_values = np.where(tail_mask, distribution, np.nan)
+        result = np.nanmean(tail_values, axis=axis)
+
+    return -result if distribution_type == "pnl" else result

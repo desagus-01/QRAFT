@@ -1,16 +1,19 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from functools import cached_property
+from typing import TYPE_CHECKING
 
 import numpy as np
-from qraft.construction.policy_projection import PolicyProjection
+from numpy.typing import NDArray
+from polars import DataFrame
+
 from qraft.core.estimation import (
     EquationTypes,
 )
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
-from numpy.typing import NDArray
-from polars import DataFrame
 from qraft.risk.factor_ols import (
     FactorAttributionModel,
     extract_factor_attribution_model,
@@ -20,6 +23,9 @@ from qraft.risk.factor_ols import (
 from qraft.risk.feature_selection import (
     Criterion,
 )
+
+if TYPE_CHECKING:
+    from qraft.construction.policy_projection import PolicyProjection
 
 logger = logging.getLogger(__name__)
 
@@ -69,10 +75,9 @@ class PortfolioPerformanceAttribution:
 def portfolio_factor_attribution(
     policy_projection: PolicyProjection,
     factors_forecast: dict[str, NDArray[np.floating]],
-    original_data: DataFrame,
+    initial_prices: dict[str, float],
     horizon: int,
     eq_type: EquationTypes = "c",
-    is_log_price: bool = True,
     auto_select_factors: bool = False,
     criterion: Criterion | None = None,
 ) -> PortfolioPerformanceAttribution:
@@ -80,10 +85,9 @@ def portfolio_factor_attribution(
 
     factors_cum = factor_cumulative_returns(
         factors_forecast=factors_forecast,
-        original_data=original_data,
+        initial_prices=initial_prices,
         factors_names=factor_names,
         end_horizon=horizon,
-        is_log_price=is_log_price,
     )
 
     portfolio_cum = policy_projection.performance_at_period(period=horizon)

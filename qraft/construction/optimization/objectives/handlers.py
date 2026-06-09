@@ -2,6 +2,8 @@ from typing import Any
 
 import cvxpy as cp
 import numpy as np
+from numpy.typing import NDArray
+
 from qraft.construction.optimization.moments import HorizonMoments
 from qraft.construction.optimization.objectives.protocol import register_objective
 from qraft.construction.optimization.objectives.specs import (
@@ -13,7 +15,6 @@ from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     TransactionCost,
 )
-from numpy.typing import NDArray
 
 
 def _project_on_psd_cone_and_factorize(
@@ -424,7 +425,6 @@ class CovarianceRiskHandler:
         *,
         cash_h: cp.Expression | None = None,
     ) -> tuple[cp.Expression, list[cp.Constraint]]:
-        # sum_squares(affine_in_w) is always convex → DCP + DPP compliant.
         return (-cp.sum_squares(params[f"cov_sqrt_{horizon}"].T @ weights_h), [])
 
     def update(

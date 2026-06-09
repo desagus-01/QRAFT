@@ -2,6 +2,8 @@ import logging
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
+
 from qraft.core.estimation import (
     EquationTypes,
     OLSEquation,
@@ -10,8 +12,6 @@ from qraft.core.estimation import (
     weighted_ols,
 )
 from qraft.core.probability.prob_vector import ProbVector
-from numpy.typing import NDArray
-from polars import DataFrame
 from qraft.risk.feature_selection import (
     Criterion,
     ForwardRegressionResult,
@@ -37,34 +37,23 @@ class FactorOLSResult:
 
 
 def _get_t0_factor_values(
-    original_data: DataFrame, factors_names: list[str], is_log_price: bool = True
+    initial_prices: dict[str, float], factors_names: list[str]
 ) -> dict[str, float]:
-    if is_log_price:
-        return {
-            col: float(np.exp(original_data.select(col).drop_nulls()[-1, 0]))
-            for col in factors_names
-        }
-    else:
-        return {
-            col: float(original_data.select(col).drop_nulls()[-1, 0])
-            for col in factors_names
-        }
+    return {col: initial_prices[col] for col in factors_names}
 
 
 def factor_cumulative_returns(
     factors_forecast: dict[str, NDArray[np.floating]],
-    original_data: DataFrame,
+    initial_prices: dict[str, float],
     factors_names: list[str],
     end_horizon: int,
-    is_log_price: bool = True,
 ) -> dict[str, NDArray]:
     if end_horizon <= 0:
         raise ValueError("end_horizon must be a positive integer")
 
     factors_t0 = _get_t0_factor_values(
-        original_data=original_data,
+        initial_prices=initial_prices,
         factors_names=factors_names,
-        is_log_price=is_log_price,
     )
 
     factors_forecast_w_t0 = {}

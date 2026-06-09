@@ -3,6 +3,14 @@ import logging
 
 import numpy as np
 
+from qraft import (
+    AssetUniverse,
+    LogConfig,
+    MPOPolicy,
+    PortfolioState,
+    run_forecast,
+    setup_logging,
+)
 from qraft.construction.optimization.constraints import (
     FullyInvested,
     LongOnly,
@@ -10,20 +18,17 @@ from qraft.construction.optimization.constraints import (
     PortfolioConstraint,
     TurnoverLimit,
 )
-from qraft.construction.policies import MPOPolicy
-from qraft.construction.policy_projection import PolicyProjection
-from qraft.construction.state import PortfolioState
-from qraft.core.panel import ScenarioPanel
-from qraft.core.probability.distributions import state_smooth_probs
-from qraft.core.scenarios.transforms import Views
-from qraft.core.scenarios.view_types import CorrView, MeanView, RankingView
-from qraft.forecast.config import LogConfig
-from qraft.forecast.pipelines.forecasting import AssetUniverse, run_forecast
-from qraft.risk.risk_report import PortfolioRisk
-from qraft.utils.log import setup_logging
+from qraft.core import (
+    CorrView,
+    MeanView,
+    RankingView,
+    ScenarioPanel,
+    Views,
+    state_smooth_probs,
+)
 from qraft.utils.tiingo import import_tickers_and_factors
 
-setup_logging(LogConfig(level=logging.INFO))
+setup_logging(LogConfig(level=logging.WARN))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -81,7 +86,7 @@ posterior_panel = Views(
 # %%
 # ── Forecasting ──────────────────────────────────────────────────────
 forecasts = run_forecast(
-    scenario_panel=posterior_panel,
+    panel=posterior_panel,
     horizon=forecast_horizon,
     n_sims=n_sims,
     seed=3,
@@ -119,28 +124,13 @@ state = PortfolioState.from_forecast_and_assets(
 )
 
 # %%
-decision = policy.decide(state, forecasts)
+projection = policy.decide(state, forecasts)
 
-
-# %%
-s = PolicyProjection.from_decision(
-    decision=decision,
-    forecasts=forecasts,
-    state=state,
-)
-
-s.plot(type="cum_performance")
+projection.plot(type="cum_performance")
 
 # %%
 
-x = PortfolioRisk.build(
-    policy_projection=s,
-    asset_forecasts=forecasts,
-    original_data=posterior_panel.to_frame(),
-    auto_select_factors=False,
-    criterion="bic",
-    horizon=9,
-)
+x = projection.risk(forecasts)
 
 x.effective_bets().plot()
 # %%

@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
-from qraft.construction.policy_projection import PolicyProjection
-from qraft.forecast.forecast_paths import ForecastPaths
 from numpy.typing import NDArray
-from polars import DataFrame
+
+from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.risk.feature_selection import Criterion
 from qraft.risk.measures import cvar, var
 from qraft.risk.performance_attribution import (
@@ -16,6 +17,9 @@ from qraft.risk.risk_attribution import (
     PortfolioRiskAttribution,
     RiskContributions,
 )
+
+if TYPE_CHECKING:
+    from qraft.construction.policy_projection import PolicyProjection
 
 RiskMetrics = Literal["var", "cvar"]
 
@@ -29,19 +33,21 @@ class PortfolioRisk:
     risk_attribution: PortfolioRiskAttribution
 
     @classmethod
-    def build(
+    def from_projection(
         cls,
         policy_projection: PolicyProjection,
         asset_forecasts: ForecastPaths,
-        original_data: DataFrame,
-        auto_select_factors: bool,
-        criterion: Criterion,
-        horizon: int,
+        auto_select_factors: bool = False,
+        criterion: Criterion | None = None,
     ):
+        if auto_select_factors and criterion is None:
+            criterion = "bic"
+
+        horizon = asset_forecasts.n_horizons - 1
         performance_attribution = portfolio_factor_attribution(
             policy_projection=policy_projection,
             factors_forecast=asset_forecasts.factor_paths,
-            original_data=original_data,
+            initial_prices=asset_forecasts.initial_prices,
             horizon=horizon,
             auto_select_factors=auto_select_factors,
             criterion=criterion,
@@ -54,7 +60,6 @@ class PortfolioRisk:
             horizon=horizon,
             r2=performance_attribution.r2,
             policy_projection=policy_projection,
-            # performance_attribution=performance_attribution,
             risk_attribution=risk_attribution,
         )
 

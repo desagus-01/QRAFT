@@ -124,7 +124,7 @@ def draw_innovations(
 
 
 def run_forecast(
-    scenario_panel: ScenarioPanel,
+    panel: ScenarioPanel,
     universe: AssetUniverse,
     horizon: int = 10,
     n_sims: int = 1000,
@@ -135,8 +135,8 @@ def run_forecast(
     cma_config: CMAConfig | None = None,
 ) -> ForecastPaths:
     _validate_method_options(method, horizon, universe)
-    data = scenario_panel.to_frame()
-    prob = scenario_panel.prob
+    data = panel.to_frame()
+    prob = panel.prob
 
     universe_fit = FittedUniverse.fit(data=data, prob=prob, assets=universe.all_tickers)
 

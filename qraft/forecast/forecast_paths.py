@@ -34,7 +34,7 @@ class AssetUniverse:
             raise ValueError("Must have at least one tradable asset")
 
     @classmethod
-    def factors_free(cls, assets: list[str]):
+    def factors_free(cls, assets: list[str]) -> "AssetUniverse":
         return cls(assets=assets, factors=[])
 
     @property

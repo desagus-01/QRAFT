@@ -3,7 +3,6 @@ __all__ = [
     "ForecastPaths",
     "InnovationPaths",
     "run_forecast",
-    "draw_innovations",
     "LogConfig",
     "PipelineConfig",
     "MeanModelConfig",
@@ -19,7 +18,7 @@ __all__ = [
 ]
 
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths  # noqa: F401
-from qraft.forecast.pipelines.forecasting import run_forecast, draw_innovations  # noqa: F401
+from qraft.forecast.pipelines.forecasting import run_forecast  # noqa: F401
 from qraft.forecast.config import (  # noqa: F401
     LogConfig,
     PipelineConfig,

@@ -4,10 +4,11 @@ from dataclasses import dataclass
 
 import numpy as np
 import polars as pl
-from qraft.core.probability.distributions import uniform_probs
-from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from numpy.typing import NDArray
 from polars import DataFrame
+
+from qraft.core.probability.distributions import uniform_probs
+from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 
 
 def redistribute_prob_mass(
@@ -22,7 +23,7 @@ def redistribute_prob_mass(
         raise ValueError("Cannot redistribute: all entries would be removed")
 
     mass_removed = float(prob[dropped_idx].sum())
-    return kept + mass_removed / kept.size
+    return kept + mass_removed * (kept / kept.sum())
 
 
 def compensate_prob(prob: ProbVector, n_remove: int) -> ProbVector:
@@ -40,11 +41,11 @@ class ScenarioPanel:
     def __post_init__(self) -> None:
         if "date" in self.values.columns:
             raise ValueError(
-                "AssetPanel.values must not contain a 'date' column; "
-                "use AssetPanel.from_frame() to separate it."
+                "ScenarioPanel.values must not contain a 'date' column; "
+                "use ScenarioPanel.from_frame() to separate it."
             )
         if self.values.height == 0:
-            raise ValueError("AssetPanel cannot be empty")
+            raise ValueError("ScenarioPanel cannot be empty")
 
         if self.prob.shape[0] != self.values.height:
             raise ValueError(

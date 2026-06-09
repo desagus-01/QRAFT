@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 
 import numpy as np
+from numpy.typing import NDArray
+
 from qraft.construction.optimization.constraints import PortfolioConstraint
 from qraft.construction.optimization.moments import (
     HorizonMoments,
@@ -16,32 +18,12 @@ from qraft.construction.optimization.objectives.specs import (
 from qraft.construction.optimization.optimization import MPOResult
 from qraft.construction.optimization.presets import PreMadeObjectives
 from qraft.construction.optimization.problem import MPOProblem
+from qraft.construction.policy_decision import PolicyDecision
+from qraft.construction.policy_projection import PolicyProjection
 from qraft.construction.state import PortfolioState
 from qraft.forecast.forecast_paths import ForecastPaths
-from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class PolicyDecision:
-    asset_order: list[str]
-    target_weights_risk: NDArray[np.floating]
-    target_cash_weight: float
-    cash_return: NDArray[np.floating] | None = None
-    diagnostics: Any | None = None
-
-    @property
-    def target_weights_risk_dict(self) -> dict[str, NDArray[np.floating]]:
-        return dict(zip(self.asset_order, self.target_weights_risk))
-
-    @property
-    def total_target_weights(self) -> NDArray[np.floating]:
-        return np.append(self.target_weights_risk, self.target_cash_weight)
-
-    @property
-    def total_target_weights_dict(self) -> dict[str, NDArray[np.floating]]:
-        return dict(zip(self.asset_order + ["cash"], self.total_target_weights))
 
 
 class PolicyProtocol(Protocol):
@@ -49,7 +31,7 @@ class PolicyProtocol(Protocol):
 
     def decide(
         self, state: PortfolioState, forecasts: ForecastPaths
-    ) -> PolicyDecision: ...
+    ) -> "PolicyProjection": ...
 
 
 def _decision_from_mpo(
@@ -69,17 +51,20 @@ class EqualWeightPolicy:
     target_cash_weight: float
     name: str = "equal_weight"
 
-    def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
+    def decide(
+        self, state: PortfolioState, forecasts: ForecastPaths
+    ) -> PolicyProjection:
         risky_weights = 1.0 - self.target_cash_weight
         n_assets = len(state.asset_order)
         target_weights = np.full(n_assets, risky_weights / n_assets)
-        return PolicyDecision(
+        decision = PolicyDecision(
             asset_order=state.asset_order,
             target_weights_risk=target_weights,
             target_cash_weight=self.target_cash_weight,
             cash_return=np.zeros(1),
             diagnostics=None,
         )
+        return PolicyProjection._from_policy_decision(decision, forecasts, state)
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,7 +149,9 @@ class MPOPolicy:
             periods_per_year=cfg.periods_per_year,
         )
 
-    def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
+    def decide(
+        self, state: PortfolioState, forecasts: ForecastPaths
+    ) -> PolicyProjection:
         moments = self.compute_moments(forecasts)
         current_cash, dropped, dropped_weight = self._transfer_dropped_to_cash(
             state, moments.assets
@@ -186,4 +173,5 @@ class MPOPolicy:
             current_weights=current_weights,
             current_cash=current_cash,
         )
-        return _decision_from_mpo(result, cash_return=moments.cash_return)
+        decision = _decision_from_mpo(result, cash_return=moments.cash_return)
+        return PolicyProjection._from_policy_decision(decision, forecasts, state)
