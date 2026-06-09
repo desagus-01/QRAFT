@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from typing import Literal
 
 import numpy as np
-from forecast.scenarios.panel import ScenarioPanel
+from core.panel import ScenarioPanel
 from forecast.scenarios.types import ProbVector, validate_prob_vector
 from numpy.typing import NDArray
 from polars import DataFrame

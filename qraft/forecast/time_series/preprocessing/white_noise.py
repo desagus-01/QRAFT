@@ -1,9 +1,9 @@
 import logging
 
 import polars as pl
+from core.panel import ScenarioPanel
 from forecast.config import IIDConfig
 from forecast.scenarios.copula_marginal import CopulaMarginalModel
-from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.types import ProbVector
 from forecast.time_series.tests.iid import (
     TestResultByAsset,

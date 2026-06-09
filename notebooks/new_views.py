@@ -2,10 +2,10 @@
 import logging
 
 import numpy as np
+from core.panel import ScenarioPanel
 from forecast.config import LogConfig
 from forecast.pipelines.forecasting import AssetUniverse
 from forecast.probability.distributions import state_smooth_probs
-from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.transforms import Views
 from forecast.scenarios.types import CorrView, MeanView, RankingView
 from utils.log import setup_logging

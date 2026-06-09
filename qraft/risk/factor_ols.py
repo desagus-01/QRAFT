@@ -2,14 +2,14 @@ import logging
 from dataclasses import dataclass
 
 import numpy as np
-from forecast.scenarios.types import ProbVector
-from forecast.time_series.estimation import (
+from core.estimation import (
     EquationTypes,
     OLSEquation,
     OLSResults,
     add_deterministics_to_eq,
     weighted_ols,
 )
+from forecast.scenarios.types import ProbVector
 from numpy.typing import NDArray
 from polars import DataFrame
 from risk.feature_selection import (

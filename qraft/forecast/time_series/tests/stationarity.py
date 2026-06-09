@@ -3,7 +3,7 @@ from typing import Callable, Literal, NamedTuple
 
 import numpy as np
 import polars as pl
-from forecast.time_series.estimation import (
+from core.estimation import (
     EquationTypes,
     OLSEquation,
     add_deterministics_to_eq,

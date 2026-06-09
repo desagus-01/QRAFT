@@ -12,10 +12,10 @@ from construction.optimization.constraints import (
 from construction.policies import MPOPolicy
 from construction.policy_projection import PolicyProjection
 from construction.state import PortfolioState
+from core.panel import ScenarioPanel
 from forecast.config import LogConfig
 from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
 from forecast.probability.distributions import state_smooth_probs
-from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.transforms import Views, apply_scenario_transforms
 from forecast.scenarios.types import CorrView, MeanView, RankingView
 from risk.risk_report import PortfolioRisk

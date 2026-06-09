@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from typing import Protocol, Sequence
 
+from core.panel import ScenarioPanel
 from forecast.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
 from forecast.scenarios.entropy_pooling import entropy_pooling_probs
-from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.types import ViewSpec
 
 

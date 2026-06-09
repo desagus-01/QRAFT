@@ -4,11 +4,11 @@ from functools import cached_property
 
 import numpy as np
 from construction.policy_projection import PolicyProjection
-from forecast.scenarios.panel import ScenarioPanel
-from forecast.scenarios.types import ProbVector
-from forecast.time_series.estimation import (
+from core.estimation import (
     EquationTypes,
 )
+from core.panel import ScenarioPanel
+from forecast.scenarios.types import ProbVector
 from numpy.typing import NDArray
 from polars import DataFrame
 from risk.factor_ols import (

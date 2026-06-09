@@ -6,10 +6,10 @@ from typing import Mapping
 
 import numpy as np
 import polars as pl
+from core.panel import ScenarioPanel
 from forecast.config import PipelineConfig
 from forecast.pipelines.model_selection import get_univariate_results
 from forecast.pipelines.preprocess import run_univariate_preprocess
-from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.types import ProbVector
 from forecast.simulation.simulate_paths import simulate_asset_paths
 from forecast.simulation.state import SimulationForecast

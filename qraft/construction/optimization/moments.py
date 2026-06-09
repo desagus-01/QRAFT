@@ -4,13 +4,13 @@ from typing import Literal
 
 import numpy as np
 import polars as pl
-from forecast.forecast_paths import AssetSubset, ForecastPaths
-from forecast.scenarios.types import ProbVector
-from forecast.time_series.estimation import (
+from core.estimation import (
     weighted_correlation,
     weighted_covariance,
     weighted_mean,
 )
+from forecast.forecast_paths import AssetSubset, ForecastPaths
+from forecast.scenarios.types import ProbVector
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)

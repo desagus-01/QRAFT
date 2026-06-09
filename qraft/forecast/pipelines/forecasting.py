@@ -4,10 +4,10 @@ import logging
 from typing import Literal
 
 import numpy as np
+from core.panel import ScenarioPanel
 from forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
 from forecast.pipelines.fitted_universe import FittedUniverse
 from forecast.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
-from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.resampling import weighted_bootstrapping_idx
 from forecast.scenarios.types import ProbVector
 from forecast.time_series.transforms.inverses import apply_inverse_transforms

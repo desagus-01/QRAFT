@@ -5,8 +5,8 @@ from typing import Any, Callable, Sequence
 
 import cvxpy as cp
 import numpy as np
+from core.panel import ScenarioPanel
 from cvxpy.constraints.constraint import Constraint as CvxConstraint
-from forecast.scenarios.panel import ScenarioPanel
 from forecast.scenarios.types import (
     ConstraintDiag,
     CorrView,

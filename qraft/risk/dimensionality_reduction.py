@@ -2,8 +2,8 @@ import warnings
 from typing import Literal
 
 import numpy as np
+from core.estimation import riccati_root
 from forecast.scenarios.types import ProbVector
-from forecast.time_series.estimation import riccati_root
 from numpy.typing import NDArray
 from scipy.linalg import solve, sqrtm
 
