@@ -3,7 +3,7 @@ from typing import Literal
 
 import numpy as np
 from core.estimation import riccati_root
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 from scipy.linalg import solve, sqrtm
 

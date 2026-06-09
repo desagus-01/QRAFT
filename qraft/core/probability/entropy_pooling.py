@@ -7,11 +7,11 @@ import cvxpy as cp
 import numpy as np
 from core.panel import ScenarioPanel
 from cvxpy.constraints.constraint import Constraint as CvxConstraint
-from forecast.scenarios.types import (
+from core.probability.prob_vector import ProbVector
+from core.scenarios.view_types import (
     ConstraintDiag,
     CorrView,
     MeanView,
-    ProbVector,
     QuantileView,
     RankingView,
     Sign,

@@ -9,7 +9,7 @@ from core.estimation import (
     add_deterministics_to_eq,
     weighted_ols,
 )
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 from polars import DataFrame
 from risk.feature_selection import (

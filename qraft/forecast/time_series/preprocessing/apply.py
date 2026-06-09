@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 import polars as pl
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from forecast.time_series.preprocessing.types import (
     TransformDecision,
 )

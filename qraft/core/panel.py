@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 import polars as pl
-from forecast.probability.distributions import uniform_probs
-from forecast.scenarios.types import ProbVector, validate_prob_vector
+from core.probability.distributions import uniform_probs
+from core.probability.prob_vector import ProbVector, validate_prob_vector
 from numpy.typing import NDArray
 from polars import DataFrame
 

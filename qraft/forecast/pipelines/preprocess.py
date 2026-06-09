@@ -2,7 +2,7 @@ import logging
 
 import polars as pl
 from forecast.config import PreprocessConfig
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from forecast.time_series.preprocessing.apply import (
     apply_deseason,
     apply_detrend,

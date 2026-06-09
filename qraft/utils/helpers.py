@@ -6,7 +6,7 @@ from typing import NamedTuple
 import numpy as np
 import polars as pl
 import polars.selectors as cs
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)

@@ -7,7 +7,7 @@ import scipy.stats as st
 from core.estimation import weighted_covariance, weighted_mean
 from core.panel import compensate_prob
 from forecast.config import IIDConfig
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from numpy.typing import NDArray
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch

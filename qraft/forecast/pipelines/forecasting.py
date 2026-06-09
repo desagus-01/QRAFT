@@ -7,9 +7,9 @@ import numpy as np
 from core.panel import ScenarioPanel
 from forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
 from forecast.pipelines.fitted_universe import FittedUniverse
-from forecast.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
-from forecast.scenarios.resampling import weighted_bootstrapping_idx
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
+from core.probability.sampling import weighted_bootstrapping_idx
+from core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
 from forecast.time_series.transforms.inverses import apply_inverse_transforms
 from polars import DataFrame
 

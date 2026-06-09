@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from forecast.time_series.tests.stationarity import (
     StationarityInference,
     stationarity_tests,

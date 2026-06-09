@@ -8,7 +8,7 @@ from core.estimation import (
     EquationTypes,
 )
 from core.panel import ScenarioPanel
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 from polars import DataFrame
 from risk.factor_ols import (

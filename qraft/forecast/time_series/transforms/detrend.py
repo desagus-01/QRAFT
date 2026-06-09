@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 import polars.selectors as cs
 from core.estimation import weighted_ols
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from numpy._typing import NDArray
 
 TrendTypes = Literal["polynomial", "difference"]

@@ -5,9 +5,9 @@ import numpy as np
 from core.panel import ScenarioPanel
 from forecast.config import LogConfig
 from forecast.pipelines.forecasting import AssetUniverse
-from forecast.probability.distributions import state_smooth_probs
-from forecast.scenarios.transforms import Views
-from forecast.scenarios.types import CorrView, MeanView, RankingView
+from core.probability.distributions import state_smooth_probs
+from core.scenarios.transforms import Views
+from core.scenarios.view_types import CorrView, MeanView, RankingView
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
 

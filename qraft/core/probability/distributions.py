@@ -1,5 +1,5 @@
 import numpy as np
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from globals import model_cfg
 from numpy.typing import NDArray
 from pydantic import validate_call

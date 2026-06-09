@@ -10,7 +10,7 @@ from core.estimation import (
     weighted_mean,
 )
 from forecast.forecast_paths import AssetSubset, ForecastPaths
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)

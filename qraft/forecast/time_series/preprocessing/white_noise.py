@@ -3,8 +3,8 @@ import logging
 import polars as pl
 from core.panel import ScenarioPanel
 from forecast.config import IIDConfig
-from forecast.scenarios.copula_marginal import CopulaMarginalModel
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
+from core.scenarios.copula_marginal import CopulaMarginalModel
 from forecast.time_series.tests.iid import (
     TestResultByAsset,
     copula_lag_independence_test,

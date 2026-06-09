@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 import numpy as np
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from numpy.lib.array_utils import normalize_axis_index
 from numpy.typing import NDArray
 

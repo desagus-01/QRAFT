@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from typing import Protocol, Sequence
 
 from core.panel import ScenarioPanel
-from forecast.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
-from forecast.scenarios.entropy_pooling import entropy_pooling_probs
-from forecast.scenarios.types import ViewSpec
+from core.probability.entropy_pooling import entropy_pooling_probs
+from core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
+from core.scenarios.view_types import ViewSpec
 
 
 class ScenarioTransform(Protocol):

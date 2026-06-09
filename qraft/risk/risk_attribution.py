@@ -8,7 +8,7 @@ import numpy as np
 import polars as pl
 from core.estimation import weighted_covariance
 from core.panel import ScenarioPanel
-from forecast.scenarios.types import ProbVector
+from core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 from polars import DataFrame
 from risk.dimensionality_reduction import minimum_torsion_matrix
