@@ -14,10 +14,10 @@ from construction.policy_projection import PolicyProjection
 from construction.state import PortfolioState
 from core.panel import ScenarioPanel
 from core.probability.distributions import state_smooth_probs
-from core.scenarios.transforms import Views, apply_scenario_transforms
+from core.scenarios.transforms import Views
 from core.scenarios.view_types import CorrView, MeanView, RankingView
 from forecast.config import LogConfig
-from forecast.pipelines.forecasting import AssetUniverse, run_n_steps_forecast
+from forecast.pipelines.forecasting import AssetUniverse, run_forecast
 from risk.risk_report import PortfolioRisk
 from utils.log import setup_logging
 from utils.tiingo import import_tickers_and_factors
@@ -67,29 +67,20 @@ original_panel = ScenarioPanel.from_frame(
     prob=prob_ex,
 )
 
-views = Views(
+posterior_panel = Views(
     [
         MeanView("DHIL", ">=", 0.002),
         CorrView(("MTX", "CUBE"), ">=", 0.75),
         RankingView(["DHIL", "MTX", "NBIX"]),
     ],
     confidence=0.8,
-)
-
-
-posterior_panel = apply_scenario_transforms(
-    original_panel,
-    [
-        views,
-    ],
-)
+).apply(original_panel)
 
 
 # %%
 # ── Forecasting ──────────────────────────────────────────────────────
-forecasts = run_n_steps_forecast(
-    data=posterior_panel.to_frame(),
-    prob=posterior_panel.prob,
+forecasts = run_forecast(
+    scenario_panel=posterior_panel,
     horizon=forecast_horizon,
     n_sims=n_sims,
     seed=3,

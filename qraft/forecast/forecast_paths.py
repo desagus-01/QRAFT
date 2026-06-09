@@ -33,6 +33,10 @@ class AssetUniverse:
         if not self.assets:
             raise ValueError("Must have at least one tradable asset")
 
+    @classmethod
+    def factors_free(cls, assets: list[str]):
+        return cls(assets=assets, factors=[])
+
     @property
     def all_tickers(self) -> list[str]:
         """All tickers in forecast order (assets first, then factors)."""

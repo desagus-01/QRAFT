@@ -5,13 +5,11 @@ from typing import Literal
 
 import numpy as np
 from core.panel import ScenarioPanel
-from forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
-from forecast.pipelines.fitted_universe import FittedUniverse
-from core.probability.prob_vector import ProbVector
 from core.probability.sampling import weighted_bootstrapping_idx
 from core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
+from forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
+from forecast.pipelines.fitted_universe import FittedUniverse
 from forecast.time_series.transforms.inverses import apply_inverse_transforms
-from polars import DataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -125,11 +123,10 @@ def draw_innovations(
     )
 
 
-def run_n_steps_forecast(
-    data: DataFrame,
-    prob: ProbVector,
+def run_forecast(
+    scenario_panel: ScenarioPanel,
     universe: AssetUniverse,
-    horizon: int = 100,
+    horizon: int = 10,
     n_sims: int = 1000,
     seed: int | None = None,
     method: Method = "bootstrap",
@@ -138,6 +135,8 @@ def run_n_steps_forecast(
     cma_config: CMAConfig | None = None,
 ) -> ForecastPaths:
     _validate_method_options(method, horizon, universe)
+    data = scenario_panel.to_frame()
+    prob = scenario_panel.prob
 
     universe_fit = FittedUniverse.fit(data=data, prob=prob, assets=universe.all_tickers)
 
