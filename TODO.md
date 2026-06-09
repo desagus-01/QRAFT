@@ -1,29 +1,26 @@
+## Backtest
+- [ ] risk evaluation/backtest
+Kupiec test
+Christoffersen test
+Mixed Kupiec test
+
+- [ ] full predictive distribution
+PIT tests
+CRPS scoring
+Tail calibration
+
 ## Signals
-- [ ] Add basic raw signals
+- [x] Add basic raw signals ✅ 2026-06-09
     - [ ] Distinguish between market-wide and cross-sectional
-- [ ] Add signals processing:
-    - [ ] Smoothing
-    - [ ] Scoring
-    - [ ] Ranking
-- [ ] Processed signals to expected returns (Characteristics)
+- [x] Add signals processing: ✅ 2026-06-09
+    - [x] Smoothing ✅ 2026-06-09
+    - [x] Scoring ✅ 2026-06-09
+    - [x] Ranking ✅ 2026-06-09
+- [x] Processed signals to expected returns (Characteristics) ✅ 2026-06-09
 
 ## Optimization
-- [x] Start with simple MV optimization ✅ 2026-05-20
-    - [x] Calculate first two moments of simulations ✅ 2026-05-15
-- [x] Implement Multi period optimization (MPO) ✅ 2026-05-20
-    - [x] Simple implementation ✅ 2026-05-18
-    - [x] make constraints easier ✅ 2026-05-19
-    - [x] make objectives easier ✅ 2026-05-20
-- [x] Apply CVAR optimization in this framework ✅ 2026-05-21
-- [ ] Create efficient frontier?
 - [ ] Review and implement better covariances techniques
     - [ ] Look at 72.2.1
-    - [ ] Also look at expectations etc as currently some are very high (ties in with bad forecasts in general)
-- [ ] Decide how to tackle invest. univese problem as want to keep optimizer as convex (meaning it won't auto remove (ie put to 0) bad assets)
-
-
-## Simulation
-- [ ] Using t-copula bootstrap with extreme returns is ending up in 'inf' and 'nans', how to resolve this.
 
 
 ## Forecasting pipeline

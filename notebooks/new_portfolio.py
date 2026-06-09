@@ -52,7 +52,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:30])
+tradable_assets = list(data.columns[10:90])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -129,9 +129,7 @@ projection = policy.decide(state, forecasts)
 projection.plot(type="cum_performance")
 
 # %%
-
 x = projection.risk(forecasts)
-
 x.effective_bets().plot()
 # %%
 x.risk_contribution("cvar")
