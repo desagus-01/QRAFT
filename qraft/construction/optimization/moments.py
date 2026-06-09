@@ -4,13 +4,13 @@ from typing import Literal
 
 import numpy as np
 import polars as pl
-from core.estimation import (
+from qraft.core.estimation import (
     weighted_correlation,
     weighted_covariance,
     weighted_mean,
 )
-from forecast.forecast_paths import AssetSubset, ForecastPaths
-from core.probability.prob_vector import ProbVector
+from qraft.forecast.forecast_paths import AssetSubset, ForecastPaths
+from qraft.core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
 import numpy as np
-from forecast.time_series.models.model_quality import ModelQuality
+from qraft.forecast.time_series.models.model_quality import ModelQuality
 from numpy._typing import NDArray
 
 MeanKind = Literal["none", "demean", "arma"]

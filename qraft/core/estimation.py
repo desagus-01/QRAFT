@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
 import numpy as np
-from core.probability.prob_vector import ProbVector
+from qraft.core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 from scipy import stats
 from scipy.linalg import sqrtm

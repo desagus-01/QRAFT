@@ -6,20 +6,20 @@ from typing import Any, Literal, Sequence, cast
 
 import cvxpy as cp
 import numpy as np
-from construction.optimization.constraints import PortfolioConstraint
-from construction.optimization.moments import HorizonMoments
-from construction.optimization.objectives import (
+from qraft.construction.optimization.constraints import PortfolioConstraint
+from qraft.construction.optimization.moments import HorizonMoments
+from qraft.construction.optimization.objectives import (
     handlers as _objective_handlers,  # noqa: F401
 )
-from construction.optimization.objectives.protocol import (
+from qraft.construction.optimization.objectives.protocol import (
     get_objective_handler,
     get_refineable_handler,
 )
-from construction.optimization.objectives.specs import (
+from qraft.construction.optimization.objectives.specs import (
     CVaRCuttingPlane,
     ObjectiveSpec,
 )
-from construction.optimization.presets import (
+from qraft.construction.optimization.presets import (
     PreMadeObjectives,
     _build_preset_objective,
 )

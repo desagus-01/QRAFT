@@ -3,21 +3,21 @@ from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
-from construction.policy_projection import PolicyProjection
-from core.estimation import (
+from qraft.construction.policy_projection import PolicyProjection
+from qraft.core.estimation import (
     EquationTypes,
 )
-from core.panel import ScenarioPanel
-from core.probability.prob_vector import ProbVector
+from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 from polars import DataFrame
-from risk.factor_ols import (
+from qraft.risk.factor_ols import (
     FactorAttributionModel,
     extract_factor_attribution_model,
     factor_cumulative_returns,
     factor_ols_regression,
 )
-from risk.feature_selection import (
+from qraft.risk.feature_selection import (
     Criterion,
 )
 

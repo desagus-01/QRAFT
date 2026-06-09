@@ -4,8 +4,8 @@ from dataclasses import asdict, dataclass
 from typing import Mapping, Self
 
 import numpy as np
-from forecast.time_series.models.fitted_types import UnivariateRes
-from forecast.time_series.models.model_types import UnivariateModel
+from qraft.forecast.time_series.models.fitted_types import UnivariateRes
+from qraft.forecast.time_series.models.model_types import UnivariateModel
 from numpy._typing import NDArray
 
 

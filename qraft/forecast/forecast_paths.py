@@ -5,8 +5,8 @@ from dataclasses import dataclass, replace
 from typing import Literal
 
 import numpy as np
-from core.panel import ScenarioPanel
-from core.probability.prob_vector import ProbVector, validate_prob_vector
+from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from numpy.typing import NDArray
 from polars import DataFrame
 

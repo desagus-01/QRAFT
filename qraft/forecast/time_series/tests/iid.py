@@ -4,14 +4,14 @@ from typing import Any, Callable
 import numpy as np
 import polars as pl
 import scipy.stats as st
-from core.estimation import weighted_covariance, weighted_mean
-from core.panel import compensate_prob
-from forecast.config import IIDConfig
-from core.probability.prob_vector import ProbVector
-from forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
+from qraft.core.estimation import weighted_covariance, weighted_mean
+from qraft.core.panel import compensate_prob
+from qraft.forecast.config import IIDConfig
+from qraft.core.probability.prob_vector import ProbVector
+from qraft.forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from numpy.typing import NDArray
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
-from utils.helpers import (
+from qraft.utils.helpers import (
     get_assets_names,
     split_df_in_half,
 )

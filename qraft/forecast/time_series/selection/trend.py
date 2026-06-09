@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from core.probability.prob_vector import ProbVector
-from forecast.time_series.tests.stationarity import (
+from qraft.core.probability.prob_vector import ProbVector
+from qraft.forecast.time_series.tests.stationarity import (
     StationarityInference,
     stationarity_tests,
 )
-from forecast.time_series.transforms.detrend import (
+from qraft.forecast.time_series.transforms.detrend import (
     CandidateBatch,
     TrendCandidate,
     build_difference_candidates,

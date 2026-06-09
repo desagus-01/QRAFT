@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import Protocol, Sequence
 
-from core.panel import ScenarioPanel
-from core.probability.entropy_pooling import entropy_pooling_probs
-from core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
-from core.scenarios.view_types import ViewSpec
+from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.entropy_pooling import entropy_pooling_probs
+from qraft.core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
+from qraft.core.scenarios.view_types import ViewSpec
 
 
 class ScenarioTransform(Protocol):

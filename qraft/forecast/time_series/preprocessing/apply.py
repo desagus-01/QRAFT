@@ -2,18 +2,18 @@ import logging
 
 import numpy as np
 import polars as pl
-from core.probability.prob_vector import ProbVector
-from forecast.time_series.preprocessing.types import (
+from qraft.core.probability.prob_vector import ProbVector
+from qraft.forecast.time_series.preprocessing.types import (
     TransformDecision,
 )
-from forecast.time_series.transforms.deseason import (
+from qraft.forecast.time_series.transforms.deseason import (
     deterministic_seasonal_adjustment,
 )
-from forecast.time_series.transforms.detrend import (
+from qraft.forecast.time_series.transforms.detrend import (
     add_detrend_column,
     add_differenced_columns,
 )
-from forecast.time_series.transforms.inverses import (
+from qraft.forecast.time_series.transforms.inverses import (
     DifferenceInverseSpec,
     InverseSpec,
     PolynomialInverseSpec,

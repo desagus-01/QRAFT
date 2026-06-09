@@ -3,7 +3,7 @@ from typing import Literal
 
 import numpy as np
 import polars as pl
-from core.estimation import (
+from qraft.core.estimation import (
     OLSEquation,
     OLSResults,
     add_deterministics_to_eq,

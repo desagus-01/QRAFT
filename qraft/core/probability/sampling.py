@@ -4,7 +4,7 @@ from typing import Literal
 import numpy as np
 import polars as pl
 from copulae import NormalCopula, StudentCopula
-from core.probability.prob_vector import ProbVector
+from qraft.core.probability.prob_vector import ProbVector
 from numpy import random
 from numpy._typing import NDArray
 from polars import DataFrame

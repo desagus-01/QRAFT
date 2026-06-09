@@ -2,9 +2,9 @@ from typing import Any
 
 import cvxpy as cp
 import numpy as np
-from construction.optimization.moments import HorizonMoments
-from construction.optimization.objectives.protocol import register_objective
-from construction.optimization.objectives.specs import (
+from qraft.construction.optimization.moments import HorizonMoments
+from qraft.construction.optimization.objectives.protocol import register_objective
+from qraft.construction.optimization.objectives.specs import (
     CashReturn,
     CovarianceRisk,
     CVaRCuttingPlane,

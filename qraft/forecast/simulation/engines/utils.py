@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from forecast.time_series.models.model_types import CompiledParams
+from qraft.forecast.time_series.models.model_types import CompiledParams
 from numpy._typing import NDArray
 
 

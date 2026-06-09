@@ -3,17 +3,17 @@ from typing import Callable, Literal, NamedTuple
 
 import numpy as np
 import polars as pl
-from core.estimation import (
+from qraft.core.estimation import (
     EquationTypes,
     OLSEquation,
     add_deterministics_to_eq,
     weighted_ols,
 )
-from forecast.time_series.tests.types import (
+from qraft.forecast.time_series.tests.types import (
     HypTestRes,
     format_hyp_test_result,
 )
-from globals import (
+from qraft.globals import (
     EQ_TYPE_ADDED_DETS,
     KPSS_CRIT_VALUES,
     KPSS_P_VALS,

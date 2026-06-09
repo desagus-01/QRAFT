@@ -1,6 +1,6 @@
 from typing import Sequence
 
-from forecast.time_series.tests.seasonality import (
+from qraft.forecast.time_series.tests.seasonality import (
     SEASONAL_PERIODS,
     SeasonalityPeriodTest,
     periodogram_seasonality_test,

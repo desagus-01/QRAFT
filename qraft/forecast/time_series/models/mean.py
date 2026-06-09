@@ -3,8 +3,8 @@ import warnings
 from re import fullmatch
 
 import numpy as np
-from forecast.config import MeanModelConfig
-from forecast.time_series.models.fitted_types import AutoARMARes
+from qraft.forecast.config import MeanModelConfig
+from qraft.forecast.time_series.models.fitted_types import AutoARMARes
 from numpy._typing import NDArray
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 from statsmodels.tsa.arima.model import ARIMA

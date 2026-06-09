@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 import numpy as np
-from core.estimation import OLSResults, weighted_ols
-from core.probability.prob_vector import ProbVector
+from qraft.core.estimation import OLSResults, weighted_ols
+from qraft.core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 
 

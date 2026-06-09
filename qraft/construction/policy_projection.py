@@ -2,12 +2,12 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
-from construction.policies import PolicyDecision
-from construction.state import PortfolioState
-from forecast.forecast_paths import ForecastPaths
-from core.probability.prob_vector import ProbVector
+from qraft.construction.policies import PolicyDecision
+from qraft.construction.state import PortfolioState
+from qraft.forecast.forecast_paths import ForecastPaths
+from qraft.core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
-from utils.visuals import plot_simulation_results
+from qraft.utils.visuals import plot_simulation_results
 
 
 def create_cash_forecasts(

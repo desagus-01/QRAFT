@@ -6,15 +6,15 @@ from typing import Literal
 
 import numpy as np
 import polars as pl
-from core.estimation import weighted_covariance
-from core.panel import ScenarioPanel
-from core.probability.prob_vector import ProbVector
+from qraft.core.estimation import weighted_covariance
+from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 from polars import DataFrame
-from risk.dimensionality_reduction import minimum_torsion_matrix
-from risk.measures import var
-from risk.performance_attribution import PortfolioPerformanceAttribution
-from utils.visuals import plot_effective_bets
+from qraft.risk.dimensionality_reduction import minimum_torsion_matrix
+from qraft.risk.measures import var
+from qraft.risk.performance_attribution import PortfolioPerformanceAttribution
+from qraft.utils.visuals import plot_effective_bets
 
 logger = logging.getLogger(__name__)
 

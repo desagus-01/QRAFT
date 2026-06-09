@@ -2,16 +2,16 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
-from construction.policy_projection import PolicyProjection
-from forecast.forecast_paths import ForecastPaths
+from qraft.construction.policy_projection import PolicyProjection
+from qraft.forecast.forecast_paths import ForecastPaths
 from numpy.typing import NDArray
 from polars import DataFrame
-from risk.feature_selection import Criterion
-from risk.measures import cvar, var
-from risk.performance_attribution import (
+from qraft.risk.feature_selection import Criterion
+from qraft.risk.measures import cvar, var
+from qraft.risk.performance_attribution import (
     portfolio_factor_attribution,
 )
-from risk.risk_attribution import (
+from qraft.risk.risk_attribution import (
     EffectiveBets,
     PortfolioRiskAttribution,
     RiskContributions,

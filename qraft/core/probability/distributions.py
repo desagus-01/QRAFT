@@ -1,6 +1,6 @@
 import numpy as np
-from core.probability.prob_vector import ProbVector
-from globals import model_cfg
+from qraft.core.probability.prob_vector import ProbVector
+from qraft.globals import model_cfg
 from numpy.typing import NDArray
 from pydantic import validate_call
 

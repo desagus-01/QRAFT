@@ -5,10 +5,10 @@ from typing import Any, Callable, Sequence
 
 import cvxpy as cp
 import numpy as np
-from core.panel import ScenarioPanel
+from qraft.core.panel import ScenarioPanel
 from cvxpy.constraints.constraint import Constraint as CvxConstraint
-from core.probability.prob_vector import ProbVector
-from core.scenarios.view_types import (
+from qraft.core.probability.prob_vector import ProbVector
+from qraft.core.scenarios.view_types import (
     ConstraintDiag,
     CorrView,
     MeanView,
@@ -18,10 +18,10 @@ from core.scenarios.view_types import (
     StdView,
     ViewSpec,
 )
-from globals import model_cfg
+from qraft.globals import model_cfg
 from numpy.typing import NDArray
 from pydantic import validate_call
-from utils.helpers import indicator_quantile_marginal, weighted_moments
+from qraft.utils.helpers import indicator_quantile_marginal, weighted_moments
 
 logger = logging.getLogger(__name__)
 

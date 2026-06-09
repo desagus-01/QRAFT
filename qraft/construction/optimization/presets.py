@@ -1,6 +1,6 @@
 from typing import Literal
 
-from construction.optimization.objectives.specs import (
+from qraft.construction.optimization.objectives.specs import (
     CashReturn,
     CovarianceRisk,
     CVaRCuttingPlane,

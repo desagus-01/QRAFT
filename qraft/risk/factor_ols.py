@@ -2,17 +2,17 @@ import logging
 from dataclasses import dataclass
 
 import numpy as np
-from core.estimation import (
+from qraft.core.estimation import (
     EquationTypes,
     OLSEquation,
     OLSResults,
     add_deterministics_to_eq,
     weighted_ols,
 )
-from core.probability.prob_vector import ProbVector
+from qraft.core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 from polars import DataFrame
-from risk.feature_selection import (
+from qraft.risk.feature_selection import (
     Criterion,
     ForwardRegressionResult,
     forward_regression,

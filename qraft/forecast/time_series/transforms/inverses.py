@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
-from forecast.time_series.transforms.deseason import HarmonicTerm
+from qraft.forecast.time_series.transforms.deseason import HarmonicTerm
 from numpy._typing import NDArray
 
 

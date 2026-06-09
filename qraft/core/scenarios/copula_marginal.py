@@ -4,9 +4,9 @@ from dataclasses import dataclass, replace
 from typing import Literal, Self
 
 import polars as pl
-from core.panel import ScenarioPanel
-from core.probability.sampling import marginal_quantile_mapping, sample_copula
-from core.probability.prob_vector import ProbVector, validate_prob_vector
+from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.sampling import marginal_quantile_mapping, sample_copula
+from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from numpy import interp
 from polars import DataFrame
 

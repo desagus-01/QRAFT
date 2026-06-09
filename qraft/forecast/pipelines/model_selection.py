@@ -2,31 +2,31 @@ import logging
 from typing import Mapping
 
 import numpy as np
-from forecast.config import (
+from qraft.forecast.config import (
     DEFAULT_PIPELINE_CONFIG,
     MeanModelConfig,
     PipelineConfig,
     VolatilityModelConfig,
 )
-from forecast.time_series.models.fitted_types import (
+from qraft.forecast.time_series.models.fitted_types import (
     AutoARMARes,
     AutoGARCHRes,
     DemeanRes,
     MeanModelRes,
     UnivariateRes,
 )
-from forecast.time_series.models.mean import (
+from qraft.forecast.time_series.models.mean import (
     auto_arma,
 )
-from forecast.time_series.models.model_quality import (
+from qraft.forecast.time_series.models.model_quality import (
     SelectionAudit,
     score_audit,
 )
-from forecast.time_series.models.volatility import (
+from qraft.forecast.time_series.models.volatility import (
     auto_garch,
 )
-from forecast.time_series.tests.iid import arch_test, ljung_box_test
-from forecast.time_series.tests.multiple import multiple_tests_rejected
+from qraft.forecast.time_series.tests.iid import arch_test, ljung_box_test
+from qraft.forecast.time_series.tests.multiple import multiple_tests_rejected
 from numpy._typing import NDArray
 from polars import DataFrame
 

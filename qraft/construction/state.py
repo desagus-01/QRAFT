@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
-from forecast.forecast_paths import ForecastPaths
+from qraft.forecast.forecast_paths import ForecastPaths
 from numpy.typing import NDArray
 
 

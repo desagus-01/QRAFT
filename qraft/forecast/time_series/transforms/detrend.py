@@ -4,8 +4,8 @@ from typing import Literal
 import numpy as np
 import polars as pl
 import polars.selectors as cs
-from core.estimation import weighted_ols
-from core.probability.prob_vector import ProbVector
+from qraft.core.estimation import weighted_ols
+from qraft.core.probability.prob_vector import ProbVector
 from numpy._typing import NDArray
 
 TrendTypes = Literal["polynomial", "difference"]

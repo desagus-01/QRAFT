@@ -26,12 +26,12 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["qraft"]
+where = ["."]
 
 
 [tool.pyrefly]
 python_version = "3.13"
-search_path = ["qraft"]
+search_path = ["."]
 project-includes = [
   "**/*.py",
   "**/*.pyi",

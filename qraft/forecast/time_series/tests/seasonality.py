@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
+from qraft.forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from matplotlib.axes import Axes
 from numpy._typing._array_like import NDArray
 from scipy.stats import f as f_dist

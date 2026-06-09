@@ -2,12 +2,18 @@ import logging
 from typing import Literal
 
 import numpy as np
-from forecast.time_series.preprocessing.types import (
+from qraft.forecast.time_series.preprocessing.types import (
     TransformDecision,
 )
-from forecast.time_series.selection.trend import AssetTrendDiagnostic, TrendSelection
-from forecast.time_series.tests.seasonality import SEASONAL_MAP, SeasonalityPeriodTest
-from forecast.time_series.transforms.detrend import TrendCandidate
+from qraft.forecast.time_series.selection.trend import (
+    AssetTrendDiagnostic,
+    TrendSelection,
+)
+from qraft.forecast.time_series.tests.seasonality import (
+    SEASONAL_MAP,
+    SeasonalityPeriodTest,
+)
+from qraft.forecast.time_series.transforms.detrend import TrendCandidate
 
 logger = logging.getLogger(__name__)
 

@@ -4,12 +4,12 @@ import logging
 from typing import Literal
 
 import numpy as np
-from core.panel import ScenarioPanel
-from core.probability.sampling import weighted_bootstrapping_idx
-from core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
-from forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
-from forecast.pipelines.fitted_universe import FittedUniverse
-from forecast.time_series.transforms.inverses import apply_inverse_transforms
+from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.sampling import weighted_bootstrapping_idx
+from qraft.core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
+from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
+from qraft.forecast.pipelines.fitted_universe import FittedUniverse
+from qraft.forecast.time_series.transforms.inverses import apply_inverse_transforms
 
 logger = logging.getLogger(__name__)
 

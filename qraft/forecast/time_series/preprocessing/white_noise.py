@@ -1,11 +1,11 @@
 import logging
 
 import polars as pl
-from core.panel import ScenarioPanel
-from forecast.config import IIDConfig
-from core.probability.prob_vector import ProbVector
-from core.scenarios.copula_marginal import CopulaMarginalModel
-from forecast.time_series.tests.iid import (
+from qraft.core.panel import ScenarioPanel
+from qraft.forecast.config import IIDConfig
+from qraft.core.probability.prob_vector import ProbVector
+from qraft.core.scenarios.copula_marginal import CopulaMarginalModel
+from qraft.forecast.time_series.tests.iid import (
     TestResultByAsset,
     copula_lag_independence_test,
     ellipsoid_lag_test,

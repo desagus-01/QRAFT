@@ -4,7 +4,7 @@ import logging
 import logging.handlers
 import sys
 
-from forecast.config import LogConfig
+from qraft.forecast.config import LogConfig
 
 # Third-party loggers known to be chatty during model fitting.
 _NOISY_LOGGERS = (
@@ -28,7 +28,7 @@ def setup_logging(cfg: LogConfig | None = None) -> None:
         is used.
     """
     if cfg is None:
-        from policy import DEFAULT_LOG_CONFIG
+        from qraft.forecast.config import DEFAULT_LOG_CONFIG
 
         cfg = DEFAULT_LOG_CONFIG
 

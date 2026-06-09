@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 import polars as pl
-from core.probability.distributions import uniform_probs
-from core.probability.prob_vector import ProbVector, validate_prob_vector
+from qraft.core.probability.distributions import uniform_probs
+from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from numpy.typing import NDArray
 from polars import DataFrame
 

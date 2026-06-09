@@ -3,16 +3,19 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 import numpy as np
-from construction.optimization.constraints import PortfolioConstraint
-from construction.optimization.moments import HorizonMoments
-from construction.optimization.objectives.specs import (
+from qraft.construction.optimization.constraints import PortfolioConstraint
+from qraft.construction.optimization.moments import HorizonMoments
+from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     ObjectiveSpec,
     TransactionCost,
     WeightedTerm,
 )
-from construction.optimization.optimization import MPOResult, MultiPeriodOptimizer
-from construction.optimization.presets import PreMadeObjectives, _build_preset_objective
+from qraft.construction.optimization.optimization import MPOResult, MultiPeriodOptimizer
+from qraft.construction.optimization.presets import (
+    PreMadeObjectives,
+    _build_preset_objective,
+)
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)

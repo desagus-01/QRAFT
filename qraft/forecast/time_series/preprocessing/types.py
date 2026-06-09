@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from forecast.time_series.transforms.inverses import (
+from qraft.forecast.time_series.transforms.inverses import (
     InverseSpec,
 )
 from polars.dataframe.frame import DataFrame

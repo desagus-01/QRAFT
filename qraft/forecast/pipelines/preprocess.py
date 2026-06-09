@@ -1,29 +1,29 @@
 import logging
 
 import polars as pl
-from forecast.config import PreprocessConfig
-from core.probability.prob_vector import ProbVector
-from forecast.time_series.preprocessing.apply import (
+from qraft.forecast.config import PreprocessConfig
+from qraft.core.probability.prob_vector import ProbVector
+from qraft.forecast.time_series.preprocessing.apply import (
     apply_deseason,
     apply_detrend,
     overwrite_with_transforms,
 )
-from forecast.time_series.preprocessing.decisions import (
+from qraft.forecast.time_series.preprocessing.decisions import (
     deseason_decision_rule,
     detrend_decision_rule,
 )
-from forecast.time_series.preprocessing.types import (
+from qraft.forecast.time_series.preprocessing.types import (
     PipelineAssetBatchRes,
     UnivariatePreprocess,
 )
-from forecast.time_series.preprocessing.white_noise import test_increments_idd
-from forecast.time_series.selection.seasonality import (
+from qraft.forecast.time_series.preprocessing.white_noise import test_increments_idd
+from qraft.forecast.time_series.selection.seasonality import (
     seasonality_diagnostic,
 )
-from forecast.time_series.selection.trend import trend_diagnostic
-from forecast.time_series.transforms.inverses import InverseSpec
+from qraft.forecast.time_series.selection.trend import trend_diagnostic
+from qraft.forecast.time_series.transforms.inverses import InverseSpec
 from polars.dataframe.frame import DataFrame
-from utils.helpers import (
+from qraft.utils.helpers import (
     get_assets_names,
 )
 

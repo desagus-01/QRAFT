@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import numpy as np
-from forecast.simulation.engines.mean import mean_simulation_paths
-from forecast.simulation.engines.utils import as_sims_by_horizon
-from forecast.simulation.engines.volatility import garch_simulation_paths
-from forecast.simulation.state import SimulationForecast
+from qraft.forecast.simulation.engines.mean import mean_simulation_paths
+from qraft.forecast.simulation.engines.utils import as_sims_by_horizon
+from qraft.forecast.simulation.engines.volatility import garch_simulation_paths
+from qraft.forecast.simulation.state import SimulationForecast
 from numpy._typing import NDArray
 
 

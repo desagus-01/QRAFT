@@ -3,13 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from forecast.simulation.engines.utils import (
+from qraft.forecast.simulation.engines.utils import (
     as_sims_by_horizon,
     broadcast_last_k_lags,
     garch_params,
     lag_matrix,
 )
-from forecast.time_series.models.model_types import CompiledParams
+from qraft.forecast.time_series.models.model_types import CompiledParams
 from numpy._typing import NDArray
 
 

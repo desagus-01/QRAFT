@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
-from forecast.config import QualityConfig
+from qraft.forecast.config import QualityConfig
 from numpy._typing import NDArray
 
 QualityEvent = Literal[
