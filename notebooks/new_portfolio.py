@@ -20,11 +20,7 @@ from qraft.construction.optimization.constraints import (
     TurnoverLimit,
 )
 from qraft.core import (
-    CorrView,
-    MeanView,
-    RankingView,
     ScenarioPanel,
-    Views,
     state_smooth_probs,
 )
 from qraft.utils.tiingo import import_tickers_and_factors
@@ -39,7 +35,7 @@ data, factors_cols = import_tickers_and_factors(
     "./data/tiingo_factors.csv",
 )
 
-min_price = 10
+min_price = 12
 
 cols_to_keep = [
     col
@@ -54,7 +50,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:70])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -62,7 +58,7 @@ data = data.select("date", *universe.all_tickers)
 # %%
 # ── Build historical ScenarioPanel ───────────────────────────────────
 forecast_horizon = 10
-n_sims = 30_000
+n_sims = 100_000
 
 prob_ex = state_smooth_probs(
     data.height,
@@ -70,20 +66,20 @@ prob_ex = state_smooth_probs(
     time_based=True,
 )
 
-original_panel = ScenarioPanel.from_log_prices(
+posterior_panel = ScenarioPanel.from_log_prices(
     data,
     prob=prob_ex,
 )
-
-posterior_panel = Views(
-    [
-        MeanView("DHIL", ">=", 0.002),
-        CorrView(("MTX", "CUBE"), ">=", 0.75),
-        RankingView(["DHIL", "MTX", "NBIX"]),
-    ],
-    confidence=0.8,
-).apply(original_panel)
-
+#
+# posterior_panel = Views(
+#     [
+#         MeanView("DHIL", ">=", 0.002),
+#         CorrView(("MTX", "CUBE"), ">=", 0.75),
+#         RankingView(["DHIL", "MTX", "NBIX"]),
+#     ],
+#     confidence=0.8,
+# ).apply(original_panel)
+#
 
 # %%
 # ── Forecasting ──────────────────────────────────────────────────────
@@ -97,6 +93,7 @@ forecasts = run_forecast(
     cma_config=CMAConfig(target_copula="t"),
 )
 
+forecasts.plot_asset_paths()
 
 # %%
 constraints: list[PortfolioConstraint] = [

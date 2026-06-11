@@ -17,6 +17,8 @@ from qraft.forecast.time_series.transforms.detrend import TrendCandidate
 
 logger = logging.getLogger(__name__)
 
+MAX_SEASONAL_HARMONICS = 3
+
 
 def _accepted_candidate(selection: TrendSelection | None) -> TrendCandidate | None:
     """Return selected candidate only if it satisfies the selection's own threshold policy."""
@@ -60,21 +62,26 @@ def detrend_decision_rule(
     return trend_trans
 
 
-def _expand_period_to_harmonics(period_label: str) -> list[tuple[str, float]]:
+def _expand_period_to_harmonics(
+    period_label: str, max_harmonics: int = MAX_SEASONAL_HARMONICS
+) -> list[tuple[str, float]]:
     """
-    Given a period label ('weekly', 'monthly', ...), return a list of
-    (label_for_harmonic, omega_radians) covering the full harmonic set.
+    Given a period label ('weekly', 'monthly', ...), return a conservative list of
+    (label_for_harmonic, omega_radians) covering the lowest-order harmonics.
     The label is augmented (e.g., 'monthly_h2'); _deseason_apply ignores labels anyway.
     """
+    if max_harmonics < 1:
+        return []
+
     P = SEASONAL_MAP[period_label]
     base = 2 * np.pi / P
 
     out: list[tuple[str, float]] = []
-    H = (P - 1) // 2
+    H = min(max_harmonics, (P - 1) // 2)
     for h in range(1, H + 1):
         out.append((f"{period_label}_h{h}", h * base))
 
-    if P % 2 == 0:
+    if P % 2 == 0 and max_harmonics >= P // 2:
         out.append((f"{period_label}_nyq", np.pi))  # Nyquist cosine
 
     return out
@@ -82,9 +89,10 @@ def _expand_period_to_harmonics(period_label: str) -> list[tuple[str, float]]:
 
 def deseason_decision_rule(
     seasonality_diagnostic: dict[str, list[SeasonalityPeriodTest]],
+    max_harmonics: int = MAX_SEASONAL_HARMONICS,
 ) -> dict[str, list[tuple[str, float]]]:
     """
-    Extract significant seasonal periods and expand each to its harmonic set.
+    Extract significant seasonal periods and expand each to a small harmonic set.
     """
     decision: dict[str, list[tuple[str, float]]] = {}
 
@@ -92,7 +100,11 @@ def deseason_decision_rule(
         freqs: list[tuple[str, float]] = []
         for t in tests:
             if t.evidence_of_seasonality:
-                freqs.extend(_expand_period_to_harmonics(t.seasonal_period))
+                freqs.extend(
+                    _expand_period_to_harmonics(
+                        t.seasonal_period, max_harmonics=max_harmonics
+                    )
+                )
 
         #  deduplicate angular frequencies if multiple periods collide
         if freqs:

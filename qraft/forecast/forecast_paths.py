@@ -5,10 +5,12 @@ from dataclasses import dataclass, replace
 from typing import Literal
 
 import numpy as np
-from qraft.core.panel import ScenarioPanel
-from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from numpy.typing import NDArray
 from polars import DataFrame
+
+from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
+from qraft.utils.visuals import plot_simulation_results
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +146,10 @@ class ForecastPaths:
         if subset == "factors":
             return self.factor_paths
         raise ValueError(f"Unknown subset: {subset}")
+
+    def plot_asset_paths(self) -> None:
+        for asset, path in self.tradable_paths.items():
+            plot_simulation_results(path, title=asset)
 
     def at_step(
         self,

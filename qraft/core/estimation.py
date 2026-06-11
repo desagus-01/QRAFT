@@ -231,7 +231,7 @@ def least_squares_weighted_fit(
         if res[1].size == 0:
             ssr = float((residuals.T @ residuals).item())
         else:
-            ssr = float(res[1].item())
+            ssr = res[1].item()
     else:
         sqrt_w = np.sqrt(prob).reshape(-1, 1)
         x_w = independent_vars * sqrt_w
