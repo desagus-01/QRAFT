@@ -43,6 +43,7 @@ class FittedUniverse:
         prob: ProbVector,
         assets: list[str],
         cfg: PipelineConfig | None = None,
+        seed: int | None = None,
     ) -> FittedUniverse:
         """Run preprocess + model selection and assemble the invariants panel."""
         preprocess = run_univariate_preprocess(
@@ -50,6 +51,7 @@ class FittedUniverse:
             prob=prob,
             assets=assets,
             cfg=cfg.preprocess if cfg is not None else None,
+            seed=seed,
         )
         logger.info(
             "Preprocessing complete: post_data_shape=%s assets_to_model=%s",

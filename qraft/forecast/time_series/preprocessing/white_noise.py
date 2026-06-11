@@ -45,6 +45,7 @@ def _run_iid_complex(
     prob: ProbVector,
     assets: list[str],
     lags: int,
+    seed: int | None = None,
 ) -> dict[str, TestResultByAsset]:
     """Run the expensive copula IID screen."""
     copula_marginal_model = CopulaMarginalModel.from_data_and_prob(
@@ -57,6 +58,7 @@ def _run_iid_complex(
         prob=copula_marginal_model.prob,
         lags=lags,
         assets=assets,
+        seed=seed,
     )
 
     return {
@@ -69,6 +71,7 @@ def check_white_noise(
     prob: ProbVector,
     assets: list[str],
     cfg: IIDConfig | None = None,
+    seed: int | None = None,
 ) -> dict[str, bool]:
     """Return whether each asset passes the white-noise screen."""
     if cfg is None:
@@ -105,6 +108,7 @@ def check_white_noise(
         prob=prob,
         assets=assets_for_copula,
         lags=cfg.lags_complex,
+        seed=seed,
     )
 
     copula_pass = {
@@ -128,6 +132,7 @@ def _find_nonwhite_noise_assets(
     increments: ScenarioPanel,
     assets: list[str],
     cfg: IIDConfig | None = None,
+    seed: int | None = None,
 ) -> list[str]:
     """Return assets whose increments fail the white-noise screen."""
     wn = check_white_noise(
@@ -135,6 +140,7 @@ def _find_nonwhite_noise_assets(
         assets=assets,
         prob=increments.prob,
         cfg=cfg,
+        seed=seed,
     )
     return [a for a, ok in wn.items() if not ok]
 
@@ -144,7 +150,10 @@ def test_increments_idd(
     original_prob: ProbVector,
     assets: list[str],
     cfg: IIDConfig | None = None,
+    seed: int | None = None,
 ) -> list[str]:
     """Diff each asset and return those whose increments are not white noise."""
     panel = ScenarioPanel.from_log_prices(data.select(assets), original_prob).diff()
-    return _find_nonwhite_noise_assets(increments=panel, assets=assets, cfg=cfg)
+    return _find_nonwhite_noise_assets(
+        increments=panel, assets=assets, cfg=cfg, seed=seed
+    )

@@ -3,13 +3,14 @@ import warnings
 from re import fullmatch
 
 import numpy as np
-from qraft.forecast.config import MeanModelConfig
-from qraft.forecast.time_series.models.fitted_types import AutoARMARes
 from numpy._typing import NDArray
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import arma_order_select_ic
 from typing_extensions import Literal
+
+from qraft.forecast.config import MeanModelConfig
+from qraft.forecast.time_series.models.fitted_types import AutoARMARes
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +19,13 @@ def _build_arma_parameters(
     parameter_names: list[str],
     ar_estimates: NDArray[np.floating],
     ma_estimates: NDArray[np.floating],
+    all_estimates: NDArray[np.floating],
 ) -> dict[str, float]:
     params = {}
-    for param in parameter_names:
+    for i, param in enumerate(parameter_names):
+        if param == "const":
+            params["const"] = float(all_estimates[i])
+            continue
         m = fullmatch(r"(ar|ma)\.L(\d+)", param)
         if m:
             kind, lag = m.group(1), int(m.group(2))
@@ -58,7 +63,7 @@ def _arma_top_candidates(
         max_ar=max_ar_order,
         max_ma=max_ma_order,
         ic=information_criteria,
-        trend="n",
+        trend="c",
         model_kw={"enforce_stationarity": False, "enforce_invertibility": False},
         fit_kw={"method": "hannan_rissanen", "low_memory": True},
     )[information_criteria]
@@ -74,8 +79,8 @@ def _arma_filter(
     """
     Filter ARMA candidates using root-based stationarity / invertibility checks.
     """
-    ar_vals = [float(v) for k, v in sorted(params.items()) if k.startswith("ar.L")]
-    ma_vals = [float(v) for k, v in sorted(params.items()) if k.startswith("ma.L")]
+    ar_vals = [v for k, v in sorted(params.items()) if k.startswith("ar.L")]
+    ma_vals = [v for k, v in sorted(params.items()) if k.startswith("ma.L")]
 
     try:
         if ar_vals:
@@ -107,7 +112,6 @@ def auto_arma(
     """Fit ARMA models for the top candidate orders and collect their results."""
     if cfg is None:
         cfg = MeanModelConfig()
-    # Allow legacy callers to override individual fields via keyword args
     if any(
         v is not None
         for v in [max_ar_order, max_ma_order, top_n_models, information_criteria]
@@ -146,7 +150,7 @@ def auto_arma(
                     asset_array,
                     order=(ar_order, 0, ma_order),
                     seasonal_order=[0, 0, 0, 0],
-                    trend="n",
+                    trend="c",
                 )
                 res = model.fit(method="statespace")
         except ConvergenceWarning:
@@ -167,7 +171,12 @@ def auto_arma(
             )
             continue
 
-        params = _build_arma_parameters(model.param_names, res.arparams, res.maparams)  # type: ignore[attr-defined]
+        params = _build_arma_parameters(
+            model.param_names,
+            res.arparams,
+            res.maparams,
+            np.asarray(res.params, dtype=float),
+        )
 
         if not _arma_filter(params, cfg):
             logger.info(
@@ -182,7 +191,7 @@ def auto_arma(
             AutoARMARes(
                 model_order=(ar_order, ma_order),
                 params=params,
-                degrees_of_freedom=ar_order + ma_order,
+                degrees_of_freedom=ar_order + ma_order + 1,
                 criteria=cfg.information_criteria,
                 criteria_res=float(getattr(res, cfg.information_criteria)),
                 p_values=res.pvalues,  # type: ignore[attr-defined]

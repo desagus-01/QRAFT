@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from typing import Mapping
 
 import numpy as np
+from numpy._typing import NDArray
+
 from qraft.forecast.time_series.models.fitted_types import (
     MeanKind,
     UnivariateRes,
     VolKind,
 )
-from numpy._typing import NDArray
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +55,7 @@ class UnivariateModel:
             vol_order = (0, 0, 0)
             vol_params = {}
             if fitting_results.mean_res is not None:
-                innovation_scale = float(fitting_results.mean_res.residual_scale)
+                innovation_scale = fitting_results.mean_res.residual_scale
             else:
                 innovation_scale = 1.0
         else:
@@ -82,8 +83,8 @@ class UnivariateModel:
     ) -> float:
         for k in keys:
             if k in params:
-                return float(params[k])
-        return float(default)
+                return params[k]
+        return default
 
     def _get_lag(self, params: dict[str, float], base: str, lag: int) -> float:
         return self._param_get(params, f"{base}[{lag}]", f"{base}.L{lag}", default=0.0)
@@ -95,29 +96,21 @@ class UnivariateModel:
         if self.mean_kind == "none":
             return 0.0, np.zeros(0), np.zeros(0)
         if self.mean_kind == "demean":
-            mu = float((self.mean_params or {}).get("mean", 0.0))
+            mu = (self.mean_params or {}).get("mean", 0.0)
             return mu, np.zeros(0), np.zeros(0)
         if self.mean_kind == "arma":
             p, q = self.mean_order
-            mu = float(
-                (self.mean_params or {}).get(
-                    "const", (self.mean_params or {}).get("mu", 0.0)
-                )
-            )
+            mp = self.mean_params or {}
             ar = np.array(
-                [
-                    self._get_lag(self.mean_params or {}, "ar", i)
-                    for i in range(1, p + 1)
-                ],
+                [self._get_lag(mp, "ar", i) for i in range(1, p + 1)],
                 dtype=float,
             )
             ma = np.array(
-                [
-                    self._get_lag(self.mean_params or {}, "ma", j)
-                    for j in range(1, q + 1)
-                ],
+                [self._get_lag(mp, "ma", j) for j in range(1, q + 1)],
                 dtype=float,
             )
+            unconditional_mean = mp.get("const", mp.get("mu", 0.0))
+            mu = unconditional_mean * (1.0 - ar.sum())
             return mu, ar, ma
         raise ValueError(self.mean_kind)
 
@@ -130,17 +123,17 @@ class UnivariateModel:
         if self.vol_kind == "garch":
             p, o, q = self.vol_order
             vp = self.vol_params or {}
-            omega = float(vp.get("omega", 0.0))
+            omega = vp.get("omega", 0.0)
             alpha = np.array(
-                [float(vp.get(f"alpha[{i}]", 0.0)) for i in range(1, p + 1)],
+                [vp.get(f"alpha[{i}]", 0.0) for i in range(1, p + 1)],
                 dtype=float,
             )
             gamma = np.array(
-                [float(vp.get(f"gamma[{i}]", 0.0)) for i in range(1, o + 1)],
+                [vp.get(f"gamma[{i}]", 0.0) for i in range(1, o + 1)],
                 dtype=float,
             )
             beta = np.array(
-                [float(vp.get(f"beta[{i}]", 0.0)) for i in range(1, q + 1)], dtype=float
+                [vp.get(f"beta[{i}]", 0.0) for i in range(1, q + 1)], dtype=float
             )
             return omega, alpha, gamma, beta
         raise ValueError(self.vol_kind)

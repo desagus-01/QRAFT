@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 
 import numpy as np
-from qraft.forecast.time_series.transforms.deseason import HarmonicTerm
 from numpy._typing import NDArray
+
+from qraft.forecast.time_series.transforms.deseason import HarmonicTerm
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,7 @@ class DifferenceInverseSpec:
                 f"{self.order}, got {init.shape[0]}"
             )
 
-        for anchor in init[::-1]:
+        for anchor in init:
             current = np.cumsum(current, axis=1) + anchor
 
         return current
@@ -131,8 +132,9 @@ def apply_inverse_transforms(
 ) -> dict[str, NDArray[np.floating]]:
     restored_paths: dict[str, NDArray[np.floating]] = {}
 
-    for asset, transforms in inverse_specs.items():
-        current = np.asarray(asset_data_dict[asset], dtype=float)
+    for asset, simulated in asset_data_dict.items():
+        transforms = inverse_specs.get(asset, [])
+        current = np.asarray(simulated, dtype=float)
         ordered_transforms = _choose_inverse_application_order(transforms)
 
         for inverse_spec in ordered_transforms:

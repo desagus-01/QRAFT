@@ -4,13 +4,14 @@ from typing import Any, Callable
 import numpy as np
 import polars as pl
 import scipy.stats as st
-from qraft.core.estimation import weighted_covariance, weighted_mean
-from qraft.core.panel import compensate_prob
-from qraft.forecast.config import IIDConfig
-from qraft.core.probability.prob_vector import ProbVector
-from qraft.forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from numpy.typing import NDArray
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
+
+from qraft.core.estimation import weighted_covariance, weighted_mean
+from qraft.core.panel import compensate_prob
+from qraft.core.probability.prob_vector import ProbVector
+from qraft.forecast.config import IIDConfig
+from qraft.forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from qraft.utils.helpers import (
     get_assets_names,
     split_df_in_half,
@@ -249,6 +250,7 @@ def copula_lag_independence_test(
     prob: ProbVector,
     lags: int = _DEFAULT_IID.lags_complex,
     assets: list[str] | None = None,
+    seed: int | None = None,
 ) -> TestResultByAsset:
     """Run the copula lag independence test for each asset and lag."""
     return run_lagged_tests(
@@ -257,6 +259,7 @@ def copula_lag_independence_test(
         lags=lags,
         assets=assets,
         test_fn=independence_permutation_test,
+        rng=np.random.default_rng(seed),
     )
 
 

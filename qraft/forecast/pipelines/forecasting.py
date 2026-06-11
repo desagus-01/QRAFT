@@ -93,6 +93,10 @@ def draw_innovations(
     )
 
 
+def _check_missing_assets(new_assets: list[str], old_assets: list[str]) -> bool:
+    return bool(set(new_assets) - set(old_assets))
+
+
 def run_forecast(
     panel: ScenarioPanel,
     universe: AssetUniverse,
@@ -108,7 +112,9 @@ def run_forecast(
     data = panel.to_frame()
     prob = panel.prob
 
-    universe_fit = FittedUniverse.fit(data=data, prob=prob, assets=universe.all_tickers)
+    universe_fit = FittedUniverse.fit(
+        data=data, prob=prob, assets=universe.all_tickers, seed=seed
+    )
 
     innovations = draw_innovations(
         invariants=universe_fit.invariants,
@@ -128,6 +134,9 @@ def run_forecast(
         inverse_specs=universe_fit.inverse_specs,
         back_to_price=back_to_price,
     )
+
+    if _check_missing_assets(universe.all_tickers, list(transformed.keys())):
+        raise RuntimeError("Forecast output is missing assets")
 
     last_row = data.tail(1)
     initial_prices = {

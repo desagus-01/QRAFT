@@ -2,6 +2,8 @@ import logging
 
 import numpy as np
 import polars as pl
+from polars.dataframe.frame import DataFrame
+
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.forecast.time_series.preprocessing.types import (
     TransformDecision,
@@ -19,7 +21,6 @@ from qraft.forecast.time_series.transforms.inverses import (
     PolynomialInverseSpec,
     SeasonalInverseSpec,
 )
-from polars.dataframe.frame import DataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +50,17 @@ def _apply_grouped_detrend(
     for (transform, order), assets in by_group.items():
         if transform == "difference":
             # store anchors from the series BEFORE differencing
-            anchors_by_asset = {
-                asset: data.select(asset).to_series().tail(order).to_numpy()
-                for asset in assets
-            }
+            # anchors_by_asset = {
+            #     asset: data.select(asset).to_series().tail(order).to_numpy()
+            #     for asset in assets
+            # }
+            anchors_by_asset = {}
+            for asset in assets:
+                series = data.get_column(asset).drop_nulls().to_numpy()
+                anchors_by_asset[asset] = np.asarray(
+                    [np.diff(series, k)[-1] for k in range(order - 1, -1, -1)],
+                    dtype=float,
+                )
 
             data = add_differenced_columns(
                 data=data,

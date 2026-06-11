@@ -1,8 +1,11 @@
 import logging
 
+import numpy as np
 import polars as pl
-from qraft.forecast.config import PreprocessConfig
+from polars.dataframe.frame import DataFrame
+
 from qraft.core.probability.prob_vector import ProbVector
+from qraft.forecast.config import PreprocessConfig
 from qraft.forecast.time_series.preprocessing.apply import (
     apply_deseason,
     apply_detrend,
@@ -21,8 +24,10 @@ from qraft.forecast.time_series.selection.seasonality import (
     seasonality_diagnostic,
 )
 from qraft.forecast.time_series.selection.trend import trend_diagnostic
-from qraft.forecast.time_series.transforms.inverses import InverseSpec
-from polars.dataframe.frame import DataFrame
+from qraft.forecast.time_series.transforms.inverses import (
+    DifferenceInverseSpec,
+    InverseSpec,
+)
 from qraft.utils.helpers import (
     get_assets_names,
 )
@@ -108,6 +113,7 @@ def run_univariate_preprocess(
     prob: ProbVector,
     assets: list[str] | None = None,
     cfg: PreprocessConfig | None = None,
+    seed: int | None = None,
 ) -> UnivariatePreprocess:
     """
     Pipeline:
@@ -141,11 +147,22 @@ def run_univariate_preprocess(
         original_prob=prob,
         assets=assets,
         cfg=cfg.iid,
+        seed=seed,
     )
 
-    inverse_specs: dict[str, list[InverseSpec]] = {
-        asset: [] for asset in assets_need_preprocess
-    }
+    # inverse_specs: dict[str, list[InverseSpec]] = {
+    # asset: [] for asset in assets_need_preprocess
+    # }
+
+    inverse_specs: dict[str, list[InverseSpec]] = {asset: [] for asset in assets}
+    needs_set = set(assets_need_preprocess)
+    for asset in assets:
+        if asset in needs_set:
+            continue
+        last_level = float(data.get_column(asset).drop_nulls()[-1])
+        inverse_specs[asset].append(
+            DifferenceInverseSpec(order=1, initial_values=np.asarray([last_level]))
+        )
 
     # Trend
     detrend = detrend_pipeline(
