@@ -71,6 +71,7 @@ class QualityConfig:
 class IIDConfig:
     """Lags and significance level for white-noise IID screens."""
 
+    seed: int | None = 0
     lags_simple: int = 10
     lags_complex: int = 5
     significance_level: float = 0.05

@@ -88,6 +88,8 @@ def check_white_noise(
     """Return whether each asset passes the white-noise screen."""
     if cfg is None:
         cfg = IIDConfig()
+    if seed is None:
+        seed = cfg.seed
 
     simple_tests = _run_iid_simple(
         data=data,

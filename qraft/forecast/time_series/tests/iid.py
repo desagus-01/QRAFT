@@ -15,6 +15,7 @@ from qraft.core.estimation import (
 from qraft.core.panel import compensate_prob
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.forecast.config import IIDConfig
+from qraft.forecast.time_series.tests.multiple import multiple_tests_rejected
 from qraft.forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from qraft.utils.helpers import (
     get_assets_names,
@@ -88,7 +89,18 @@ def run_lagged_tests(
             )
             per_lag[f"lag_{lag}"] = res
 
-        rejected_lags = [k for k, res in per_lag.items() if res.reject_null]
+        reject_flags = multiple_tests_rejected(
+            [res.p_val for res in per_lag.values()],
+            significance_level=test_kwargs.get(
+                "significance_level",
+                _DEFAULT_IID.significance_level,
+            ),
+        )
+        rejected_lags = [
+            lag_name
+            for lag_name, rejected in zip(per_lag, reject_flags, strict=True)
+            if rejected
+        ]
 
         results[asset] = PerAssetTestResult(
             results=per_lag,
@@ -329,6 +341,7 @@ def independence_permutation_test(
     prob: ProbVector,
     assets: tuple[str, str],
     stat_fun: StatFunc = sw_mc,
+    seed: int | None = _DEFAULT_IID.seed,
     iter: int = _DEFAULT_IID.perm_test_iters,
     mc_iters: int = _DEFAULT_IID.mc_iters,
     min_iter: int = _DEFAULT_IID.perm_test_min_iters,
@@ -339,7 +352,7 @@ def independence_permutation_test(
 ) -> HypTestRes:
     """Run a permutation independence test on a 2-column array."""
     if rng is None:
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(seed)
 
     arr = np.asarray(pair_np, dtype=float)
     if arr.ndim != 2 or arr.shape[1] != 2:
@@ -393,7 +406,7 @@ def copula_lag_independence_test(
     prob: ProbVector,
     lags: int = _DEFAULT_IID.lags_complex,
     assets: list[str] | None = None,
-    seed: int | None = None,
+    seed: int | None = _DEFAULT_IID.seed,
     mc_iters: int = _DEFAULT_IID.mc_iters,
     perm_test_iters: int = _DEFAULT_IID.perm_test_iters,
     perm_test_min_iters: int = _DEFAULT_IID.perm_test_min_iters,

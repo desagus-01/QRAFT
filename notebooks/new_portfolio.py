@@ -37,6 +37,7 @@ data, factors_cols = import_tickers_and_factors(
 
 min_price = 12
 
+
 cols_to_keep = [
     col
     for col in data.columns
@@ -58,7 +59,7 @@ data = data.select("date", *universe.all_tickers)
 # %%
 # ── Build historical ScenarioPanel ───────────────────────────────────
 forecast_horizon = 10
-n_sims = 100_000
+n_sims = 300_000
 
 prob_ex = state_smooth_probs(
     data.height,
@@ -108,7 +109,7 @@ constraints: list[PortfolioConstraint] = [
 
 policy = MPOPolicy.preset(
     objective_type="cvar_cuts",
-    risk_aversion=0.2,
+    risk_aversion=0.02,
     cash_path="data/cash.csv",
     constraints=constraints,
     expectation_tolerance=0.1,
@@ -129,8 +130,6 @@ projection = policy.decide(state, forecasts)
 
 projection.plot(type="cum_performance")
 
-# %%
 x = projection.risk(forecasts)
 x.effective_bets().plot()
-# %%
 x.risk_contribution("cvar")

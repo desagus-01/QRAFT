@@ -2,8 +2,10 @@ import numpy as np
 import polars as pl
 
 from qraft.forecast.time_series.preprocessing import white_noise
+from qraft.forecast.config import IIDConfig
 from qraft.forecast.time_series.tests.iid import (
     _adaptive_permutation_stop,
+    PerAssetTestResult,
     copula_lag_independence_test,
     independence_permutation_test,
     sw_mc,
@@ -56,6 +58,32 @@ def test_copula_lag_independence_accepts_iteration_controls() -> None:
 
     assert set(res) == {"x"}
     assert set(res["x"].results) == {"lag_1"}
+
+
+def test_copula_lag_independence_is_seeded_by_default() -> None:
+    data = pl.DataFrame({"x": np.linspace(0.05, 0.95, 12)})
+    prob = np.full(data.height, 1.0 / data.height)
+
+    first = copula_lag_independence_test(
+        copula=data,
+        prob=prob,
+        lags=1,
+        assets=["x"],
+        mc_iters=5,
+        perm_test_iters=4,
+        perm_test_min_iters=4,
+    )
+    second = copula_lag_independence_test(
+        copula=data,
+        prob=prob,
+        lags=1,
+        assets=["x"],
+        mc_iters=5,
+        perm_test_iters=4,
+        perm_test_min_iters=4,
+    )
+
+    assert first["x"].results["lag_1"] == second["x"].results["lag_1"]
 
 
 def test_run_iid_complex_passes_configured_iteration_controls(monkeypatch) -> None:
@@ -111,6 +139,41 @@ def test_run_iid_complex_passes_configured_iteration_controls(monkeypatch) -> No
         "perm_test_ci_level": 0.95,
         "significance_level": 0.1,
     }
+
+
+def test_check_white_noise_uses_configured_seed(monkeypatch) -> None:
+    captured: dict[str, int | None] = {}
+
+    def fake_run_iid_simple(data, prob, assets, lags):
+        return {
+            "ellipsoid": {
+                asset: PerAssetTestResult(results={}, rejected=[]) for asset in assets
+            },
+            "ks": {
+                asset: PerAssetTestResult(results={}, rejected=[]) for asset in assets
+            },
+        }
+
+    def fake_run_iid_complex(**kwargs):
+        captured["seed"] = kwargs["seed"]
+        return {
+            "copula": {
+                asset: PerAssetTestResult(results={}, rejected=[])
+                for asset in kwargs["assets"]
+            }
+        }
+
+    monkeypatch.setattr(white_noise, "_run_iid_simple", fake_run_iid_simple)
+    monkeypatch.setattr(white_noise, "_run_iid_complex", fake_run_iid_complex)
+
+    white_noise.check_white_noise(
+        data=pl.DataFrame({"x": [1.0, 2.0, 3.0, 4.0]}),
+        prob=np.full(4, 0.25),
+        assets=["x"],
+        cfg=IIDConfig(seed=123),
+    )
+
+    assert captured["seed"] == 123
 
 
 def test_adaptive_permutation_stop_waits_for_minimum_and_borderline_cases() -> None:
