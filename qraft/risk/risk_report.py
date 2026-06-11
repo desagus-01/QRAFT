@@ -29,7 +29,6 @@ class PortfolioRisk:
     horizon: int
     r2: float
     policy_projection: PolicyProjection
-    # performance_attribution: PortfolioPerformanceAttribution
     risk_attribution: PortfolioRiskAttribution
 
     @classmethod
@@ -75,7 +74,6 @@ class PortfolioRisk:
     def risk_at_horizon(
         self,
         risk_metric: RiskMetrics,
-        method: Literal["empirical", "quantile"] = "empirical",
         alpha: float = 0.05,
     ) -> NDArray[np.floating]:
         losses = -self.policy_projection.performance_at_period(self.horizon)
@@ -83,7 +81,6 @@ class PortfolioRisk:
             var(
                 losses,
                 prob=self.policy_projection.path_probs,
-                method=method,
                 alpha=alpha,
                 axis=0,
                 distribution_type="loss",
@@ -92,7 +89,6 @@ class PortfolioRisk:
             else cvar(
                 losses,
                 prob=self.policy_projection.path_probs,
-                method=method,
                 alpha=alpha,
                 axis=0,
                 distribution_type="loss",

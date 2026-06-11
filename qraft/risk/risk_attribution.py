@@ -269,7 +269,7 @@ def var_contribution(
     var_row = get_var_row(panel, alpha)
 
     contributions = {
-        c: float(var_row.select(c).item()) * float(exposures[c]) for c in driver_cols
+        c: float(var_row.select(c).item()) * exposures[c] for c in driver_cols
     }
 
     return RiskContributions(
