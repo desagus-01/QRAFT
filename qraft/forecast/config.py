@@ -75,7 +75,10 @@ class IIDConfig:
     lags_complex: int = 5
     significance_level: float = 0.05
     mc_iters: int = 2000
-    perm_test_iters: int = 200
+    perm_test_iters: int = 1000
+    perm_test_min_iters: int = 100
+    perm_test_batch_iters: int = 50
+    perm_test_ci_level: float = 0.99
 
 
 @dataclass(frozen=True, slots=True)

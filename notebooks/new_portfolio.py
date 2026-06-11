@@ -5,6 +5,7 @@ import numpy as np
 
 from qraft import (
     AssetUniverse,
+    CMAConfig,
     LogConfig,
     MPOPolicy,
     PortfolioState,
@@ -28,7 +29,8 @@ from qraft.core import (
 )
 from qraft.utils.tiingo import import_tickers_and_factors
 
-setup_logging(LogConfig(level=logging.WARN))
+logging.getLogger("py.warnings").setLevel(logging.ERROR)
+setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -37,7 +39,7 @@ data, factors_cols = import_tickers_and_factors(
     "./data/tiingo_factors.csv",
 )
 
-min_price = 15
+min_price = 10
 
 cols_to_keep = [
     col
@@ -91,8 +93,10 @@ forecasts = run_forecast(
     n_sims=n_sims,
     seed=3,
     universe=universe,
-    method="bootstrap",
+    method="cma",
+    cma_config=CMAConfig(target_copula="t"),
 )
+
 
 # %%
 constraints: list[PortfolioConstraint] = [

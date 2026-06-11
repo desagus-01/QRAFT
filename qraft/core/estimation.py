@@ -2,10 +2,11 @@ from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
 import numpy as np
-from qraft.core.probability.prob_vector import ProbVector
 from numpy.typing import NDArray
 from scipy import stats
 from scipy.linalg import sqrtm
+
+from qraft.core.probability.prob_vector import ProbVector
 
 EquationTypes = Literal["nc", "c", "ct", "ctt"]
 

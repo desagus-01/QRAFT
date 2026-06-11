@@ -45,6 +45,12 @@ def _run_iid_complex(
     prob: ProbVector,
     assets: list[str],
     lags: int,
+    mc_iters: int,
+    perm_test_iters: int,
+    perm_test_min_iters: int,
+    perm_test_batch_iters: int,
+    perm_test_ci_level: float,
+    significance_level: float,
     seed: int | None = None,
 ) -> dict[str, TestResultByAsset]:
     """Run the expensive copula IID screen."""
@@ -59,6 +65,12 @@ def _run_iid_complex(
         lags=lags,
         assets=assets,
         seed=seed,
+        mc_iters=mc_iters,
+        perm_test_iters=perm_test_iters,
+        perm_test_min_iters=perm_test_min_iters,
+        perm_test_batch_iters=perm_test_batch_iters,
+        perm_test_ci_level=perm_test_ci_level,
+        significance_level=significance_level,
     )
 
     return {
@@ -108,6 +120,12 @@ def check_white_noise(
         prob=prob,
         assets=assets_for_copula,
         lags=cfg.lags_complex,
+        mc_iters=cfg.mc_iters,
+        perm_test_iters=cfg.perm_test_iters,
+        perm_test_min_iters=cfg.perm_test_min_iters,
+        perm_test_batch_iters=cfg.perm_test_batch_iters,
+        perm_test_ci_level=cfg.perm_test_ci_level,
+        significance_level=cfg.significance_level,
         seed=seed,
     )
 

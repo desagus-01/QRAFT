@@ -26,6 +26,7 @@ _DEFAULT_IID = IIDConfig()
 StatFunc = Callable[[np.ndarray, ProbVector, np.ndarray], float]
 PairTest = Callable[..., HypTestRes]
 TestResultByAsset = dict[str, "PerAssetTestResult"]
+_MAX_PERMUTATION_BOOL_CELLS = 25_000_000
 
 
 @dataclass
@@ -215,12 +216,125 @@ def sw_mc(
     return _sw_stat(pobs, p, u_points)
 
 
+def _sw_stat_2d_from_inside(
+    first_inside: np.ndarray,
+    second_inside: np.ndarray,
+    p: np.ndarray,
+    u_points: np.ndarray,
+) -> float:
+    """Compute the 2D SW statistic from cached threshold comparisons."""
+    est = p @ (first_inside & second_inside)
+    indep = u_points.prod(axis=1)
+    return float(12.0 * np.abs(est - indep).mean())
+
+
+def _permutation_batch_size(n_obs: int, n_points: int, n_iters: int) -> int:
+    """Choose a bounded permutation batch size for boolean comparison tensors."""
+    cells_per_perm = n_obs * n_points
+    if cells_per_perm <= 0:
+        return 1
+
+    return max(1, min(n_iters, _MAX_PERMUTATION_BOOL_CELLS // cells_per_perm))
+
+
+def _permutation_exceedance_ci(
+    exceedances: int,
+    n_iters: int,
+    ci_level: float,
+) -> tuple[float, float]:
+    """Clopper-Pearson interval for the permutation exceedance probability."""
+    if not 0.0 < ci_level < 1.0:
+        raise ValueError(f"ci_level must be in (0, 1), got {ci_level}")
+
+    alpha = 1.0 - ci_level
+    lower = 0.0
+    upper = 1.0
+    if exceedances > 0:
+        lower = float(st.beta.ppf(alpha / 2.0, exceedances, n_iters - exceedances + 1))
+    if exceedances < n_iters:
+        upper = float(
+            st.beta.ppf(1.0 - alpha / 2.0, exceedances + 1, n_iters - exceedances)
+        )
+    return lower, upper
+
+
+def _adaptive_permutation_stop(
+    exceedances: int,
+    n_iters: int,
+    min_iters: int,
+    significance_level: float,
+    ci_level: float,
+) -> bool:
+    """Return whether the permutation p-value is clearly away from the threshold."""
+    if n_iters < min_iters:
+        return False
+
+    lower, upper = _permutation_exceedance_ci(exceedances, n_iters, ci_level)
+    return upper < significance_level or lower > significance_level
+
+
+def _sw_permutation_null_2d(
+    arr: np.ndarray,
+    p: np.ndarray,
+    u_points: np.ndarray,
+    n_iters: int,
+    rng: np.random.Generator,
+    min_iters: int,
+    batch_iters: int,
+    significance_level: float,
+    ci_level: float,
+) -> tuple[float, int, int]:
+    """Evaluate observed and permuted 2D SW statistics in permutation batches."""
+    n = arr.shape[0]
+    first_inside = arr[:, 0, None] <= u_points[None, :, 0]
+    second_inside = arr[:, 1, None] <= u_points[None, :, 1]
+
+    stat = _sw_stat_2d_from_inside(first_inside, second_inside, p, u_points)
+    max_batch_size = _permutation_batch_size(
+        n_obs=n,
+        n_points=u_points.shape[0],
+        n_iters=n_iters,
+    )
+    batch_size = min(max_batch_size, max(1, batch_iters))
+    indep = u_points.prod(axis=1)
+    exceedances = 0
+    completed_iters = 0
+
+    for start in range(0, n_iters, batch_size):
+        stop = min(start + batch_size, n_iters)
+        perms = np.empty((stop - start, n), dtype=np.intp)
+        for row in range(perms.shape[0]):
+            perms[row] = rng.permutation(n)
+
+        inside = first_inside[perms] & second_inside[None, :, :]
+        est = np.einsum("n,bnm->bm", p, inside, optimize=True)
+        null_stats = 12.0 * np.abs(est - indep).mean(axis=1)
+        exceedances += int(np.count_nonzero(null_stats >= stat))
+        completed_iters = stop
+
+        if _adaptive_permutation_stop(
+            exceedances=exceedances,
+            n_iters=completed_iters,
+            min_iters=min_iters,
+            significance_level=significance_level,
+            ci_level=ci_level,
+        ):
+            break
+
+    return stat, exceedances, completed_iters
+
+
 def independence_permutation_test(
     pair_np: np.ndarray,
     prob: ProbVector,
     assets: tuple[str, str],
     stat_fun: StatFunc = sw_mc,
     iter: int = _DEFAULT_IID.perm_test_iters,
+    mc_iters: int = _DEFAULT_IID.mc_iters,
+    min_iter: int = _DEFAULT_IID.perm_test_min_iters,
+    batch_iter: int = _DEFAULT_IID.perm_test_batch_iters,
+    ci_level: float = _DEFAULT_IID.perm_test_ci_level,
+    significance_level: float = _DEFAULT_IID.significance_level,
     rng: np.random.Generator | None = None,
 ) -> HypTestRes:
     """Run a permutation independence test on a 2-column array."""
@@ -231,22 +345,47 @@ def independence_permutation_test(
     if arr.ndim != 2 or arr.shape[1] != 2:
         raise ValueError(f"Expected pair array of shape (n_obs, 2), got {arr.shape}")
 
-    u_points = _draw_mc_points(dim=arr.shape[1], rng=rng)
-    stat = stat_fun(arr, prob, u_points)
+    p = np.asarray(prob, dtype=float).reshape(-1)
+    if p.shape[0] != arr.shape[0]:
+        raise ValueError(
+            f"Probability vector length {p.shape[0]} does not match "
+            f"number of observations {arr.shape[0]}"
+        )
 
-    n = arr.shape[0]
-    null_dist = np.empty(iter, dtype=float)
+    u_points = _draw_mc_points(dim=arr.shape[1], rng=rng, mc_iters=mc_iters)
 
-    permuted = arr.copy()
-    first_col = arr[:, 0]
+    if stat_fun is sw_mc:
+        stat, exceedances, completed_iters = _sw_permutation_null_2d(
+            arr=arr,
+            p=p,
+            u_points=u_points,
+            n_iters=iter,
+            rng=rng,
+            min_iters=min(min_iter, iter),
+            batch_iters=batch_iter,
+            significance_level=significance_level,
+            ci_level=ci_level,
+        )
+        p_val = (1.0 + exceedances) / (completed_iters + 1.0)
+    else:
+        stat = stat_fun(arr, p, u_points)
+        n = arr.shape[0]
+        null_dist = np.empty(iter, dtype=float)
 
-    for i in range(iter):
-        permuted[:, 0] = first_col[rng.permutation(n)]
-        null_dist[i] = stat_fun(permuted, prob, u_points)
+        permuted = arr.copy()
+        first_col = arr[:, 0]
 
-    p_val = (1.0 + np.count_nonzero(null_dist >= stat)) / (iter + 1.0)
+        for i in range(iter):
+            permuted[:, 0] = first_col[rng.permutation(n)]
+            null_dist[i] = stat_fun(permuted, p, u_points)
+        p_val = (1.0 + np.count_nonzero(null_dist >= stat)) / (iter + 1.0)
 
-    return format_hyp_test_result(stat=stat, p_val=p_val, null="Independence")
+    return format_hyp_test_result(
+        stat=stat,
+        p_val=p_val,
+        null="Independence",
+        sign_level=significance_level,
+    )
 
 
 def copula_lag_independence_test(
@@ -255,6 +394,12 @@ def copula_lag_independence_test(
     lags: int = _DEFAULT_IID.lags_complex,
     assets: list[str] | None = None,
     seed: int | None = None,
+    mc_iters: int = _DEFAULT_IID.mc_iters,
+    perm_test_iters: int = _DEFAULT_IID.perm_test_iters,
+    perm_test_min_iters: int = _DEFAULT_IID.perm_test_min_iters,
+    perm_test_batch_iters: int = _DEFAULT_IID.perm_test_batch_iters,
+    perm_test_ci_level: float = _DEFAULT_IID.perm_test_ci_level,
+    significance_level: float = _DEFAULT_IID.significance_level,
 ) -> TestResultByAsset:
     """Run the copula lag independence test for each asset and lag."""
     return run_lagged_tests(
@@ -264,6 +409,12 @@ def copula_lag_independence_test(
         assets=assets,
         test_fn=independence_permutation_test,
         rng=np.random.default_rng(seed),
+        iter=perm_test_iters,
+        mc_iters=mc_iters,
+        min_iter=perm_test_min_iters,
+        batch_iter=perm_test_batch_iters,
+        ci_level=perm_test_ci_level,
+        significance_level=significance_level,
     )
 
 

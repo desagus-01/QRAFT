@@ -3,14 +3,15 @@ from typing import Literal
 
 import numpy as np
 import polars as pl
+from numpy._typing import NDArray
+from polars.dataframe.frame import DataFrame
+
 from qraft.core.estimation import (
     OLSEquation,
     OLSResults,
     add_deterministics_to_eq,
     weighted_ols,
 )
-from numpy._typing import NDArray
-from polars.dataframe.frame import DataFrame
 
 
 @dataclass(frozen=True)
@@ -61,7 +62,7 @@ def build_harmonic_terms(
         terms.append(
             HarmonicTerm(
                 kind="cos",
-                omega=float(w),
+                omega=w,
                 coefficient=float(coefficients[coef_idx]),
             )
         )
@@ -73,7 +74,7 @@ def build_harmonic_terms(
         terms.append(
             HarmonicTerm(
                 kind="sin",
-                omega=float(w),
+                omega=w,
                 coefficient=float(coefficients[coef_idx]),
             )
         )
