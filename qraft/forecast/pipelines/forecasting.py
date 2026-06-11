@@ -4,6 +4,7 @@ import logging
 from typing import Literal
 
 import numpy as np
+
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.sampling import weighted_bootstrapping_idx
 from qraft.core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
@@ -40,30 +41,6 @@ def draw_innovations(
     *,
     cma_config: CMAConfig | None = None,
 ) -> InnovationPaths:
-    """Draw innovation (invariant) scenarios for simulation.
-
-    Parameters
-    ----------
-    invariants : AssetPanel
-        Panel of invariant observations — one column per asset, in the
-        desired asset order. Nulls are dropped (with prob compensation) here.
-    horizon : int
-        Number of steps to forecast (must be >= 1).
-    n_sims : int
-        Number of simulation paths to draw.
-    seed : int | None
-        Random seed for reproducibility.
-    method : {"bootstrap", "historical", "cma"}, optional
-        ``historical`` returns historical draws without resampling (horizon
-        must be 1); ``bootstrap`` draws with weighted bootstrapping;
-        ``cma`` applies a copula-marginal adjustment prior to resampling.
-
-    Other Parameters
-    ----------------
-    target_copula, copula_fit_method, target_marginals
-        CMA-only options (ignored for bootstrap/historical). A ``ValueError``
-        is raised if they are supplied with a non-CMA method.
-    """
     if horizon < 1:
         raise ValueError("horizon must be >= 1")
 
@@ -77,26 +54,19 @@ def draw_innovations(
         assets,
     )
 
-    panel = invariants.drop_nulls()
-
-    logger.info(
-        "Prepared invariant scenarios after null handling: n_scenarios=%d",
-        panel.n_rows,
-    )
-
     if method == "cma":
         if cma_config is None:
             raise ValueError("method=cma requires a CMAConfig")
 
-        panel = CopulaMarginalModel.from_panel(panel).update_distribution(
+        invariants = CopulaMarginalModel.from_panel(invariants).update_distribution(
             seed=seed,
             cfg=cma_config,
         )
 
-        logger.info("CMA update complete: n_scenarios=%d", panel.n_rows)
+        logger.info("CMA update complete: n_scenarios=%d", invariants.n_rows)
 
-    invariants_vector = panel.values.to_numpy()
-    prob = panel.prob
+    invariants_vector = invariants.values.to_numpy()
+    prob = invariants.prob
 
     if method == "historical":
         logger.info("Returning historical innovations without resampling")
@@ -109,7 +79,7 @@ def draw_innovations(
     logger.info("Bootstrapping %d innovation draws", n_draws)
 
     idx = weighted_bootstrapping_idx(
-        panel.values,
+        invariants.values,
         prob,
         n_samples=n_draws,
         seed=seed,

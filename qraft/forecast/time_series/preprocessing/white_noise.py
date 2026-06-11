@@ -1,17 +1,18 @@
 import logging
 
 import polars as pl
+from polars.dataframe.frame import DataFrame
+
 from qraft.core.panel import ScenarioPanel
-from qraft.forecast.config import IIDConfig
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.core.scenarios.copula_marginal import CopulaMarginalModel
+from qraft.forecast.config import IIDConfig
 from qraft.forecast.time_series.tests.iid import (
     TestResultByAsset,
     copula_lag_independence_test,
     ellipsoid_lag_test,
     univariate_kolmogrov_smirnov_test,
 )
-from polars.dataframe.frame import DataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -145,5 +146,5 @@ def test_increments_idd(
     cfg: IIDConfig | None = None,
 ) -> list[str]:
     """Diff each asset and return those whose increments are not white noise."""
-    panel = ScenarioPanel.from_frame(data.select(assets), original_prob).diff()
+    panel = ScenarioPanel.from_log_prices(data.select(assets), original_prob).diff()
     return _find_nonwhite_noise_assets(increments=panel, assets=assets, cfg=cfg)

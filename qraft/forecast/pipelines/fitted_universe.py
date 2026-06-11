@@ -6,17 +6,18 @@ from typing import Mapping
 
 import numpy as np
 import polars as pl
+from numpy.typing import NDArray
+
 from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.prob_vector import ProbVector
 from qraft.forecast.config import PipelineConfig
 from qraft.forecast.pipelines.model_selection import get_univariate_results
 from qraft.forecast.pipelines.preprocess import run_univariate_preprocess
-from qraft.core.probability.prob_vector import ProbVector
 from qraft.forecast.simulation.simulate_paths import simulate_asset_paths
 from qraft.forecast.simulation.state import SimulationForecast
 from qraft.forecast.time_series.models.fitted_types import UnivariateRes
 from qraft.forecast.time_series.preprocessing.types import UnivariatePreprocess
 from qraft.forecast.time_series.transforms.inverses import InverseSpec
-from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,6 @@ def _build_simulation_forecasts(
     models: Mapping[str, UnivariateRes],
     assets: list[str],
 ) -> dict[str, SimulationForecast]:
-    """Build a per-asset ``SimulationForecast`` (model + seeded state)."""
     forecasts: dict[str, SimulationForecast] = {}
     for asset in assets:
         series = data.select(asset).drop_nulls().to_numpy().ravel()
@@ -143,8 +143,7 @@ def _build_invariants_panel(
     assets: list[str],
     prob: ProbVector,
 ) -> ScenarioPanel:
-    """Assemble an :class:`AssetPanel` of invariants aligned to ``post`` dates.
-
+    """
     Each column holds the invariant (innovation) series for one asset, with
     nulls preserved where the underlying post-processed series was null.
     """
@@ -164,4 +163,8 @@ def _build_invariants_panel(
         innovations_df = innovations_df.join(patch, on="date", how="left")
 
     logger.info("Invariants shape=%s", innovations_df.shape)
-    return ScenarioPanel.from_frame(innovations_df, prob)
+    return ScenarioPanel.from_log_prices(
+        innovations_df,
+        prob,
+        drop_nulls=True,
+    )

@@ -40,12 +40,19 @@ class ScenarioPanel:
 
     def __post_init__(self) -> None:
         if "date" in self.values.columns:
-            raise ValueError(
-                "ScenarioPanel.values must not contain a 'date' column; "
-                "use ScenarioPanel.from_frame() to separate it."
-            )
+            raise ValueError("ScenarioPanel.values must not contain a 'date' column; ")
         if self.values.height == 0:
             raise ValueError("ScenarioPanel cannot be empty")
+        try:
+            values_are_finite = np.isfinite(self.values.to_numpy()).all()
+        except TypeError as exc:
+            raise ValueError(
+                "ScenarioPanel.values must contain only finite numeric values"
+            ) from exc
+        if not values_are_finite:
+            raise ValueError(
+                "ScenarioPanel.values must contain only finite numeric values"
+            )
 
         if self.prob.shape[0] != self.values.height:
             raise ValueError(
@@ -64,10 +71,11 @@ class ScenarioPanel:
                 object.__setattr__(self, "dates", self.dates.rename("date"))
 
     @classmethod
-    def from_frame(
+    def from_log_prices(
         cls,
         df: pl.DataFrame,
         prob: ProbVector | None = None,
+        drop_nulls: bool = False,
     ) -> ScenarioPanel:
         if "date" in df.columns:
             dates: pl.Series | None = df.get_column("date")
@@ -79,7 +87,30 @@ class ScenarioPanel:
         if prob is None:
             prob = uniform_probs(values.height)
 
+        if drop_nulls:
+            values, dates, prob = cls._drop_null_rows(values, dates, prob)
+
         return cls(values=values, dates=dates, prob=prob)
+
+    @classmethod
+    def from_prices(
+        cls,
+        df: pl.DataFrame,
+        prob: ProbVector | None = None,
+    ) -> ScenarioPanel:
+        dates = df.get_column("date") if "date" in df.columns else None
+        values = df.drop("date") if "date" in df.columns else df
+        arr = values.to_numpy()
+        try:
+            if not np.isfinite(arr).all():
+                raise ValueError("from_prices: values contain NaN/inf.")
+            if (arr <= 0).any():
+                raise ValueError("from_prices: prices must be strictly positive.")
+        except TypeError as exc:
+            raise ValueError("from_prices: prices must be numeric.") from exc
+        log_values = values.select(pl.col(c).log() for c in values.columns)
+        panel_prob = prob if prob is not None else uniform_probs(values.height)
+        return cls(values=log_values, dates=dates, prob=panel_prob)
 
     def to_frame(self) -> DataFrame:
         if self.dates is None:
@@ -88,21 +119,36 @@ class ScenarioPanel:
         return DataFrame({"date": self.dates}).hstack(self.values)
 
     def drop_nulls(self) -> ScenarioPanel:
-        null_mask = self.values.select(
-            pl.any_horizontal(pl.all().is_null())
-        ).to_series()
-
-        if not null_mask.any():
+        values, dates, prob = self._drop_null_rows(self.values, self.dates, self.prob)
+        if values is self.values:
             return self
 
+        return ScenarioPanel(values=values, dates=dates, prob=prob)
+
+    @staticmethod
+    def _drop_null_rows(
+        values: pl.DataFrame,
+        dates: pl.Series | None,
+        prob: ProbVector,
+    ) -> tuple[pl.DataFrame, pl.Series | None, ProbVector]:
+        if values.height != prob.shape[0]:
+            raise ValueError(f"prob length {prob.shape[0]} != rows {values.height}")
+        if dates is not None and len(dates) != values.height:
+            raise ValueError(f"dates length {len(dates)} != rows {values.height}")
+
+        null_mask = values.select(pl.any_horizontal(pl.all().is_null())).to_series()
+
+        if not null_mask.any():
+            return values, dates, prob
+
         keep_mask = ~null_mask
-        clean = self.values.filter(keep_mask)
-        new_dates = self.dates.filter(keep_mask) if self.dates is not None else None
+        clean = values.filter(keep_mask)
+        new_dates = dates.filter(keep_mask) if dates is not None else None
 
         dropped_idx = np.flatnonzero(null_mask.to_numpy())
-        new_prob = redistribute_prob_mass(self.prob, dropped_idx)
+        new_prob = redistribute_prob_mass(prob, dropped_idx)
 
-        return ScenarioPanel(values=clean, dates=new_dates, prob=new_prob)
+        return clean, new_dates, new_prob
 
     def diff(self, lag: int = 1) -> ScenarioPanel:
         if lag < 1:

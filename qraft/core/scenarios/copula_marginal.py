@@ -4,11 +4,12 @@ from dataclasses import dataclass, replace
 from typing import Literal, Self
 
 import polars as pl
-from qraft.core.panel import ScenarioPanel
-from qraft.core.probability.sampling import marginal_quantile_mapping, sample_copula
-from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from numpy import interp
 from polars import DataFrame
+
+from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
+from qraft.core.probability.sampling import marginal_quantile_mapping, sample_copula
 
 
 def _compute_cdf_and_pobs(
@@ -121,7 +122,7 @@ class CopulaMarginalModel:
     def from_data_and_prob(
         cls, data: DataFrame, prob: ProbVector | None = None
     ) -> CopulaMarginalModel:
-        return cls.from_panel(ScenarioPanel.from_frame(data, prob))
+        return cls.from_panel(ScenarioPanel.from_log_prices(data, prob))
 
     def to_panel(self) -> ScenarioPanel:
         interp_res = {}

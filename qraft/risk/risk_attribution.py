@@ -184,7 +184,6 @@ def get_var_data(
         var(
             loss_array,
             prob=prob_array,
-            method="empirical",
             alpha=alpha,
             distribution_type="loss",
         )
