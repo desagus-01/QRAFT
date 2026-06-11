@@ -7,7 +7,11 @@ import scipy.stats as st
 from numpy.typing import NDArray
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 
-from qraft.core.estimation import weighted_covariance, weighted_mean
+from qraft.core.estimation import (
+    effective_sample_size,
+    weighted_covariance,
+    weighted_mean,
+)
 from qraft.core.panel import compensate_prob
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.forecast.config import IIDConfig
@@ -133,7 +137,7 @@ def autocorrelation_pair_test(
     denom = np.sqrt(var_t * var_lag)
     corr = 0.0 if np.isclose(denom, 0.0) else float(cov_t_lag / denom)
 
-    test_statistic = abs(corr) * np.sqrt(pair_np.shape[0])
+    test_statistic = abs(corr) * np.sqrt(effective_sample_size(prob))
     p_val = float(2 * (1 - st.norm.cdf(test_statistic)))
 
     return format_hyp_test_result(stat=corr, p_val=p_val, null="Independence")

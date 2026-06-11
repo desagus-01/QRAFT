@@ -115,10 +115,15 @@ def get_aic_bic(
 
 def get_p_values(
     t_stats: NDArray[np.floating],
-    n_obs: int,
+    n_obs: float,
     n_parameters: int,
 ) -> NDArray[np.floating]:
     df = n_obs - n_parameters
+    if df <= 0:
+        raise ValueError(
+            f"Need effective n_obs > n_parameters for p-values, "
+            f"got n_obs={n_obs}, n_parameters={n_parameters}"
+        )
     return np.asarray(2 * stats.t.sf(np.abs(t_stats), df=df), dtype=float)
 
 
@@ -166,6 +171,11 @@ def weighted_correlation(
     covariance = weighted_covariance(data, prob, center=True)
     standard_devs = np.sqrt(np.diag(covariance))
     return np.diag(1.0 / standard_devs) @ covariance @ np.diag(1.0 / standard_devs)
+
+
+def effective_sample_size(prob: ProbVector) -> float:
+    """Kish effective sample size for probability weights that sum to one."""
+    return float(1.0 / np.sum(np.square(prob)))
 
 
 class RiccatiResult(NamedTuple):
@@ -243,7 +253,7 @@ def least_squares_weighted_fit(
 def ols_standard_errors(
     independent_vars: NDArray[np.floating],
     sum_of_squared_residuals: float,
-    n_obs: int,
+    n_obs: float,
     prob: ProbVector | None = None,
 ) -> NDArray[np.floating]:
     x = np.asarray(independent_vars, dtype=float)
@@ -275,6 +285,7 @@ def weighted_ols(
         dependent_var = dependent_var.reshape(-1, 1)
 
     n_obs = dependent_var.shape[0]
+    inference_n_obs = effective_sample_size(prob) if prob is not None else float(n_obs)
 
     ols_res, residuals, sum_of_squared_residuals = least_squares_weighted_fit(
         dependent_var=dependent_var,
@@ -285,7 +296,7 @@ def weighted_ols(
     standard_errors = ols_standard_errors(
         independent_vars=independent_vars,
         sum_of_squared_residuals=sum_of_squared_residuals,
-        n_obs=n_obs,
+        n_obs=inference_n_obs,
         prob=prob,
     )
 
@@ -298,7 +309,7 @@ def weighted_ols(
     t_stats = ols_res / standard_errors
     p_values = get_p_values(
         t_stats=t_stats,
-        n_obs=n_obs,
+        n_obs=inference_n_obs,
         n_parameters=independent_vars.shape[1],
     )
     r_squared = get_r_squared(

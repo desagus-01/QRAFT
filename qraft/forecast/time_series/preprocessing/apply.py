@@ -168,7 +168,10 @@ def apply_deseason(
         )
 
         out = out.join(seas_adj_res.residuals, on="date", how="left")
-        inverse_specs[asset] = SeasonalInverseSpec(terms=seas_adj_res.terms)
+        inverse_specs[asset] = SeasonalInverseSpec(
+            terms=seas_adj_res.terms,
+            next_t=seas_adj_res.next_t,
+        )
 
     return out, inverse_specs
 

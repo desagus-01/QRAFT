@@ -9,6 +9,7 @@ from qraft.forecast.time_series.transforms.deseason import HarmonicTerm
 @dataclass(frozen=True)
 class SeasonalInverseSpec:
     terms: list[HarmonicTerm]
+    next_t: int = 0
 
     @staticmethod
     def evaluate_seasonal_terms(
@@ -33,7 +34,7 @@ class SeasonalInverseSpec:
     def inverse_for_forecasts(
         self,
         data: NDArray[np.floating],
-        n_train: int,
+        n_train: int | None = None,
     ) -> NDArray[np.floating]:
         current = np.asarray(data, dtype=float)
 
@@ -44,7 +45,8 @@ class SeasonalInverseSpec:
             )
 
         horizon = current.shape[1]
-        future_t = np.arange(n_train, n_train + horizon, dtype=float)
+        start_t = self.next_t if n_train is None else n_train
+        future_t = np.arange(start_t, start_t + horizon, dtype=float)
         seasonal_future = self.evaluate_seasonal_terms(
             terms=self.terms,
             time=future_t,
@@ -139,7 +141,7 @@ def apply_inverse_transforms(
 
         for inverse_spec in ordered_transforms:
             if isinstance(inverse_spec, SeasonalInverseSpec):
-                current = inverse_spec.inverse_for_forecasts(current, n_original)
+                current = inverse_spec.inverse_for_forecasts(current)
             elif isinstance(inverse_spec, PolynomialInverseSpec):
                 current = inverse_spec.inverse_for_forecasts(current, n_original)
             elif isinstance(inverse_spec, DifferenceInverseSpec):

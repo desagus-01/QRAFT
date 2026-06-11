@@ -24,6 +24,7 @@ class HarmonicTerm:
 class DeterministicSeasonalAdjustmentResult:
     residuals: pl.DataFrame
     terms: list[HarmonicTerm]
+    next_t: int
 
 
 def build_harmonic_terms(
@@ -91,10 +92,14 @@ def build_harmonic_regression_equation(
     data: DataFrame,
     frequency_radians: list[float],
     asset: str,
+    time_col: str = "t",
 ) -> OLSEquation:
     dependent_variable = data.select(pl.col(asset)).to_numpy()
 
-    time_index_df = data.select(pl.col(asset)).with_row_index(name="t")
+    if time_col in data.columns:
+        time_index_df = data.select(time_col)
+    else:
+        time_index_df = data.select(pl.col(asset)).with_row_index(name=time_col)
 
     cos_cols = []
     sin_cols = []
@@ -103,10 +108,10 @@ def build_harmonic_regression_equation(
         if np.isclose(w, 0.0):
             continue
 
-        cos_cols.append((pl.lit(w) * pl.col("t")).cos().alias(f"cos_w_{i}"))
+        cos_cols.append((pl.lit(w) * pl.col(time_col)).cos().alias(f"cos_w_{i}"))
 
         if not np.isclose(w, np.pi):
-            sin_cols.append((pl.lit(w) * pl.col("t")).sin().alias(f"sin_w_{i}"))
+            sin_cols.append((pl.lit(w) * pl.col(time_col)).sin().alias(f"sin_w_{i}"))
 
     independent_variables = time_index_df.select(cos_cols + sin_cols).to_numpy()
     independent_variables = add_deterministics_to_eq(
@@ -118,10 +123,16 @@ def build_harmonic_regression_equation(
 
 
 def run_harmonic_regression(
-    data: DataFrame, asset: str, frequency_radians: list[float]
+    data: DataFrame,
+    asset: str,
+    frequency_radians: list[float],
+    time_col: str = "t",
 ) -> OLSResults:
     harmonic_equation = build_harmonic_regression_equation(
-        data=data, asset=asset, frequency_radians=frequency_radians
+        data=data,
+        asset=asset,
+        frequency_radians=frequency_radians,
+        time_col=time_col,
     )
     return weighted_ols(
         dependent_var=harmonic_equation.dep_vars,
@@ -132,12 +143,21 @@ def run_harmonic_regression(
 def deterministic_seasonal_adjustment(
     data: DataFrame, asset: str, frequency_radians: list[float]
 ) -> DeterministicSeasonalAdjustmentResult:
-    asset_df = data.drop_nulls()
+    time_col = "__qraft_t"
+    if time_col in data.columns:
+        raise ValueError(f"Input data already contains reserved column '{time_col}'")
+
+    asset_df = (
+        data.with_row_index(name=time_col)
+        .select(["date", time_col, asset])
+        .drop_nulls(subset=[asset])
+    )
 
     harmonic_ols = run_harmonic_regression(
         data=asset_df,
         asset=asset,
         frequency_radians=frequency_radians,
+        time_col=time_col,
     )
 
     residuals = asset_df.select("date").with_columns(
@@ -152,4 +172,5 @@ def deterministic_seasonal_adjustment(
     return DeterministicSeasonalAdjustmentResult(
         residuals=residuals,
         terms=terms,
+        next_t=data.height,
     )
