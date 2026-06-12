@@ -140,6 +140,16 @@ def run_forecast(
         pipeline_config=pipeline_config,
     )
 
+    # a = universe_fit.invariants
+    # x = test_non_idd(
+    #     data=a.values,
+    #     prob=a.prob,
+    #     assets=a.values.columns,
+    #     cfg=pipeline_config.preprocess.iid,
+    #     seed=seed,
+    #     on_increment=False,
+    # )
+
     innovations = draw_innovations(
         invariants=universe_fit.invariants,
         horizon=simulation_config.horizon,

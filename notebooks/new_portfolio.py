@@ -90,7 +90,6 @@ forecasts = run_forecast(
 )
 
 forecasts.plot_asset_paths()
-
 # %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),

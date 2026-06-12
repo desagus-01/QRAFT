@@ -163,15 +163,19 @@ def _find_nonwhite_noise_assets(
     return [a for a, ok in wn.items() if not ok]
 
 
-def test_increments_idd(
+def test_non_idd(
     data: pl.DataFrame,
-    original_prob: ProbVector,
+    prob: ProbVector,
     assets: list[str],
+    on_increment: bool = False,
     cfg: IIDConfig | None = None,
     seed: int | None = None,
 ) -> list[str]:
-    """Diff each asset and return those whose increments are not white noise."""
-    panel = ScenarioPanel.from_log_prices(data.select(assets), original_prob).diff()
+    """return those that are not iid."""
+    panel = ScenarioPanel.from_log_prices(data.select(assets), prob)
     return _find_nonwhite_noise_assets(
-        increments=panel, assets=assets, cfg=cfg, seed=seed
+        increments=panel.diff() if on_increment else panel,
+        assets=assets,
+        cfg=cfg,
+        seed=seed,
     )

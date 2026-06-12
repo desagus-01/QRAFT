@@ -19,7 +19,7 @@ from qraft.forecast.time_series.preprocessing.types import (
     PipelineAssetBatchRes,
     UnivariatePreprocess,
 )
-from qraft.forecast.time_series.preprocessing.white_noise import test_increments_idd
+from qraft.forecast.time_series.preprocessing.white_noise import test_non_idd
 from qraft.forecast.time_series.selection.seasonality import (
     seasonality_diagnostic,
 )
@@ -156,10 +156,11 @@ def run_univariate_preprocess(
         assets,
     )
 
-    assets_need_preprocess = test_increments_idd(
+    assets_need_preprocess = test_non_idd(
         data=data,
-        original_prob=prob,
+        prob=prob,
         assets=assets,
+        on_increment=True,
         cfg=preprocess_config.iid,
         seed=seed,
     )
