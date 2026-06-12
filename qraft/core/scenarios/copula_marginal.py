@@ -9,7 +9,7 @@ from numpy import interp
 from polars import DataFrame
 
 from qraft.core.configs import CMAConfig
-from qraft.core.panel import ScenarioPanel
+from qraft.core.panel import ScenarioPanel, ScenarioPanelKind
 from qraft.core.probability.distributions import uniform_probs
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from qraft.core.probability.sampling import (
@@ -55,6 +55,7 @@ class CopulaMarginalModel:
     copula_grades: DataFrame
     prob: ProbVector
     dates: pl.Series | None
+    kind: ScenarioPanelKind = "level"
 
     def __post_init__(self) -> None:
         self._validate_frames()
@@ -108,13 +109,14 @@ class CopulaMarginalModel:
             copula_grades=DataFrame(copula_cols),
             prob=panel.prob,
             dates=panel.dates,
+            kind=panel.kind,
         )
 
     @classmethod
     def from_data_and_prob(
         cls, data: DataFrame, prob: ProbVector | None = None
     ) -> CopulaMarginalModel:
-        return cls.from_panel(ScenarioPanel.from_log_prices(data, prob))
+        return cls.from_panel(ScenarioPanel.from_levels(data, prob))
 
     def to_panel(self) -> ScenarioPanel:
         interp_res = {}
@@ -128,6 +130,7 @@ class CopulaMarginalModel:
             values=DataFrame(interp_res),
             dates=self.dates,
             prob=self.prob,
+            kind=self.kind,
         )
 
     def update_marginals(self, target_dists: dict[str, Literal["t", "norm"]]) -> Self:

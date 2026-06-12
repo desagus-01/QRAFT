@@ -183,6 +183,7 @@ class ForecastPaths:
             values=values,
             dates=None,
             prob=self.path_probs,
+            kind="level",
         )
 
     def with_path_probs(self, path_probs: ProbVector) -> ForecastPaths:

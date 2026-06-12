@@ -25,6 +25,7 @@ def test_from_prices_logs_positive_prices_and_keeps_dates() -> None:
 
     assert panel.dates is not None
     assert panel.dates.to_list() == ["2024-01-01", "2024-01-02"]
+    assert panel.kind == "log_price"
     np.testing.assert_allclose(panel.values.get_column("asset").to_numpy(), [0.0, 1.0])
     np.testing.assert_allclose(panel.prob, [0.5, 0.5])
 
@@ -57,5 +58,24 @@ def test_from_log_prices_can_drop_nulls_before_validation() -> None:
 
     assert panel.dates is not None
     assert panel.dates.to_list() == ["2024-01-01", "2024-01-03"]
+    assert panel.kind == "log_price"
     assert panel.values.height == 2
     np.testing.assert_allclose(panel.prob, [2.0 / 7.0, 5.0 / 7.0])
+
+
+def test_direct_scenario_panel_defaults_to_level_kind() -> None:
+    panel = ScenarioPanel(
+        values=pl.DataFrame({"asset": [1.0, 2.0]}),
+        dates=None,
+        prob=uniform_probs(2),
+    )
+
+    assert panel.kind == "level"
+
+
+def test_log_price_diff_is_tagged_as_return() -> None:
+    panel = ScenarioPanel.from_log_prices(pl.DataFrame({"asset": [0.0, 0.1, 0.3]}))
+
+    diffed = panel.diff()
+
+    assert diffed.kind == "return"

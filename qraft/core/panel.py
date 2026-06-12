@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 import polars as pl
@@ -9,6 +10,8 @@ from polars import DataFrame
 
 from qraft.core.probability.distributions import uniform_probs
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
+
+ScenarioPanelKind = Literal["log_price", "return", "invariant", "level"]
 
 
 def redistribute_prob_mass(
@@ -37,8 +40,11 @@ class ScenarioPanel:
     values: pl.DataFrame
     dates: pl.Series | None  # TODO: Change to just time to make simulations use it too
     prob: ProbVector
+    kind: ScenarioPanelKind = "level"
 
     def __post_init__(self) -> None:
+        if self.kind not in ("log_price", "return", "invariant", "level"):
+            raise ValueError(f"Unknown ScenarioPanel kind: {self.kind!r}")
         if "date" in self.values.columns:
             raise ValueError("ScenarioPanel.values must not contain a 'date' column; ")
         if self.values.height == 0:
@@ -90,7 +96,7 @@ class ScenarioPanel:
         if drop_nulls:
             values, dates, prob = cls._drop_null_rows(values, dates, prob)
 
-        return cls(values=values, dates=dates, prob=prob)
+        return cls(values=values, dates=dates, prob=prob, kind="log_price")
 
     @classmethod
     def from_prices(
@@ -110,7 +116,63 @@ class ScenarioPanel:
             raise ValueError("from_prices: prices must be numeric.") from exc
         log_values = values.select(pl.col(c).log() for c in values.columns)
         panel_prob = prob if prob is not None else uniform_probs(values.height)
-        return cls(values=log_values, dates=dates, prob=panel_prob)
+        return cls(values=log_values, dates=dates, prob=panel_prob, kind="log_price")
+
+    @classmethod
+    def from_returns(
+        cls,
+        df: pl.DataFrame,
+        prob: ProbVector | None = None,
+        drop_nulls: bool = False,
+    ) -> ScenarioPanel:
+        return cls._from_tagged_values(
+            df=df, prob=prob, drop_nulls=drop_nulls, kind="return"
+        )
+
+    @classmethod
+    def from_invariants(
+        cls,
+        df: pl.DataFrame,
+        prob: ProbVector | None = None,
+        drop_nulls: bool = False,
+    ) -> ScenarioPanel:
+        return cls._from_tagged_values(
+            df=df, prob=prob, drop_nulls=drop_nulls, kind="invariant"
+        )
+
+    @classmethod
+    def from_levels(
+        cls,
+        df: pl.DataFrame,
+        prob: ProbVector | None = None,
+        drop_nulls: bool = False,
+    ) -> ScenarioPanel:
+        return cls._from_tagged_values(
+            df=df, prob=prob, drop_nulls=drop_nulls, kind="level"
+        )
+
+    @classmethod
+    def _from_tagged_values(
+        cls,
+        df: pl.DataFrame,
+        prob: ProbVector | None,
+        drop_nulls: bool,
+        kind: ScenarioPanelKind,
+    ) -> ScenarioPanel:
+        if "date" in df.columns:
+            dates: pl.Series | None = df.get_column("date")
+            values = df.drop("date")
+        else:
+            dates = None
+            values = df
+
+        if prob is None:
+            prob = uniform_probs(values.height)
+
+        if drop_nulls:
+            values, dates, prob = cls._drop_null_rows(values, dates, prob)
+
+        return cls(values=values, dates=dates, prob=prob, kind=kind)
 
     def to_frame(self) -> DataFrame:
         if self.dates is None:
@@ -123,7 +185,7 @@ class ScenarioPanel:
         if values is self.values:
             return self
 
-        return ScenarioPanel(values=values, dates=dates, prob=prob)
+        return ScenarioPanel(values=values, dates=dates, prob=prob, kind=self.kind)
 
     @staticmethod
     def _drop_null_rows(
@@ -159,50 +221,21 @@ class ScenarioPanel:
         ).slice(lag)
         new_dates = self.dates.slice(lag) if self.dates is not None else None
         new_prob = compensate_prob(self.prob, lag)
-        return ScenarioPanel(values=diffed, dates=new_dates, prob=new_prob)
+        new_kind: ScenarioPanelKind = (
+            "return" if self.kind == "log_price" else self.kind
+        )
+        return ScenarioPanel(
+            values=diffed, dates=new_dates, prob=new_prob, kind=new_kind
+        )
 
     def with_prob(self, prob: ProbVector) -> ScenarioPanel:
-        return ScenarioPanel(values=self.values, dates=self.dates, prob=prob)
-
-    def map_values_same_rows(self, values: pl.DataFrame) -> ScenarioPanel:
-        if values.height != self.values.height:
-            raise ValueError(
-                f"map_values_same_rows requires identical row count; "
-                f"got {values.height} vs {self.values.height}. "
-                "Use filter_rows() or diff() / drop_nulls() for row-changing ops."
-            )
-        return ScenarioPanel(values=values, dates=self.dates, prob=self.prob)
-
-    def filter_rows(self, mask: pl.Series) -> ScenarioPanel:
-        if len(mask) != self.values.height:
-            raise ValueError(f"mask length {len(mask)} != rows {self.values.height}")
-        if not mask.any():
-            raise ValueError("filter_rows would remove every row")
-
-        new_values = self.values.filter(mask)
-        new_dates = self.dates.filter(mask) if self.dates is not None else None
-        dropped_idx = np.flatnonzero((~mask).to_numpy())
-        new_prob = redistribute_prob_mass(self.prob, dropped_idx)
-        return ScenarioPanel(values=new_values, dates=new_dates, prob=new_prob)
-
-    @property
-    def has_dates(self) -> bool:
-        return self.dates is not None
-
-    def require_dates(self) -> pl.Series:
-        if self.dates is None:
-            raise ValueError(
-                "This operation requires a dated panel, but AssetPanel.dates is None."
-            )
-        return self.dates
+        return ScenarioPanel(
+            values=self.values, dates=self.dates, prob=prob, kind=self.kind
+        )
 
     @property
     def asset_names(self) -> list[str]:
         return self.values.columns
-
-    @property
-    def n_rows(self) -> int:
-        return self.values.height
 
     def __len__(self) -> int:
         return self.values.height

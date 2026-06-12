@@ -38,7 +38,7 @@ def _garch_base_model(
 
 
 def _descale_garch_params(params: dict[str, float]) -> dict[str, float]:
-    descaled = {k: float(v) for k, v in params.items()}
+    descaled = {k: v for k, v in params.items()}
     if "omega" in descaled:
         descaled["omega"] = descaled["omega"] / (GARCH_FIT_SCALE**2)
     return descaled
@@ -80,7 +80,7 @@ def _garch_boundaries_check(
     params: dict[str, float],
     cfg: VolatilityModelConfig,
 ) -> bool:
-    vals = {k: float(v) for k, v in params.items()}
+    vals = {k: v for k, v in params.items()}
 
     def _lag_num(name: str) -> int:
         m = re.search(r"\[(\d+)\]$", name)

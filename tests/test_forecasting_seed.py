@@ -1,5 +1,6 @@
 import numpy as np
 import polars as pl
+import pytest
 
 from qraft.core.configs import (
     PipelineConfig,
@@ -17,6 +18,7 @@ class DummyFittedUniverse:
             values=pl.DataFrame({"asset": [0.01, 0.02]}),
             dates=None,
             prob=np.full(2, 0.5),
+            kind="invariant",
         )
         self.inverse_specs = {"asset": []}
 
@@ -27,9 +29,8 @@ class DummyFittedUniverse:
 
 
 def _panel() -> ScenarioPanel:
-    return ScenarioPanel(
-        values=pl.DataFrame({"asset": [1.0, 1.1]}),
-        dates=None,
+    return ScenarioPanel.from_log_prices(
+        pl.DataFrame({"asset": [1.0, 1.1]}),
         prob=np.full(2, 0.5),
     )
 
@@ -94,3 +95,25 @@ def test_run_forecast_leaves_stochastic_steps_unseeded_when_seed_is_omitted(
         "fit_seed": None,
         "draw_seed": None,
     }
+
+
+def test_run_forecast_rejects_non_log_price_panel() -> None:
+    panel = ScenarioPanel.from_levels(pl.DataFrame({"asset": [100.0, 101.0]}))
+
+    with pytest.raises(ValueError, match="kind='log_price'"):
+        forecasting.run_forecast(
+            panel=panel,
+            universe=AssetUniverse.factors_free(["asset"]),
+        )
+
+
+def test_draw_innovations_rejects_non_invariant_panel() -> None:
+    panel = ScenarioPanel.from_returns(pl.DataFrame({"asset": [0.01, -0.02]}))
+
+    with pytest.raises(ValueError, match="kind='invariant'"):
+        forecasting.draw_innovations(
+            invariants=panel,
+            horizon=1,
+            n_sims=2,
+            seed=1,
+        )

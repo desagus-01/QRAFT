@@ -47,6 +47,11 @@ def draw_innovations(
 ) -> InnovationPaths:
     if horizon < 1:
         raise ValueError("horizon must be >= 1")
+    if invariants.kind != "invariant":
+        raise ValueError(
+            f"draw_innovations requires a ScenarioPanel with kind='invariant'; "
+            f"got kind={invariants.kind!r}"
+        )
 
     assets = invariants.asset_names
 
@@ -66,7 +71,7 @@ def draw_innovations(
             seed=seed, cfg=cma_config, use_weighted_fit=True
         )
 
-        logger.info("CMA update complete: n_scenarios=%d", invariants.n_rows)
+        logger.info("CMA update complete: n_scenarios=%d", len(invariants))
 
     invariants_vector = invariants.values.to_numpy()
     prob = invariants.prob
@@ -112,6 +117,13 @@ def run_forecast(
         pipeline_config = DEFAULT_PIPELINE_CONFIG
     if simulation_config is None:
         simulation_config = DEFAULT_SIMULATION_CONFIG
+
+    if panel.kind != "log_price":
+        raise ValueError(
+            f"run_forecast requires a ScenarioPanel with kind='log_price'; "
+            f"got kind={panel.kind!r}. Use ScenarioPanel.from_prices() or "
+            "ScenarioPanel.from_log_prices() for forecast inputs."
+        )
 
     _validate_method_options(
         simulation_config.method, simulation_config.horizon, universe

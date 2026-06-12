@@ -165,7 +165,7 @@ def _build_invariants_panel(
         innovations_df = innovations_df.join(patch, on="date", how="left")
 
     logger.info("Invariants shape=%s", innovations_df.shape)
-    return ScenarioPanel.from_log_prices(
+    return ScenarioPanel.from_invariants(
         innovations_df,
         prob,
         drop_nulls=True,
