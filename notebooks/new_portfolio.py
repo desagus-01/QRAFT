@@ -51,7 +51,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:90])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -109,7 +109,7 @@ constraints: list[PortfolioConstraint] = [
 
 policy = MPOPolicy.preset(
     objective_type="cvar_cuts",
-    risk_aversion=0.02,
+    risk_aversion=0.2,
     cash_path="data/cash.csv",
     constraints=constraints,
     expectation_tolerance=0.1,
@@ -128,9 +128,7 @@ state = PortfolioState.from_forecast_and_assets(
 
 # %%
 projection = policy.decide(state, forecasts)
-
 projection.plot(type="cum_performance")
-
 x = projection.risk(forecasts)
 x.effective_bets().plot()
 x.risk_contribution("cvar")

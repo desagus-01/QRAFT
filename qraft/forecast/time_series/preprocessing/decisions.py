@@ -54,13 +54,14 @@ def detrend_decision_rule(
             candidates.append(("difference", stochastic_res.order))
 
         if not candidates:
+            trend_trans[asset] = TransformDecision(kind="difference", order=1)
+            logger.warning(
+                "%s: trend tests inconclusive; defaulting to first difference", asset
+            )
             continue
 
         transformation, order = min(candidates, key=lambda x: (x[1], x[0] != tie_break))
         trend_trans[asset] = TransformDecision(kind=transformation, order=order)
-        logger.warning(
-            "%s: trend tests inconclusive; defaulting to first difference", asset
-        )
 
     return trend_trans
 
