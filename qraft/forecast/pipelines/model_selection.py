@@ -96,18 +96,19 @@ def asset_needs_volatility_model(
 def asset_needs_mean_modelling(
     data: NDArray[np.floating],
     degrees_of_freedom: int,
-    cfg: MeanModelConfig | None = None,
+    mean_model_config: MeanModelConfig,
 ) -> bool:
     """
     Determine whether an asset series requires mean modelling (ARMA).
     """
-    if cfg is None:
-        cfg = MeanModelConfig()
     ljung_box = ljung_box_test(
-        data=data, lags=cfg.ljung_box_lags, degrees_of_freedom=degrees_of_freedom
+        data=data,
+        lags=mean_model_config.ljung_box_lags,
+        degrees_of_freedom=degrees_of_freedom,
+        robust=mean_model_config.ljung_box_test_is_robust,
     )
     ljung_box_rejected = multiple_tests_rejected(ljung_box.p_vals)
-    return sum(ljung_box_rejected) >= cfg.min_ljung_box_rejections
+    return sum(ljung_box_rejected) >= mean_model_config.min_ljung_box_rejections
 
 
 def needs_volatility_modelling(
@@ -136,19 +137,17 @@ def needs_mean_modelling(
     data: DataFrame,
     assets_to_test: list[str],
     degrees_of_freedom: int,
-    cfg: MeanModelConfig | None = None,
+    mean_model_config: MeanModelConfig,
 ) -> list[str]:
     """
     Identifies assets with significant autocorrelation in series using the Ljung–Box test.
     """
-    if cfg is None:
-        cfg = MeanModelConfig()
     result = []
     for asset in assets_to_test:
         array = data.select(asset).drop_nulls().to_numpy().ravel()
         if asset_needs_mean_modelling(
             array,
-            cfg=cfg,
+            mean_model_config=mean_model_config,
             degrees_of_freedom=degrees_of_freedom,
         ):
             result.append(asset)
@@ -177,7 +176,9 @@ def _select_first_candidate_with_valid_residuals(
 ) -> AutoARMARes | None:
     for model in candidates_by_information_criteria:
         if not asset_needs_mean_modelling(
-            model.residuals, degrees_of_freedom=model.degrees_of_freedom, cfg=cfg
+            model.residuals,
+            degrees_of_freedom=model.degrees_of_freedom,
+            mean_model_config=cfg,
         ):
             return model
     return None
@@ -297,15 +298,16 @@ def run_best_garch(
 def mean_modelling_pipeline(
     data: DataFrame,
     assets: list[str],
-    cfg: MeanModelConfig | None = None,
+    mean_model_config: MeanModelConfig,
 ) -> tuple[dict[str, MeanModelRes], dict[str, SelectionAudit]]:
     """
     Return a mean-modelling result for every asset, plus a selection audit per asset.
     """
-    if cfg is None:
-        cfg = MeanModelConfig()
     assets_needing_arma = needs_mean_modelling(
-        data=data, assets_to_test=assets, degrees_of_freedom=0, cfg=cfg
+        data=data,
+        assets_to_test=assets,
+        degrees_of_freedom=0,
+        mean_model_config=mean_model_config,
     )
 
     asset_mean_model_res: dict[str, MeanModelRes] = {}
@@ -316,7 +318,7 @@ def mean_modelling_pipeline(
         audit = SelectionAudit(events=[], notes=[])
         if asset in assets_needing_arma:
             res = get_appropriate_mean_model(
-                array, asset_name=asset, cfg=cfg, audit=audit
+                array, asset_name=asset, cfg=mean_model_config, audit=audit
             )
             asset_mean_model_res[asset] = res
             logger.info(
@@ -382,7 +384,7 @@ def run_univariate_pipeline(
     """
 
     mean_modelling, mean_audits = mean_modelling_pipeline(
-        data=data, assets=assets_to_model, cfg=pipeline_config.mean
+        data=data, assets=assets_to_model, mean_model_config=pipeline_config.mean
     )
     volatility_modelling, vol_audits = volatility_modelling_pipeline(
         mean_model_res=mean_modelling, cfg=pipeline_config.volatility

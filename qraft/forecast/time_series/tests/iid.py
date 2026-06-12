@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 import numpy as np
 import polars as pl
@@ -472,28 +472,108 @@ def univariate_kolmogrov_smirnov_test(
     return out
 
 
+def _coerce_ljung_box_array(
+    data: pl.DataFrame | NDArray[np.floating],
+    asset: str | None,
+) -> NDArray[np.floating]:
+    if isinstance(data, pl.DataFrame):
+        if asset is not None:
+            return data.get_column(asset).to_numpy()
+        if data.width != 1:
+            raise ValueError("asset must be provided when data has multiple columns.")
+        return data.to_series(0).to_numpy()
+
+    array = np.asarray(data, dtype=float)
+    if array.ndim != 1:
+        raise ValueError(
+            f"data must be 1D when not a Polars DataFrame; got ndim={array.ndim}"
+        )
+    return array
+
+
+def _robust_autocorrelation_components(
+    demeaned_array: NDArray[np.floating],
+    max_lag: int,
+    variance: float,
+) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
+    observations = demeaned_array.shape[0]
+    autocorrelations = np.zeros(max_lag + 1)
+    autocorrelation_variances = np.ones(max_lag + 1)
+
+    for lag in range(1, max_lag + 1):
+        current_values = demeaned_array[lag:]
+        lagged_values = demeaned_array[:-lag]
+        autocorrelations[lag] = float(np.sum(current_values * lagged_values)) / (
+            observations * variance
+        )
+        autocorrelation_variances[lag] = float(
+            np.mean((current_values**2) * (lagged_values**2))
+        ) / (variance**2)
+
+    return autocorrelations, autocorrelation_variances
+
+
+def robust_ljung_box(
+    array: NDArray[np.floating],
+    lags: Sequence[int],
+    degrees_of_freedom: int = 0,
+) -> PerAssetTestResult:
+    """Run a heteroskedasticity-robust portmanteau test."""
+    observations = array.shape[0]
+    demeaned_array = array - array.mean()
+    variance = float(np.mean(demeaned_array * demeaned_array))
+    per_lag: dict[str, HypTestRes] = {}
+
+    if variance <= 0.0:
+        for lag in lags:
+            per_lag[f"lag_{lag}"] = format_hyp_test_result(
+                stat=0.0,
+                p_val=1.0,
+                null=f"No autocorrelation up to lag {lag}",
+            )
+        return PerAssetTestResult(results=per_lag, rejected=[])
+
+    max_lag = max(lags)
+    autocorrelations, autocorrelation_variances = _robust_autocorrelation_components(
+        demeaned_array=demeaned_array,
+        max_lag=max_lag,
+        variance=variance,
+    )
+
+    for lag in lags:
+        lag_indices = np.arange(1, lag + 1)
+        robust_statistic = observations * float(
+            np.sum(
+                autocorrelations[lag_indices] ** 2
+                / np.maximum(autocorrelation_variances[lag_indices], 1e-12)
+            )
+        )
+        chi_square_dof = max(lag - degrees_of_freedom, 1)
+        per_lag[f"lag_{lag}"] = format_hyp_test_result(
+            stat=robust_statistic,
+            p_val=float(st.chi2.sf(robust_statistic, chi_square_dof)),
+            null=f"No autocorrelation up to lag {lag}",
+        )
+
+    rejected = [k for k, res in per_lag.items() if res.reject_null]
+    return PerAssetTestResult(results=per_lag, rejected=rejected)
+
+
 def ljung_box_test(
     data: pl.DataFrame | NDArray[np.floating],
     lags: tuple[int, ...],
     asset: str | None = None,
     degrees_of_freedom: int = 0,
+    robust: bool = False,
 ) -> PerAssetTestResult:
-    """Run Ljung-Box tests on a 1D series."""
-    if isinstance(data, pl.DataFrame):
-        if asset is not None:
-            array = data.get_column(asset).to_numpy()
-        else:
-            if data.width != 1:
-                raise ValueError(
-                    "asset must be provided when data has multiple columns."
-                )
-            array = data.to_series(0).to_numpy()
-    else:
-        array = np.asarray(data)
-        if array.ndim != 1:
-            raise ValueError(
-                f"data must be 1D when not a Polars DataFrame; got ndim={array.ndim}"
-            )
+    array = _coerce_ljung_box_array(data=data, asset=asset)
+
+    if robust:
+        return robust_ljung_box(
+            array=array,
+            lags=lags,
+            degrees_of_freedom=degrees_of_freedom,
+        )
 
     lb = acorr_ljungbox(
         x=array,
@@ -527,7 +607,7 @@ def arch_test(
         arch_lag_res[f"{lag}"] = format_hyp_test_result(
             stat=arch_res[0],
             p_val=arch_res[1],
-            null=f"no ARCH effects up to lag {int(lag)}",
+            null=f"no ARCH effects up to lag {lag}",
         )
 
     rejected = [k for k, res in arch_lag_res.items() if res.reject_null]

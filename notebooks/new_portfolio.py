@@ -26,7 +26,7 @@ from qraft.core.configs import SimulationForecastConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.INFO))
+setup_logging(LogConfig(level=logging.WARNING))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ forecasts = run_forecast(
     panel=posterior_panel,
     seed=3,
     universe=universe,
-    simulation_config=SimulationForecastConfig(n_sims=100_000),
+    simulation_config=SimulationForecastConfig(n_sims=10_000),
 )
 
 forecasts.plot_asset_paths()
