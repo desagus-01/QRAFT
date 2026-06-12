@@ -110,7 +110,7 @@ SamplingMethod = Literal["bootstrap", "historical", "cma"]
 class CMAConfig:
     target_copula: Literal["t", "norm"] | None = None
     target_marginals: dict[str, Literal["t", "norm"]] | None = None
-    copula_fit_method: Literal["ml", "irho", "itau"] = "itau"
+    copula_fit_method: Literal["ml", "irho", "itau"] = "ml"
 
     def __post_init__(self) -> None:
         if self.target_copula is None and self.target_marginals is None:

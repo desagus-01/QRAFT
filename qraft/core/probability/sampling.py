@@ -1,4 +1,3 @@
-import warnings
 from typing import Literal
 
 import numpy as np
@@ -63,7 +62,7 @@ def sample_copula(
     parametric_copula : {"t", "norm"}
         Which copula family to fit.
     fit_method : {"ml", "irho", "itau"}
-        Fitting method; falls back to ML if analytical method fails.
+        Fitting method.
     to_pobs : bool
         Whether to transform input values to pseudo-observations during fitting.
 
@@ -87,14 +86,10 @@ def sample_copula(
     try:
         fit = cop.fit(values, method=fit_method, to_pobs=to_pobs)
     except Exception as e:
-        if fit_method == "ml":
-            raise RuntimeError(f"ML fit failed: {e}") from e
-
-        warnings.warn(
-            f"Fit method '{fit_method}' failed ({e!r}); falling back to 'ml'.",
-            RuntimeWarning,
-        )
-        fit = cop.fit(values, method="ml", to_pobs=to_pobs)
+        raise RuntimeError(
+            f"Copula fit failed for {parametric_copula!r} copula with "
+            f"method {fit_method!r}: {e}"
+        ) from e
 
     samples = fit.random(n=copula.height, seed=seed)
 
