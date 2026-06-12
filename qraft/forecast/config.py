@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -113,30 +112,3 @@ class PipelineConfig:
 
 
 DEFAULT_PIPELINE_CONFIG: PipelineConfig = PipelineConfig()
-
-
-@dataclass(frozen=True, slots=True)
-class LogConfig:
-    """Controls centralised logging for the funcasting package.
-
-    Attributes
-    ----------
-    level :
-        Log level for the funcasting logger (default: INFO).
-    log_file :
-        Optional path to write logs to. If None, logs go to stderr only.
-    third_party_level :
-        Level applied to noisy third-party loggers (arch, statsmodels,
-        matplotlib). Default WARNING keeps fitting noise out of the way.
-    fmt :
-        Log format string. The default omits timestamps for interactive use;
-        timestamps are added automatically when ``log_file`` is set.
-    """
-
-    level: int = logging.INFO
-    log_file: str | None = None
-    third_party_level: int = logging.WARNING
-    fmt: str = "[%(levelname)s] %(name)s - %(message)s"
-
-
-DEFAULT_LOG_CONFIG: LogConfig = LogConfig()

@@ -4,7 +4,7 @@ import logging
 import logging.handlers
 import sys
 
-from qraft.forecast.config import LogConfig
+from qraft.utils.log_config import DEFAULT_LOG_CONFIG, LogConfig
 
 # Third-party loggers known to be chatty during model fitting.
 _NOISY_LOGGERS = (
@@ -16,20 +16,7 @@ _NOISY_LOGGERS = (
 
 
 def setup_logging(cfg: LogConfig | None = None) -> None:
-    """Configure the root logger from a ``LogConfig``.
-
-    Safe to call multiple times -- existing handlers are cleared first so
-    repeated calls in notebooks do not duplicate output.
-
-    Parameters
-    ----------
-    cfg :
-        Configuration object. If ``None``, :data:`policy.DEFAULT_LOG_CONFIG`
-        is used.
-    """
     if cfg is None:
-        from qraft.forecast.config import DEFAULT_LOG_CONFIG
-
         cfg = DEFAULT_LOG_CONFIG
 
     logging.captureWarnings(True)
@@ -37,11 +24,8 @@ def setup_logging(cfg: LogConfig | None = None) -> None:
     root = logging.getLogger()
     root.setLevel(cfg.level)
 
-    # Clear handlers added by previous calls or rogue basicConfig() calls
-    # that fired at import time before setup_logging() was invoked.
     root.handlers.clear()
 
-    # Console handler clean format, no timestamps, for interactive use.
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(cfg.level)
     console_handler.setFormatter(logging.Formatter(cfg.fmt))
