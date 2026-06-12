@@ -109,7 +109,7 @@ constraints: list[PortfolioConstraint] = [
 
 policy = MPOPolicy.preset(
     objective_type="cvar_cuts",
-    risk_aversion=0.2,
+    risk_aversion=0.1,
     cash_path="data/cash.csv",
     constraints=constraints,
     expectation_tolerance=0.1,
@@ -124,7 +124,6 @@ state = PortfolioState.from_forecast_and_assets(
     shares=rand_shares,
     cash=100_000,
 )
-
 
 # %%
 projection = policy.decide(state, forecasts)

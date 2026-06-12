@@ -624,4 +624,4 @@ class HoldingCostHandler:
 
         params["short_rate"].value = spec.short_fees / ppy
         params["long_rate"].value = spec.long_fees / ppy
-        params["div_rate"].value = spec.dividends / (100.0 * ppy)
+        params["div_rate"].value = spec.dividends / ppy

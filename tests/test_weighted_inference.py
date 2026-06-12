@@ -1,6 +1,6 @@
 import numpy as np
 
-from qraft.core.estimation import effective_sample_size, weighted_ols
+from qraft.core.estimation import effective_sample_size, riccati_root, weighted_ols
 from qraft.forecast.time_series.tests.iid import autocorrelation_pair_test
 
 
@@ -39,3 +39,18 @@ def test_weighted_ols_p_values_use_effective_sample_size() -> None:
     concentrated_fit = weighted_ols(y, design, prob=concentrated)
 
     assert concentrated_fit.p_values[1, 0] > uniform_fit.p_values[1, 0]
+
+
+def test_riccati_root_handles_near_constant_assets() -> None:
+    data = np.column_stack(
+        [
+            np.ones(8),
+            np.arange(8.0),
+        ]
+    )
+    prob = np.full(data.shape[0], 1.0 / data.shape[0])
+
+    res = riccati_root(data, prob)
+
+    assert np.isfinite(res.root).all()
+    assert np.isfinite(res.standard_devs).all()

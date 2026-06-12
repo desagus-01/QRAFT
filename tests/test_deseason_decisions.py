@@ -1,5 +1,7 @@
 import numpy as np
+import polars as pl
 
+from qraft.forecast.pipelines.preprocess import deseason_pipeline
 from qraft.forecast.time_series.preprocessing.decisions import (
     MAX_SEASONAL_HARMONICS,
     _expand_period_to_harmonics,
@@ -49,3 +51,19 @@ def test_deseason_decision_rule_keeps_weak_seasonality_unadjusted() -> None:
     decision = deseason_decision_rule({"MTX": [_seasonality_test("quarterly", False)]})
 
     assert decision["MTX"] == []
+
+
+def test_deseason_pipeline_returns_date_only_for_empty_assets() -> None:
+    data = pl.DataFrame(
+        {
+            "date": [1, 2, 3],
+            "asset_a": [1.0, 2.0, 3.0],
+        }
+    )
+
+    res = deseason_pipeline(data=data, assets=[], include_diagnostics=True)
+
+    assert res.decision == {}
+    assert res.inverse_spec == {}
+    assert res.all_tests == {}
+    assert res.updated_data.columns == ["date"]

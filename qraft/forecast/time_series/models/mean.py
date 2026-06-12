@@ -86,13 +86,13 @@ def _arma_filter(
         if ar_vals:
             ar_poly = np.r_[1.0, -np.asarray(ar_vals, dtype=float)]
             ar_roots = np.roots(ar_poly)
-            if np.any(np.abs(ar_roots) >= 1.0 + cfg.arma_stationarity_buffer):
+            if np.any(np.abs(ar_roots) >= 1.0 - cfg.arma_stationarity_buffer):
                 return False
 
         if ma_vals:
             ma_poly = np.r_[1.0, np.asarray(ma_vals, dtype=float)]
             ma_roots = np.roots(ma_poly)
-            if np.any(np.abs(ma_roots) >= 1.0 + cfg.arma_invertibility_buffer):
+            if np.any(np.abs(ma_roots) >= 1.0 - cfg.arma_invertibility_buffer):
                 return False
     except (ValueError, np.linalg.LinAlgError):
         return False

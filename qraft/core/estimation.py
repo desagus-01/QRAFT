@@ -191,9 +191,8 @@ def riccati_root(
 ) -> RiccatiResult:
     covariance = weighted_covariance(data, prob, center=True)
     standard_devs = np.sqrt(np.diag(covariance))
-    correlation = (
-        np.diag(1.0 / standard_devs) @ covariance @ np.diag(1.0 / standard_devs)
-    )
+    correlation = weighted_correlation(data, prob)
+    correlation = np.nan_to_num(correlation, nan=1.0)
     return RiccatiResult(
         root=np.asarray(sqrtm(correlation).real), standard_devs=standard_devs
     )

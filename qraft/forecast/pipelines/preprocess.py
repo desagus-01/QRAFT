@@ -43,6 +43,14 @@ def deseason_pipeline(
     """Diagnose, decide, and apply deterministic seasonal adjustment."""
     if assets is None:
         assets = get_assets_names(df=data, assets=assets)
+    if not assets:
+        return PipelineAssetBatchRes(
+            type="seasonality",
+            decision={},
+            inverse_spec={},
+            updated_data=data.select(["date"]),
+            all_tests={} if include_diagnostics else None,
+        )
 
     diagnostics = seasonality_diagnostic(
         data=data,
@@ -77,6 +85,14 @@ def detrend_pipeline(
         cfg = PreprocessConfig()
     if assets is None:
         assets = get_assets_names(df=data, assets=assets)
+    if not assets:
+        return PipelineAssetBatchRes(
+            type="trend",
+            decision={},
+            inverse_spec={},
+            updated_data=data.select(["date"]),
+            all_tests={} if include_diagnostics else None,
+        )
 
     diagnostics = trend_diagnostic(
         data=data,

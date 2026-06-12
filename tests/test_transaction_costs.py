@@ -2,8 +2,14 @@ import numpy as np
 import pytest
 
 from qraft.construction.optimization.moments import HorizonMoments
-from qraft.construction.optimization.objectives.handlers import TransactionCostHandler
-from qraft.construction.optimization.objectives.specs import TransactionCost
+from qraft.construction.optimization.objectives.handlers import (
+    HoldingCostHandler,
+    TransactionCostHandler,
+)
+from qraft.construction.optimization.objectives.specs import (
+    HoldingCost,
+    TransactionCost,
+)
 from qraft.construction.optimization.presets import (
     _default_holding_cost,
     _default_transaction_cost,
@@ -104,3 +110,14 @@ def test_policy_prices_are_taken_from_forecasts_in_moment_asset_order() -> None:
         MPOPolicy._initial_prices_for_assets(forecasts, ["A", "B"]),
         [10.0, 20.0],
     )
+
+
+def test_holding_cost_dividends_are_decimal_rates_like_fees() -> None:
+    spec = HoldingCost(short_fees=0.01, long_fees=0.02, dividends=0.03)
+    params = HoldingCostHandler().allocate(spec, horizons=1, n_assets=2)
+
+    HoldingCostHandler().update(spec, params, {})
+
+    assert params["short_rate"].value == spec.short_fees / spec.periods_per_year
+    assert params["long_rate"].value == spec.long_fees / spec.periods_per_year
+    assert params["div_rate"].value == spec.dividends / spec.periods_per_year
