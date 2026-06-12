@@ -48,8 +48,8 @@ def factor_cumulative_returns(
     factors_names: list[str],
     end_horizon: int,
 ) -> dict[str, NDArray]:
-    if end_horizon <= 0:
-        raise ValueError("end_horizon must be a positive integer")
+    if end_horizon < 0:
+        raise ValueError("end_horizon must be a non-negative 0-based step index")
 
     factors_t0 = _get_t0_factor_values(
         initial_prices=initial_prices,
@@ -57,12 +57,15 @@ def factor_cumulative_returns(
     )
 
     factors_forecast_w_t0 = {}
-    idx = end_horizon - 1
 
     for factor in factors_names:
         forecast = factors_forecast[factor]
+        if end_horizon >= forecast.shape[1]:
+            raise ValueError(
+                f"end horizon={end_horizon} out of range for factor {factor}"
+            )
         t0_price = factors_t0[factor]
-        factors_forecast_w_t0[factor] = (forecast[:, idx] / t0_price) - 1.0
+        factors_forecast_w_t0[factor] = (forecast[:, end_horizon] / t0_price) - 1.0
 
     return factors_forecast_w_t0
 

@@ -26,7 +26,7 @@ from qraft.core import (
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.WARNING))
+setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -124,6 +124,7 @@ state = PortfolioState.from_forecast_and_assets(
     shares=rand_shares,
     cash=100_000,
 )
+
 
 # %%
 projection = policy.decide(state, forecasts)
