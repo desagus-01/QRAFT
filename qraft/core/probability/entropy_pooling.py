@@ -5,8 +5,11 @@ from typing import Any, Callable, Sequence
 
 import cvxpy as cp
 import numpy as np
-from qraft.core.panel import ScenarioPanel
 from cvxpy.constraints.constraint import Constraint as CvxConstraint
+from numpy.typing import NDArray
+from pydantic import validate_call
+
+from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.core.scenarios.view_types import (
     ConstraintDiag,
@@ -19,8 +22,6 @@ from qraft.core.scenarios.view_types import (
     ViewSpec,
 )
 from qraft.globals import model_cfg
-from numpy.typing import NDArray
-from pydantic import validate_call
 from qraft.utils.helpers import indicator_quantile_marginal, weighted_moments
 
 logger = logging.getLogger(__name__)
@@ -32,17 +33,9 @@ _OPS: dict[Sign, Callable[[Any, Any], CvxConstraint]] = {
 }
 
 
-def ens(prob_vector: ProbVector) -> int:
-    """Effective number of scenarios: exp of the Shannon entropy."""
-    max_scenarios: int = prob_vector.shape[0]
-    value: float = float(np.exp(-(np.sum(prob_vector * np.log(prob_vector)))))
-
-    if (value < 1) or (value > max_scenarios):
-        raise RuntimeError(
-            "ENS is larger than total number of scenarios or smaller than 1."
-        )
-
-    return int(np.ceil(value))
+def ens(prob: ProbVector) -> float:
+    p = prob[prob > 0]
+    return float(np.exp(-np.sum(p * np.log(p))))
 
 
 def _col(panel: ScenarioPanel, name: str) -> NDArray[np.floating]:

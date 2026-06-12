@@ -165,13 +165,14 @@ def weighted_variance(
     return np.diag(covariance)
 
 
-def weighted_correlation(
-    data: NDArray[np.floating],
-    prob: ProbVector,
-) -> NDArray[np.floating]:
-    covariance = weighted_covariance(data, prob, center=True)
-    standard_devs = np.sqrt(np.diag(covariance))
-    return np.diag(1.0 / standard_devs) @ covariance @ np.diag(1.0 / standard_devs)
+def weighted_correlation(data, prob, *, eps: float = 1e-12):
+    cov = weighted_covariance(data, prob)
+    sd = np.sqrt(np.diag(cov))
+    ok = sd > eps
+    inv = np.where(ok, 1.0 / np.where(ok, sd, 1.0), 0.0)
+    corr = inv[:, None] * cov * inv[None, :]
+    np.fill_diagonal(corr, np.where(ok, 1.0, np.nan))  # NaN marks degenerate, loudly
+    return corr
 
 
 def effective_sample_size(prob: ProbVector) -> float:

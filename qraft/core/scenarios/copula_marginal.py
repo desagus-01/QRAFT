@@ -3,13 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Literal, Self
 
+import numpy as np
 import polars as pl
 from numpy import interp
 from polars import DataFrame
 
 from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.distributions import uniform_probs
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
-from qraft.core.probability.sampling import marginal_quantile_mapping, sample_copula
+from qraft.core.probability.sampling import (
+    marginal_quantile_mapping,
+    sample_copula,
+    weighted_bootstrapping,
+)
 
 
 def _compute_cdf_and_pobs(
@@ -175,20 +181,37 @@ class CopulaMarginalModel:
         seed: int | None = None,
         fit_method: Literal["ml", "irho", "itau"] = "itau",
         target_copula: Literal["t", "norm"] = "t",
+        use_weighted_fit: bool = False,
     ) -> Self:
         """Re-fit or sample a copula given the current pseudo-observations."""
+        grades_for_fit = self.copula_grades
+        if use_weighted_fit and not np.allclose(self.prob, 1.0 / len(self.prob)):
+            grades_for_fit = weighted_bootstrapping(
+                self.copula_grades,
+                self.prob,
+                n_samples=self.copula_grades.height,
+                seed=seed,
+            )
         new_copula = sample_copula(
-            self.copula_grades,
+            grades_for_fit,
             seed=seed,
             parametric_copula=target_copula,
             fit_method=fit_method,
         )
-        return replace(self, copula_grades=new_copula)
+        return replace(
+            self,
+            copula_grades=new_copula,
+            prob=uniform_probs(
+                new_copula.height
+            ),  # needs to be this as we got iid draws
+            dates=None,
+        )
 
     def update_distribution(
         self,
         cfg: CMAConfig,
         seed: int | None = None,
+        use_weighted_fit: bool = True,
     ) -> ScenarioPanel:
         """Apply CMA updates (marginals and/or copula) and return a panel."""
         model: CopulaMarginalModel = self
@@ -197,6 +220,7 @@ class CopulaMarginalModel:
                 seed=seed,
                 target_copula=cfg.target_copula,
                 fit_method=cfg.copula_fit_method,
+                use_weighted_fit=use_weighted_fit,
             )
         if cfg.target_marginals is not None:
             model = model.update_marginals(cfg.target_marginals)

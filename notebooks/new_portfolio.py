@@ -26,7 +26,7 @@ from qraft.core import (
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.INFO))
+setup_logging(LogConfig(level=logging.WARNING))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:70])
+tradable_assets = list(data.columns[10:20])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)

@@ -2,6 +2,7 @@ import logging
 from typing import Literal
 
 import numpy as np
+
 from qraft.forecast.time_series.preprocessing.types import (
     TransformDecision,
 )
@@ -56,8 +57,10 @@ def detrend_decision_rule(
             continue
 
         transformation, order = min(candidates, key=lambda x: (x[1], x[0] != tie_break))
-
         trend_trans[asset] = TransformDecision(kind=transformation, order=order)
+        logger.warning(
+            "%s: trend tests inconclusive; defaulting to first difference", asset
+        )
 
     return trend_trans
 

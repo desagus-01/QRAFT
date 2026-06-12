@@ -59,8 +59,7 @@ def draw_innovations(
             raise ValueError("method=cma requires a CMAConfig")
 
         invariants = CopulaMarginalModel.from_panel(invariants).update_distribution(
-            seed=seed,
-            cfg=cma_config,
+            seed=seed, cfg=cma_config, use_weighted_fit=True
         )
 
         logger.info("CMA update complete: n_scenarios=%d", invariants.n_rows)

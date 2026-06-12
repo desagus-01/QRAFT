@@ -37,7 +37,7 @@ class CMA:
     def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
         clean: ScenarioPanel = panel.drop_nulls()
         return CopulaMarginalModel.from_panel(clean).update_distribution(
-            self.config, seed=self.seed
+            self.config, seed=self.seed, use_weighted_fit=True
         )
 
 
