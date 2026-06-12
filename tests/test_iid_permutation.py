@@ -2,10 +2,9 @@ import numpy as np
 import polars as pl
 
 from qraft.forecast.time_series.preprocessing import white_noise
-from qraft.forecast.config import IIDConfig
 from qraft.forecast.time_series.tests.iid import (
-    _adaptive_permutation_stop,
     PerAssetTestResult,
+    _adaptive_permutation_stop,
     copula_lag_independence_test,
     independence_permutation_test,
     sw_mc,
@@ -60,7 +59,7 @@ def test_copula_lag_independence_accepts_iteration_controls() -> None:
     assert set(res["x"].results) == {"lag_1"}
 
 
-def test_copula_lag_independence_is_seeded_by_default() -> None:
+def test_copula_lag_independence_uses_explicit_seed() -> None:
     data = pl.DataFrame({"x": np.linspace(0.05, 0.95, 12)})
     prob = np.full(data.height, 1.0 / data.height)
 
@@ -69,6 +68,7 @@ def test_copula_lag_independence_is_seeded_by_default() -> None:
         prob=prob,
         lags=1,
         assets=["x"],
+        seed=1,
         mc_iters=5,
         perm_test_iters=4,
         perm_test_min_iters=4,
@@ -78,6 +78,7 @@ def test_copula_lag_independence_is_seeded_by_default() -> None:
         prob=prob,
         lags=1,
         assets=["x"],
+        seed=1,
         mc_iters=5,
         perm_test_iters=4,
         perm_test_min_iters=4,
@@ -141,7 +142,7 @@ def test_run_iid_complex_passes_configured_iteration_controls(monkeypatch) -> No
     }
 
 
-def test_check_white_noise_uses_configured_seed(monkeypatch) -> None:
+def test_check_white_noise_uses_explicit_seed(monkeypatch) -> None:
     captured: dict[str, int | None] = {}
 
     def fake_run_iid_simple(data, prob, assets, lags):
@@ -170,7 +171,7 @@ def test_check_white_noise_uses_configured_seed(monkeypatch) -> None:
         data=pl.DataFrame({"x": [1.0, 2.0, 3.0, 4.0]}),
         prob=np.full(4, 0.25),
         assets=["x"],
-        cfg=IIDConfig(seed=123),
+        seed=123,
     )
 
     assert captured["seed"] == 123

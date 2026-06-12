@@ -7,6 +7,7 @@ import scipy.stats as st
 from numpy.typing import NDArray
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 
+from qraft.core.configs import IIDConfig
 from qraft.core.estimation import (
     effective_sample_size,
     weighted_covariance,
@@ -14,7 +15,6 @@ from qraft.core.estimation import (
 )
 from qraft.core.panel import compensate_prob
 from qraft.core.probability.prob_vector import ProbVector
-from qraft.forecast.config import IIDConfig
 from qraft.forecast.time_series.tests.multiple import multiple_tests_rejected
 from qraft.forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from qraft.utils.helpers import (
@@ -341,7 +341,7 @@ def independence_permutation_test(
     prob: ProbVector,
     assets: tuple[str, str],
     stat_fun: StatFunc = sw_mc,
-    seed: int | None = _DEFAULT_IID.seed,
+    seed: int | None = None,
     iter: int = _DEFAULT_IID.perm_test_iters,
     mc_iters: int = _DEFAULT_IID.mc_iters,
     min_iter: int = _DEFAULT_IID.perm_test_min_iters,
@@ -406,7 +406,7 @@ def copula_lag_independence_test(
     prob: ProbVector,
     lags: int = _DEFAULT_IID.lags_complex,
     assets: list[str] | None = None,
-    seed: int | None = _DEFAULT_IID.seed,
+    seed: int | None = None,
     mc_iters: int = _DEFAULT_IID.mc_iters,
     perm_test_iters: int = _DEFAULT_IID.perm_test_iters,
     perm_test_min_iters: int = _DEFAULT_IID.perm_test_min_iters,

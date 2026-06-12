@@ -5,12 +5,13 @@ from itertools import product
 import numpy as np
 from arch import arch_model
 from arch.univariate.base import ARCHModelResult
-from qraft.forecast.config import VolatilityModelConfig
+from numpy._typing import NDArray
+
+from qraft.core.configs import VolatilityModelConfig
 from qraft.forecast.time_series.models.fitted_types import (
     GARCH_DISTRIBUTIONS,
     AutoGARCHRes,
 )
-from numpy._typing import NDArray
 
 logger = logging.getLogger(__name__)
 

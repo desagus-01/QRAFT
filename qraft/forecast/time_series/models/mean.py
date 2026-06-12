@@ -9,7 +9,7 @@ from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import arma_order_select_ic
 from typing_extensions import Literal
 
-from qraft.forecast.config import MeanModelConfig
+from qraft.core.configs import MeanModelConfig
 from qraft.forecast.time_series.models.fitted_types import AutoARMARes
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,4 @@
-from qraft.forecast.config import MeanModelConfig
+from qraft.core.configs import MeanModelConfig
 from qraft.forecast.time_series.models.mean import _arma_filter
 
 

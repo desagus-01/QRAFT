@@ -8,10 +8,10 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
+from qraft.core.configs import PipelineConfig
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
-from qraft.forecast.config import PipelineConfig
-from qraft.forecast.pipelines.model_selection import get_univariate_results
+from qraft.forecast.pipelines.model_selection import run_univariate_pipeline
 from qraft.forecast.pipelines.preprocess import run_univariate_preprocess
 from qraft.forecast.simulation.simulate_paths import simulate_asset_paths
 from qraft.forecast.simulation.state import SimulationForecast
@@ -42,7 +42,7 @@ class FittedUniverse:
         data: pl.DataFrame,
         prob: ProbVector,
         assets: list[str],
-        cfg: PipelineConfig | None = None,
+        pipeline_config: PipelineConfig,
         seed: int | None = None,
     ) -> FittedUniverse:
         """Run preprocess + model selection and assemble the invariants panel."""
@@ -50,7 +50,7 @@ class FittedUniverse:
             data=data,
             prob=prob,
             assets=assets,
-            cfg=cfg.preprocess if cfg is not None else None,
+            preprocess_config=pipeline_config.preprocess,
             seed=seed,
         )
         logger.info(
@@ -59,10 +59,10 @@ class FittedUniverse:
             preprocess.needs_further_modelling,
         )
 
-        models = get_univariate_results(
+        models = run_univariate_pipeline(
             data=preprocess.post_data,
             assets_to_model=preprocess.needs_further_modelling,
-            cfg=cfg,
+            pipeline_config=pipeline_config,
         )
         logger.info(
             "Univariate model selection complete for %d assets",

@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
-from qraft.forecast.config import QualityConfig
 from numpy._typing import NDArray
+
+from qraft.core.configs import QualityConfig
 
 QualityEvent = Literal[
     "MEAN_FALLBACK_DEMEAN",

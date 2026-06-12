@@ -17,7 +17,7 @@ __all__ = [
     "SimulationForecast",
 ]
 
-from qraft.forecast.config import (  # noqa: F401
+from qraft.core.configs import (  # noqa: F401
     IIDConfig,
     MeanModelConfig,
     PipelineConfig,
@@ -33,7 +33,7 @@ from qraft.forecast.forecast_paths import (  # noqa: F401
 from qraft.forecast.pipelines.fitted_universe import FittedUniverse  # noqa: F401
 from qraft.forecast.pipelines.forecasting import run_forecast  # noqa: F401
 from qraft.forecast.pipelines.model_selection import (
-    get_univariate_results,  # noqa: F401
+    run_univariate_pipeline,  # noqa: F401
 )
 from qraft.forecast.pipelines.preprocess import run_univariate_preprocess  # noqa: F401
 from qraft.forecast.signals.raw_signals import Signal  # noqa: F401

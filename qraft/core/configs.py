@@ -70,7 +70,6 @@ class QualityConfig:
 class IIDConfig:
     """Lags and significance level for white-noise IID screens."""
 
-    seed: int | None = 0
     lags_simple: int = 10
     lags_complex: int = 5
     significance_level: float = 0.05
@@ -93,17 +92,7 @@ class PreprocessConfig:
 
 @dataclass(frozen=True, slots=True)
 class PipelineConfig:
-    """Single configuration object for top-level pipeline entry points.
-
-    Pass an instance to ``get_univariate_results`` or
-    ``run_univariate_preprocess``.  Override any sub-config; the rest keep
-    their defaults::
-
-        cfg = PipelineConfig(
-            mean=MeanModelConfig(max_ar_order=3),
-            quality=QualityConfig(penalty_high=40.0),
-        )
-    """
+    """Single configuration object for top-level pipeline entry points."""
 
     mean: MeanModelConfig = field(default_factory=MeanModelConfig)
     volatility: VolatilityModelConfig = field(default_factory=VolatilityModelConfig)
@@ -112,3 +101,31 @@ class PipelineConfig:
 
 
 DEFAULT_PIPELINE_CONFIG: PipelineConfig = PipelineConfig()
+
+
+SamplingMethod = Literal["bootstrap", "historical", "cma"]
+
+
+@dataclass(frozen=True)
+class CMAConfig:
+    target_copula: Literal["t", "norm"] | None = None
+    target_marginals: dict[str, Literal["t", "norm"]] | None = None
+    copula_fit_method: Literal["ml", "irho", "itau"] = "itau"
+
+    def __post_init__(self) -> None:
+        if self.target_copula is None and self.target_marginals is None:
+            raise ValueError(
+                "CMAConfig needs at least one of target_copula or target_marginals."
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class SimulationForecastConfig:
+    horizon: int = 10
+    n_sims: int = 1000
+    method: SamplingMethod = "bootstrap"
+    back_to_price: bool = True
+    cma_config: CMAConfig | None = None
+
+
+DEFAULT_SIMULATION_CONFIG: SimulationForecastConfig = SimulationForecastConfig()

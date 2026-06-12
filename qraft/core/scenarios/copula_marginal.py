@@ -8,6 +8,7 @@ import polars as pl
 from numpy import interp
 from polars import DataFrame
 
+from qraft.core.configs import CMAConfig
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.distributions import uniform_probs
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
@@ -44,21 +45,6 @@ def _compute_cdf_and_pobs(
         )
 
     return df
-
-
-@dataclass(frozen=True)
-class CMAConfig:
-    """How to reshape the joint distribution under copula-marginal adjustment."""
-
-    target_copula: Literal["t", "norm"] | None = None
-    target_marginals: dict[str, Literal["t", "norm"]] | None = None
-    copula_fit_method: Literal["ml", "irho", "itau"] = "itau"
-
-    def __post_init__(self) -> None:
-        if self.target_copula is None and self.target_marginals is None:
-            raise ValueError(
-                "CMAConfig needs at least one of target_copula or target_marginals."
-            )
 
 
 # TODO: Need to find a way to allow nulls at the start

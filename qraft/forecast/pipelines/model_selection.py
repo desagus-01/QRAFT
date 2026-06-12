@@ -2,8 +2,10 @@ import logging
 from typing import Mapping
 
 import numpy as np
-from qraft.forecast.config import (
-    DEFAULT_PIPELINE_CONFIG,
+from numpy._typing import NDArray
+from polars import DataFrame
+
+from qraft.core.configs import (
     MeanModelConfig,
     PipelineConfig,
     VolatilityModelConfig,
@@ -27,8 +29,6 @@ from qraft.forecast.time_series.models.volatility import (
 )
 from qraft.forecast.time_series.tests.iid import arch_test, ljung_box_test
 from qraft.forecast.time_series.tests.multiple import multiple_tests_rejected
-from numpy._typing import NDArray
-from polars import DataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -372,22 +372,20 @@ def volatility_modelling_pipeline(
     return asset_vol_model_res, vol_audits
 
 
-def get_univariate_results(
+def run_univariate_pipeline(
     data: DataFrame,
     assets_to_model: list[str],
-    cfg: PipelineConfig | None = None,
+    pipeline_config: PipelineConfig,
 ) -> dict[str, UnivariateRes]:
     """
     Run mean and volatility modelling pipelines and aggregate results per asset, including quality.
     """
-    if cfg is None:
-        cfg = DEFAULT_PIPELINE_CONFIG
 
     mean_modelling, mean_audits = mean_modelling_pipeline(
-        data=data, assets=assets_to_model, cfg=cfg.mean
+        data=data, assets=assets_to_model, cfg=pipeline_config.mean
     )
     volatility_modelling, vol_audits = volatility_modelling_pipeline(
-        mean_model_res=mean_modelling, cfg=cfg.volatility
+        mean_model_res=mean_modelling, cfg=pipeline_config.volatility
     )
 
     all_assets = [c for c in data.columns if c != "date"]
@@ -402,7 +400,7 @@ def get_univariate_results(
             combined_audit.events.extend(vol_audits[asset].events)
             combined_audit.notes.extend(vol_audits[asset].notes)
 
-        quality = score_audit(combined_audit, cfg.quality)
+        quality = score_audit(combined_audit, pipeline_config.quality)
         asset_model[asset] = UnivariateRes(
             mean_res=mean_modelling.get(asset),
             volatility_res=volatility_modelling.get(asset),

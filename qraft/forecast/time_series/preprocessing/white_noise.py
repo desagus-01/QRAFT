@@ -3,10 +3,10 @@ import logging
 import polars as pl
 from polars.dataframe.frame import DataFrame
 
+from qraft.core.configs import IIDConfig
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.core.scenarios.copula_marginal import CopulaMarginalModel
-from qraft.forecast.config import IIDConfig
 from qraft.forecast.time_series.tests.iid import (
     TestResultByAsset,
     copula_lag_independence_test,
@@ -88,8 +88,6 @@ def check_white_noise(
     """Return whether each asset passes the white-noise screen."""
     if cfg is None:
         cfg = IIDConfig()
-    if seed is None:
-        seed = cfg.seed
 
     simple_tests = _run_iid_simple(
         data=data,

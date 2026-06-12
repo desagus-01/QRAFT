@@ -4,8 +4,8 @@ import numpy as np
 import polars as pl
 from polars.dataframe.frame import DataFrame
 
+from qraft.core.configs import PreprocessConfig
 from qraft.core.probability.prob_vector import ProbVector
-from qraft.forecast.config import PreprocessConfig
 from qraft.forecast.time_series.preprocessing.apply import (
     apply_deseason,
     apply_detrend,
@@ -127,8 +127,8 @@ def detrend_pipeline(
 def run_univariate_preprocess(
     data: pl.DataFrame,
     prob: ProbVector,
+    preprocess_config: PreprocessConfig,
     assets: list[str] | None = None,
-    cfg: PreprocessConfig | None = None,
     seed: int | None = None,
 ) -> UnivariatePreprocess:
     """
@@ -147,8 +147,6 @@ def run_univariate_preprocess(
         needs_further_modelling:
             Assets whose increments failed the white-noise screen.
     """
-    if cfg is None:
-        cfg = PreprocessConfig()
     if assets is None:
         assets = get_assets_names(df=data, assets=assets)
 
@@ -162,7 +160,7 @@ def run_univariate_preprocess(
         data=data,
         original_prob=prob,
         assets=assets,
-        cfg=cfg.iid,
+        cfg=preprocess_config.iid,
         seed=seed,
     )
 
@@ -186,7 +184,7 @@ def run_univariate_preprocess(
         assets=assets_need_preprocess,
         include_diagnostics=False,
         prob=prob,
-        cfg=cfg,
+        cfg=preprocess_config,
     )
 
     if detrend.inverse_spec is not None:

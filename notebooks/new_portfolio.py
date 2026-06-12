@@ -5,7 +5,6 @@ import numpy as np
 
 from qraft import (
     AssetUniverse,
-    CMAConfig,
     LogConfig,
     MPOPolicy,
     PortfolioState,
@@ -23,10 +22,11 @@ from qraft.core import (
     ScenarioPanel,
     state_smooth_probs,
 )
+from qraft.core.configs import SimulationForecastConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.WARNING))
+setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -58,8 +58,6 @@ data = data.select("date", *universe.all_tickers)
 
 # %%
 # ── Build historical ScenarioPanel ───────────────────────────────────
-forecast_horizon = 10
-n_sims = 300_000
 
 prob_ex = state_smooth_probs(
     data.height,
@@ -86,12 +84,9 @@ posterior_panel = ScenarioPanel.from_log_prices(
 # ── Forecasting ──────────────────────────────────────────────────────
 forecasts = run_forecast(
     panel=posterior_panel,
-    horizon=forecast_horizon,
-    n_sims=n_sims,
     seed=3,
     universe=universe,
-    method="cma",
-    cma_config=CMAConfig(target_copula="t"),
+    simulation_config=SimulationForecastConfig(n_sims=100_000),
 )
 
 forecasts.plot_asset_paths()

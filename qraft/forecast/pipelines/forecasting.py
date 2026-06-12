@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
 
 import numpy as np
 
+from qraft.core.configs import (
+    DEFAULT_PIPELINE_CONFIG,
+    DEFAULT_SIMULATION_CONFIG,
+    PipelineConfig,
+    SamplingMethod,
+    SimulationForecastConfig,
+)
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.sampling import weighted_bootstrapping_idx
 from qraft.core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
@@ -14,11 +20,9 @@ from qraft.forecast.time_series.transforms.inverses import apply_inverse_transfo
 
 logger = logging.getLogger(__name__)
 
-Method = Literal["bootstrap", "historical", "cma"]
-
 
 def _validate_method_options(
-    method: Method, horizon: int, universe: AssetUniverse
+    method: SamplingMethod, horizon: int, universe: AssetUniverse
 ) -> None:
     if horizon < 1:
         raise ValueError("horizon must be >= 1")
@@ -37,7 +41,7 @@ def draw_innovations(
     horizon: int,
     n_sims: int,
     seed: int | None,
-    method: Method = "bootstrap",
+    method: SamplingMethod = "bootstrap",
     *,
     cma_config: CMAConfig | None = None,
 ) -> InnovationPaths:
@@ -99,29 +103,38 @@ def _check_missing_assets(new_assets: list[str], old_assets: list[str]) -> bool:
 def run_forecast(
     panel: ScenarioPanel,
     universe: AssetUniverse,
-    horizon: int = 10,
-    n_sims: int = 1000,
     seed: int | None = None,
-    method: Method = "bootstrap",
     *,
-    back_to_price: bool = True,
-    cma_config: CMAConfig | None = None,
+    simulation_config: SimulationForecastConfig | None = None,
+    pipeline_config: PipelineConfig | None = None,
 ) -> ForecastPaths:
-    _validate_method_options(method, horizon, universe)
+    if pipeline_config is None:
+        pipeline_config = DEFAULT_PIPELINE_CONFIG
+    if simulation_config is None:
+        simulation_config = DEFAULT_SIMULATION_CONFIG
+
+    _validate_method_options(
+        simulation_config.method, simulation_config.horizon, universe
+    )
+
     data = panel.to_frame()
     prob = panel.prob
 
     universe_fit = FittedUniverse.fit(
-        data=data, prob=prob, assets=universe.all_tickers, seed=seed
+        data=data,
+        prob=prob,
+        assets=universe.all_tickers,
+        seed=seed,
+        pipeline_config=pipeline_config,
     )
 
     innovations = draw_innovations(
         invariants=universe_fit.invariants,
-        horizon=horizon,
-        n_sims=n_sims,
+        horizon=simulation_config.horizon,
+        n_sims=simulation_config.n_sims,
         seed=seed,
-        method=method,
-        cma_config=cma_config,
+        method=simulation_config.method,
+        cma_config=simulation_config.cma_config,
     )
 
     simulated = universe_fit.simulate(innovations.values)
@@ -131,7 +144,7 @@ def run_forecast(
         asset_data_dict=simulated,
         n_original=data.height,
         inverse_specs=universe_fit.inverse_specs,
-        back_to_price=back_to_price,
+        back_to_price=simulation_config.back_to_price,
     )
 
     if _check_missing_assets(universe.all_tickers, list(transformed.keys())):
