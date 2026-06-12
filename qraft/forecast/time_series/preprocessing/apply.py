@@ -86,7 +86,9 @@ def _apply_grouped_detrend(
 
             for asset in assets:
                 inverse_specs[asset] = PolynomialInverseSpec(
-                    order=order, betas=np.asarray(beta[asset], dtype=float)
+                    order=order,
+                    betas=np.asarray(beta[asset], dtype=float),
+                    n_obs=data.height,
                 )
 
         else:

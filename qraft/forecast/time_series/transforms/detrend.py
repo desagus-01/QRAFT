@@ -29,13 +29,14 @@ def _build_polynomial_design_matrix(
     n_obs: int,
     polynomial_order: int,
 ) -> NDArray[np.floating]:
-    time = np.arange(n_obs, dtype=float).reshape(-1, 1)
-
     if polynomial_order == 0:
         return np.ones((n_obs, 1), dtype=float)
 
-    # columns are [t^p, ..., t, 1]
-    return np.vander(time.ravel(), N=polynomial_order + 1)
+    scale = max(n_obs - 1, 1)
+    time = np.arange(n_obs, dtype=float) / scale
+
+    # columns are [x^p, ..., x, 1] with x scaled to [0, 1]
+    return np.vander(time, N=polynomial_order + 1)
 
 
 def polynomial_detrend(

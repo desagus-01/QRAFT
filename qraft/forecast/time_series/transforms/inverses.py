@@ -59,6 +59,7 @@ class SeasonalInverseSpec:
 class PolynomialInverseSpec:
     order: int
     betas: NDArray[np.floating]
+    n_obs: int | None = None
 
     def inverse_for_forecasts(
         self,
@@ -75,7 +76,9 @@ class PolynomialInverseSpec:
 
         polynomials = np.asarray(self.betas, dtype=float).reshape(-1)
         horizon = current.shape[1]
-        future_x = np.arange(start_x, start_x + horizon)
+        future_x = np.arange(start_x, start_x + horizon, dtype=float)
+        if self.n_obs is not None:
+            future_x = future_x / max(self.n_obs - 1, 1)
         trend = np.polyval(polynomials, future_x)
 
         return current + trend[None, :]

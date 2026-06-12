@@ -15,6 +15,8 @@ from qraft.forecast.time_series.models.fitted_types import (
 
 logger = logging.getLogger(__name__)
 
+GARCH_FIT_SCALE = 100.0
+
 
 def _garch_base_model(
     asset_array: NDArray[np.floating],
@@ -24,7 +26,7 @@ def _garch_base_model(
     q_order: int = 1,
 ) -> ARCHModelResult:
     base_model = arch_model(
-        y=asset_array,
+        y=asset_array * GARCH_FIT_SCALE,
         mean="zero",
         p=p_order,
         o=o_order,
@@ -33,6 +35,38 @@ def _garch_base_model(
         rescale=False,
     ).fit(disp="off")
     return base_model
+
+
+def _descale_garch_params(params: dict[str, float]) -> dict[str, float]:
+    descaled = {k: float(v) for k, v in params.items()}
+    if "omega" in descaled:
+        descaled["omega"] = descaled["omega"] / (GARCH_FIT_SCALE**2)
+    return descaled
+
+
+def _garch_result(
+    model: ARCHModelResult,
+    *,
+    model_order: tuple[int, int, int],
+    admissible: bool,
+    persistence: float,
+    fallback_reason: str | None = None,
+) -> AutoGARCHRes:
+    params = _descale_garch_params(model.params.to_dict())  # type: ignore[attr-defined]
+    return AutoGARCHRes(
+        model_order=model_order,
+        degrees_of_freedom=len(model.params),
+        criteria="bic",
+        criteria_res=model.bic,
+        params=params,
+        p_values=model.pvalues,  # type: ignore[attr-defined]
+        invariants=model.std_resid,  # type: ignore[attr-defined]
+        residuals=model.resid / GARCH_FIT_SCALE,  # type: ignore[attr-defined]
+        conditional_volatility=model.conditional_volatility / GARCH_FIT_SCALE,  # type: ignore[attr-defined]
+        persistence=persistence,
+        admissible=admissible,
+        fallback_reason=fallback_reason,
+    )
 
 
 def _garch_persistence_calc(params: dict[str, float]) -> float:
@@ -118,7 +152,13 @@ def auto_garch(
             continue
 
         proposed_model = arch_model(
-            asset_array, mean="zero", p=p, o=o, q=q, dist=distribution, rescale=False
+            asset_array * GARCH_FIT_SCALE,
+            mean="zero",
+            p=p,
+            o=o,
+            q=q,
+            dist=distribution,
+            rescale=False,
         ).fit(disp="off")
 
         if proposed_model.convergence_flag != 0:
@@ -131,7 +171,8 @@ def auto_garch(
             )
             continue
 
-        params = proposed_model.params.to_dict()  # type: ignore[attr-defined]
+        params = _descale_garch_params(proposed_model.params.to_dict())  # type: ignore[attr-defined]
+        persistence = _garch_persistence_calc(params)
         if not _admissable_garch_model(params, cfg):
             logger.info(
                 "Asset=%s GARCH%s dist=%s failed admissibility checks; dropping candidate",
@@ -142,33 +183,28 @@ def auto_garch(
             continue
 
         garch_candidates.append(
-            AutoGARCHRes(
+            _garch_result(
+                proposed_model,
                 model_order=key,
-                degrees_of_freedom=len(proposed_model.params),
-                criteria="bic",
-                criteria_res=proposed_model.bic,
-                params=params,
-                p_values=proposed_model.pvalues,  # type: ignore[attr-defined]
-                invariants=proposed_model.std_resid,  # type: ignore[attr-defined]
-                residuals=proposed_model.resid,  # type: ignore[attr-defined]
-                conditional_volatility=proposed_model.conditional_volatility,  # type: ignore[attr-defined]
+                persistence=persistence,
+                admissible=True,
             )
         )
 
-    base_params = base_model.params.to_dict()  # type: ignore[attr-defined]
-    base_res = AutoGARCHRes(
+    base_params = _descale_garch_params(base_model.params.to_dict())  # type: ignore[attr-defined]
+    base_persistence = _garch_persistence_calc(base_params)
+    base_admissible = _admissable_garch_model(base_params, cfg)
+    base_res = _garch_result(
+        base_model,
         model_order=(1, 0, 1),
-        degrees_of_freedom=len(base_model.params),
-        criteria="bic",
-        criteria_res=base_model.bic,
-        params=base_params,
-        p_values=base_model.pvalues,  # type: ignore[attr-defined]
-        residuals=base_model.resid,  # type: ignore[attr-defined]
-        invariants=base_model.std_resid,  # type: ignore[attr-defined]
-        conditional_volatility=base_model.conditional_volatility,  # type: ignore[attr-defined]
+        persistence=base_persistence,
+        admissible=base_admissible,
+        fallback_reason=None
+        if base_admissible
+        else "baseline_failed_admissibility_checks",
     )
 
-    if _admissable_garch_model(base_params, cfg):
+    if base_admissible:
         garch_candidates.append(base_res)
     else:
         logger.warning(

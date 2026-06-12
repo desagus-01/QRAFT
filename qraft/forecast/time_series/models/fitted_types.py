@@ -23,6 +23,9 @@ class AutoGARCHRes(NamedTuple):
     conditional_volatility: NDArray[np.floating]
     invariants: NDArray[np.floating]
     kind: Literal["garch"] = "garch"
+    persistence: float = 0.0
+    admissible: bool = True
+    fallback_reason: str | None = None
 
 
 class AutoARMARes(NamedTuple):
