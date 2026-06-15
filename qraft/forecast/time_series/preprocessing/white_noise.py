@@ -171,7 +171,7 @@ def test_non_idd(
     cfg: IIDConfig | None = None,
     seed: int | None = None,
 ) -> list[str]:
-    """return those that are not iid."""
+    """return those assets that are not iid."""
     panel = ScenarioPanel.from_log_prices(data.select(assets), prob)
     return _find_nonwhite_noise_assets(
         increments=panel.diff() if on_increment else panel,

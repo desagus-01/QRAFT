@@ -7,6 +7,7 @@ import numpy as np
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
+    IIDConfig,
     PipelineConfig,
     SamplingMethod,
     SimulationForecastConfig,
@@ -16,6 +17,7 @@ from qraft.core.probability.sampling import weighted_bootstrapping_idx
 from qraft.core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
 from qraft.forecast.pipelines.fitted_universe import FittedUniverse
+from qraft.forecast.time_series.preprocessing.white_noise import test_non_idd
 from qraft.forecast.time_series.transforms.inverses import apply_inverse_transforms
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,28 @@ def _validate_method_options(
     if len(universe.all_tickers) <= 1 and method == "cma":
         raise ValueError(
             "Must have more than one asset in order to use the copula method."
+        )
+
+
+def _test_invariants_iid(
+    invariants: ScenarioPanel, iid_config: IIDConfig, seed: int | None
+) -> None:
+    assets = invariants.asset_names
+    non_iid_invariants = test_non_idd(
+        data=invariants.values,
+        prob=invariants.prob,
+        assets=assets,
+        cfg=iid_config,
+        seed=seed,
+    )
+
+    if non_iid_invariants:
+        logger.warning(
+            "Invariance Check: %d assets out of %d did not pass the invariant iid tests. "
+            "Consider a richer mean/vol model for the list below:\n%s",
+            len(non_iid_invariants),
+            len(assets),
+            non_iid_invariants,
         )
 
 
@@ -140,15 +164,11 @@ def run_forecast(
         pipeline_config=pipeline_config,
     )
 
-    # a = universe_fit.invariants
-    # x = test_non_idd(
-    #     data=a.values,
-    #     prob=a.prob,
-    #     assets=a.values.columns,
-    #     cfg=pipeline_config.preprocess.iid,
-    #     seed=seed,
-    #     on_increment=False,
-    # )
+    _test_invariants_iid(
+        invariants=universe_fit.invariants,
+        iid_config=DEFAULT_PIPELINE_CONFIG.preprocess.iid,
+        seed=seed,
+    )
 
     innovations = draw_innovations(
         invariants=universe_fit.invariants,

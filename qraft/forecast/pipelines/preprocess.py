@@ -165,10 +165,6 @@ def run_univariate_preprocess(
         seed=seed,
     )
 
-    # inverse_specs: dict[str, list[InverseSpec]] = {
-    # asset: [] for asset in assets_need_preprocess
-    # }
-
     inverse_specs: dict[str, list[InverseSpec]] = {asset: [] for asset in assets}
     needs_set = set(assets_need_preprocess)
     for asset in assets:

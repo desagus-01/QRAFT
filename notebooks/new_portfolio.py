@@ -26,7 +26,7 @@ from qraft.core.configs import SimulationForecastConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.WARNING))
+setup_logging(LogConfig(level=logging.WARN))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ data, factors_cols = import_tickers_and_factors(
     "./data/tiingo_factors.csv",
 )
 
-min_price = 12
+min_price = 9
 
 
 cols_to_keep = [
