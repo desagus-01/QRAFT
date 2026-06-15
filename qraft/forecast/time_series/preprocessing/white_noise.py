@@ -17,7 +17,7 @@ from qraft.forecast.time_series.tests.iid import (
 logger = logging.getLogger(__name__)
 
 
-def _run_iid_simple(
+def run_iid_simple(
     data: DataFrame,
     prob: ProbVector,
     assets: list[str],
@@ -40,7 +40,7 @@ def _run_iid_simple(
     }
 
 
-def _run_iid_complex(
+def run_iid_complex(
     data: DataFrame,
     prob: ProbVector,
     assets: list[str],
@@ -89,7 +89,7 @@ def check_white_noise(
     if cfg is None:
         cfg = IIDConfig()
 
-    simple_tests = _run_iid_simple(
+    simple_tests = run_iid_simple(
         data=data,
         prob=prob,
         assets=assets,
@@ -115,7 +115,7 @@ def check_white_noise(
         logger.info("White-noise final screen: passed_all=[]")
         return simple_pass
 
-    complex_tests = _run_iid_complex(
+    complex_tests = run_iid_complex(
         data=data,
         prob=prob,
         assets=assets_for_copula,

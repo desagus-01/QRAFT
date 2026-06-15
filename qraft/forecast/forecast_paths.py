@@ -10,6 +10,7 @@ from polars import DataFrame
 
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
+from qraft.forecast.pipelines.fitted_universe import FittedUniverse
 from qraft.utils.visuals import plot_simulation_results
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,7 @@ class ForecastPaths:
     path_probs: ProbVector
     initial_prices: dict[str, float]
     universe: AssetUniverse | None = None
+    diagnostics: FittedUniverse | None = None
 
     def __post_init__(self) -> None:
         if not self.asset_paths:

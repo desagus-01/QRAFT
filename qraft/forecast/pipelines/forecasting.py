@@ -133,6 +133,7 @@ def run_forecast(
     panel: ScenarioPanel,
     universe: AssetUniverse,
     seed: int | None = None,
+    include_fit_diagnostics: bool = False,
     *,
     simulation_config: SimulationForecastConfig | None = None,
     pipeline_config: PipelineConfig | None = None,
@@ -204,4 +205,5 @@ def run_forecast(
         path_probs=innovations.path_probs,
         universe=universe,
         initial_prices=initial_prices,
+        diagnostics=None if not include_fit_diagnostics else universe_fit,
     )

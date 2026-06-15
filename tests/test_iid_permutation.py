@@ -118,7 +118,7 @@ def test_run_iid_complex_passes_configured_iteration_controls(monkeypatch) -> No
         fake_copula_lag_independence_test,
     )
 
-    white_noise._run_iid_complex(
+    white_noise.run_iid_complex(
         data=pl.DataFrame({"x": [1.0, 2.0, 3.0, 4.0]}),
         prob=np.full(4, 0.25),
         assets=["x"],
