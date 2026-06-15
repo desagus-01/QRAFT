@@ -38,7 +38,7 @@ class VolatilityModelConfig:
     min_o_order: int = 0
     max_o_order: int = 1
     max_q_order: int = 2
-    candidate_distributions: tuple[GarchDist, ...] = ("t", "normal", "skewt")
+    candidate_distributions: tuple[GarchDist, ...] = ("t", "skewt")
 
     # Admissibility constraints
     max_persistence: float = 0.9999
@@ -74,7 +74,7 @@ class IIDConfig:
 
     lags_simple: int = 10
     lags_complex: int = 3
-    significance_level: float = 0.05
+    significance_level: float = 0.10
     mc_iters: int = 512
     perm_test_iters: int = 1000
     perm_test_min_iters: int = 100
