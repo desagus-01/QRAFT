@@ -4,9 +4,10 @@ from dataclasses import asdict, dataclass
 from typing import Mapping, Self
 
 import numpy as np
+from numpy._typing import NDArray
+
 from qraft.forecast.time_series.models.fitted_types import UnivariateRes
 from qraft.forecast.time_series.models.model_types import UnivariateModel
-from numpy._typing import NDArray
 
 
 @dataclass(slots=True)
@@ -15,6 +16,7 @@ class UnivariateState:
     ma_residual_lags: NDArray[np.floating] | None = None
     vol_residual_lags: NDArray[np.floating] | None = None
     var_hist: NDArray[np.floating] | None = None
+    var_cap: float | None = None
 
     @classmethod
     def from_fitting_results_and_model(
@@ -23,6 +25,7 @@ class UnivariateState:
         univariate_model: UnivariateModel,
         post_series_non_null: NDArray[np.floating],
         x_hist_len: int = 10,
+        variance_cap_factor: float = 4.0,
     ) -> Self:
         """
         Build an initial UnivariateState from fitting results and observed series.
@@ -66,6 +69,7 @@ class UnivariateState:
 
         eps_vol_hist = None
         var_hist = None
+        var_cap: float | None = None
         if (
             univariate_model.vol_kind == "garch"
             and fitting_results.volatility_res is not None
@@ -73,6 +77,8 @@ class UnivariateState:
             p_g, o_g, q_g = univariate_model.vol_order
             m = max(p_g, o_g, 1)
             sig2 = fitting_results.volatility_res.conditional_volatility**2
+            var_cap = float(variance_cap_factor * float(np.max(sig2)))
+
             eps_vol_hist = (
                 fitting_results.volatility_res.residuals[-m:].copy() if m > 0 else None
             )
@@ -83,6 +89,7 @@ class UnivariateState:
             ma_residual_lags=eps_mean_hist,
             vol_residual_lags=eps_vol_hist,
             var_hist=var_hist,
+            var_cap=var_cap,
         )
 
     def state_as_dict(self) -> Mapping[str, NDArray[np.floating]]:
@@ -109,6 +116,7 @@ class SimulationForecast:
         fitting_results: UnivariateRes,
         post_series_non_null: NDArray[np.floating],
         x_hist_len: int = 10,
+        variance_cap_factor: float = 4.0,
     ):
         """
         Construct a SimulationForecast from fitting results and observed series.
@@ -166,5 +174,6 @@ class SimulationForecast:
                 univariate_model=model,
                 post_series_non_null=post_series_non_null,
                 x_hist_len=x_hist_len,
+                variance_cap_factor=variance_cap_factor,
             ),
         )

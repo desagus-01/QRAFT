@@ -144,7 +144,7 @@ def auto_garch(
     for p, q, o, distribution in product(
         range(1, cfg.max_p_order + 1),
         range(1, cfg.max_q_order + 1),
-        range(0, cfg.max_o_order + 1),
+        range(cfg.min_o_order, cfg.max_o_order + 1),
         cfg.candidate_distributions,
     ):
         key = (p, o, q)

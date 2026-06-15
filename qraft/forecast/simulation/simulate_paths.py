@@ -58,6 +58,7 @@ def simulate_asset_paths(
             eps_start=state0.vol_residual_lags,
             var_start=state0.var_hist,
             innovations=innovations,
+            var_cap=state0.var_cap,
         )
     else:
         raise ValueError(f"Unknown vol_kind: {model.vol_kind}")

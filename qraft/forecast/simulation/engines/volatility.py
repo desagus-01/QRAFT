@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from numpy._typing import NDArray
+
 from qraft.forecast.simulation.engines.utils import (
     as_sims_by_horizon,
     broadcast_last_k_lags,
@@ -10,7 +12,6 @@ from qraft.forecast.simulation.engines.utils import (
     lag_matrix,
 )
 from qraft.forecast.time_series.models.model_types import CompiledParams
-from numpy._typing import NDArray
 
 
 @dataclass
@@ -27,6 +28,7 @@ class GarchSimulator:
     eps_lag: int
     var_lag: int
     var_floor: float = 1e-12
+    var_cap: float | None = None
 
     @classmethod
     def from_state(
@@ -38,6 +40,7 @@ class GarchSimulator:
         horizon: int,
         eps_start: NDArray[np.floating] | None,
         var_start: NDArray[np.floating] | None,
+        var_cap: float | None = None,
     ) -> GarchSimulator:
         """
         Initialize a GarchSimulator from compiled parameters and starting lags.
@@ -92,6 +95,7 @@ class GarchSimulator:
             var_ext=var_ext,
             eps_lag=eps_lag,
             var_lag=var_lag,
+            var_cap=var_cap,
         )
 
     def variance_step(self, t: int) -> NDArray[np.floating]:
@@ -127,7 +131,8 @@ class GarchSimulator:
             var_lags = lag_matrix(self.var_ext, var_last, self.q)
             v_next += var_lags @ self.beta
 
-        return np.maximum(v_next, self.var_floor)
+        # return np.maximum(v_next, self.var_floor)
+        return np.clip(v_next, self.var_floor, self.var_cap)
 
     def push(
         self, t: int, eps_next: NDArray[np.floating], var_next: NDArray[np.floating]
@@ -157,6 +162,7 @@ def garch_simulation_paths(
     eps_start: NDArray[np.floating] | None,
     var_start: NDArray[np.floating] | None,
     innovations: NDArray[np.floating],
+    var_cap: float | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
     """
     Simulate GARCH volatility and residual (eps) paths given innovations.
@@ -194,6 +200,7 @@ def garch_simulation_paths(
         horizon=horizon,
         eps_start=eps_start,
         var_start=var_start,
+        var_cap=var_cap,
     )
 
     sigma2 = np.empty((n_sims, horizon), dtype=float)

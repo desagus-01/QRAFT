@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
 import numpy as np
-from qraft.forecast.time_series.models.model_quality import ModelQuality
 from numpy._typing import NDArray
+
+from qraft.forecast.time_series.models.model_quality import ModelQuality
 
 MeanKind = Literal["none", "demean", "arma"]
 VolKind = Literal["none", "garch"]
-GARCH_DISTRIBUTIONS = Literal["t", "normal"]
+GARCH_DISTRIBUTIONS = Literal["t", "normal", "skewt"]
 
 
 class AutoGARCHRes(NamedTuple):

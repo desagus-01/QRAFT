@@ -73,6 +73,7 @@ class FittedUniverse:
             data=preprocess.post_data,
             models=models,
             assets=assets,
+            variance_cap_factor=pipeline_config.volatility.variance_cap_factor,
         )
 
         invariants = _build_invariants_panel(
@@ -128,6 +129,7 @@ def _build_simulation_forecasts(
     data: pl.DataFrame,
     models: Mapping[str, UnivariateRes],
     assets: list[str],
+    variance_cap_factor: float = 4.0,
 ) -> dict[str, SimulationForecast]:
     forecasts: dict[str, SimulationForecast] = {}
     for asset in assets:
@@ -135,6 +137,7 @@ def _build_simulation_forecasts(
         forecasts[asset] = SimulationForecast.from_res_and_series(
             fitting_results=models[asset],
             post_series_non_null=series,
+            variance_cap_factor=variance_cap_factor,
         )
     return forecasts
 
