@@ -4,7 +4,6 @@ from typing import TypedDict
 
 from qraft.core.configs import IIDConfig
 
-_DEFAULT_ROUNDING = 4
 _DEFAULT_IID = IIDConfig()
 
 
@@ -46,20 +45,14 @@ def format_hyp_test_result(
     null: str = "Independence",
     sign_level: float = _DEFAULT_IID.significance_level,
 ) -> HypTestRes:
-    try:
-        stat = float(stat)
-        p_val = float(p_val)
-    except (TypeError, ValueError):
-        raise ValueError(f"Invalid stat or p_val: stat={stat}, p_val={p_val}")
-
     if math.isnan(stat) or math.isnan(p_val):
         raise ValueError(f"Invalid stat or p_val: stat={stat}, p_val={p_val}")
 
     hyp_conc = hyp_test_conclusion(p_val, null_hyp=null, sign_level=sign_level)
 
     return HypTestRes(
-        stat=round(stat, _DEFAULT_ROUNDING),
-        p_val=round(p_val, _DEFAULT_ROUNDING),
+        stat=stat,
+        p_val=p_val,
         sign_lvl=sign_level,
         null=null,
         reject_null=hyp_conc["reject_null"],
