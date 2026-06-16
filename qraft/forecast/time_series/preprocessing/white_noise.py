@@ -8,6 +8,7 @@ from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.core.scenarios.copula_marginal import CopulaMarginalModel
 from qraft.forecast.time_series.tests.iid import (
+    PerAssetTestResult,
     TestResultByAsset,
     copula_lag_independence_test,
     ellipsoid_lag_test,
@@ -80,6 +81,24 @@ def run_iid_complex(
     }
 
 
+def _ellipsoid_failed(
+    simple_tests: dict[str, dict[str, PerAssetTestResult]],
+    asset: str,
+    rho_thresh: float,
+) -> bool:
+    """Only flag when a lag is both statistically AND practically significant."""
+    return any(
+        res.reject_null and abs(res.stat) >= rho_thresh
+        for res in simple_tests["ellipsoid"][asset].results.values()
+    )
+
+
+def _arch_failed(
+    simple_tests: dict[str, dict[str, PerAssetTestResult]], asset: str
+) -> bool:
+    return bool(simple_tests["arch"][asset].rejected)
+
+
 def check_white_noise(
     data: DataFrame,
     prob: ProbVector,
@@ -98,10 +117,11 @@ def check_white_noise(
         lags=cfg.lags_simple,
         arch_lags=cfg.arch_lags,
     )
+
     simple_pass = {
-        asset: not any(
-            simple_tests[test_name][asset].rejected
-            for test_name in ("ellipsoid", "arch")
+        asset: not (
+            _ellipsoid_failed(simple_tests, asset, cfg.ellipsoid_rho_threshold)
+            or _arch_failed(simple_tests, asset)
         )
         for asset in assets
     }

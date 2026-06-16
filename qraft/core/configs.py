@@ -73,9 +73,9 @@ class IIDConfig:
     """Lags and significance level for white-noise IID screens."""
 
     lags_simple: int = 10
-    lags_complex: int = 5
+    lags_complex: int = 3
     significance_level: float = 0.05
-    mc_iters: int = 1500
+    mc_iters: int = 1000
     perm_test_iters: int = 1000
     perm_test_min_iters: int = 100
     perm_test_batch_iters: int = 50
