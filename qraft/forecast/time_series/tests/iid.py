@@ -9,7 +9,6 @@ from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 
 from qraft.core.configs import IIDConfig
 from qraft.core.estimation import (
-    effective_sample_size,
     weighted_covariance,
     weighted_mean,
 )
@@ -28,6 +27,8 @@ StatFunc = Callable[[np.ndarray, ProbVector, np.ndarray], float]
 PairTest = Callable[..., HypTestRes]
 TestResultByAsset = dict[str, "PerAssetTestResult"]
 _MAX_PERMUTATION_BOOL_CELLS = 25_000_000
+
+# IID_TESTS = Literal["ellipsoid", "ks", "copula_permutation"]
 
 
 @dataclass
@@ -150,7 +151,15 @@ def autocorrelation_pair_test(
     denom = np.sqrt(var_t * var_lag)
     corr = 0.0 if np.isclose(denom, 0.0) else float(cov_t_lag / denom)
 
-    test_statistic = abs(corr) * np.sqrt(effective_sample_size(prob))
+    # test_statistic = abs(corr) * np.sqrt(effective_sample_size(prob))
+    n = pair_np.shape[0]
+    y0_demean = pair_np[:, 0] = pair_np[:, 0].mean()
+    y1_demean = pair_np[:, 1] = pair_np[:, 1].mean()
+    gamma = max(float(np.mean(y0_demean**2)) * float(np.mean(y1_demean**2)), 1e-24)
+    tau = np.mean((y0_demean**2) * (y1_demean**2)) / gamma
+    se = np.sqrt(max(tau, 1e-12) / n)
+    test_statistic = abs(corr) / se if se > 0 else 0.0
+
     p_val = float(2 * (1 - st.norm.cdf(test_statistic)))
 
     return format_hyp_test_result(stat=corr, p_val=p_val, null="Independence")

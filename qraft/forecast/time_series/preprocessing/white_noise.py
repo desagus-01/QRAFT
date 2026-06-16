@@ -11,7 +11,6 @@ from qraft.forecast.time_series.tests.iid import (
     TestResultByAsset,
     copula_lag_independence_test,
     ellipsoid_lag_test,
-    univariate_kolmogrov_smirnov_test,
 )
 
 logger = logging.getLogger(__name__)
@@ -22,6 +21,7 @@ def run_iid_simple(
     prob: ProbVector,
     assets: list[str],
     lags: int,
+    # tests_to_include: list[IID_TESTS] = ["ellipsoid"],
 ) -> dict[str, TestResultByAsset]:
     """Run the cheaper IID screens."""
     ellipsoid_test = ellipsoid_lag_test(
@@ -30,13 +30,13 @@ def run_iid_simple(
         lags=lags,
         assets=assets,
     )
-    ks_test = univariate_kolmogrov_smirnov_test(
-        data=data,
-        assets=assets,
-    )
+    # ks_test = univariate_kolmogrov_smirnov_test(
+    #     data=data,
+    #     assets=assets,
+    # )
     return {
         "ellipsoid": ellipsoid_test,
-        "ks": ks_test,
+        # "ks": ks_test,
     }
 
 
@@ -95,10 +95,11 @@ def check_white_noise(
         assets=assets,
         lags=cfg.lags_simple,
     )
-
     simple_pass = {
         asset: not any(
-            simple_tests[test_name][asset].rejected for test_name in ("ellipsoid", "ks")
+            simple_tests[test_name][asset].rejected
+            for test_name in ("ellipsoid",)
+            # simple_tests[test_name][asset].rejected for test_name in ("ellipsoid", "ks")
         )
         for asset in assets
     }

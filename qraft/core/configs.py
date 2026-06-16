@@ -22,7 +22,7 @@ class MeanModelConfig:
     arma_invertibility_buffer: float = 1e-3
 
     # Ljung-Box lags tested when screening for residual autocorrelation.
-    ljung_box_lags: tuple[int, ...] = (10, 15, 20)
+    ljung_box_lags: tuple[int, ...] = (1, 2, 5, 10, 20)
     ljung_box_test_is_robust: bool = True
 
     # Minimum number of rejected lags to flag a series as needing a model
@@ -80,6 +80,7 @@ class IIDConfig:
     perm_test_min_iters: int = 100
     perm_test_batch_iters: int = 50
     perm_test_ci_level: float = 0.99
+    ellipsoid_rho_threshold: float = 0.10
 
 
 @dataclass(frozen=True, slots=True)
