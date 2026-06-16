@@ -73,14 +73,15 @@ class IIDConfig:
     """Lags and significance level for white-noise IID screens."""
 
     lags_simple: int = 10
-    lags_complex: int = 3
+    lags_complex: int = 5
     significance_level: float = 0.05
-    mc_iters: int = 512
+    mc_iters: int = 1500
     perm_test_iters: int = 1000
     perm_test_min_iters: int = 100
     perm_test_batch_iters: int = 50
     perm_test_ci_level: float = 0.99
     ellipsoid_rho_threshold: float = 0.10
+    arch_lags: tuple[int, ...] = (10,)
 
 
 @dataclass(frozen=True, slots=True)

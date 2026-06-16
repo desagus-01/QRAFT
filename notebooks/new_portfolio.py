@@ -6,9 +6,18 @@ import numpy as np
 from qraft import (
     AssetUniverse,
     LogConfig,
+    MPOPolicy,
+    PortfolioState,
     run_forecast,
     setup_logging,
 )
+from qraft.construction import (
+    FullyInvested,
+    MaxWeightTopN,
+    MinCashWeight,
+    TurnoverLimit,
+)
+from qraft.construction.optimization.constraints import LongOnly, PortfolioConstraint
 from qraft.core import (
     ScenarioPanel,
     state_smooth_probs,
@@ -85,39 +94,40 @@ with profile():
 
 
 # %%
-# forecasts.plot_asset_paths()
-# # %%
-# constraints: list[PortfolioConstraint] = [
-#     LongOnly(),
-#     FullyInvested(constraint_type="soft", soft_weight=1.0),
-#     # FullyInvested(),
-#     MinCashWeight(limit=0.4, constraint_type="soft", soft_weight=1.0),
-#     # MaxWeight(limit=0.09),
-#     # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
-#     TurnoverLimit(limit=0.80),
-# ]
-#
-# policy = MPOPolicy.preset(
-#     objective_type="cvar_cuts",
-#     risk_aversion=0.1,
-#     cash_path="data/cash.csv",
-#     constraints=constraints,
-#     expectation_tolerance=0.1,
-# )
-#
-# # %%
-# rng = np.random.default_rng(seed=1)
-# rand_shares = rng.integers(low=10, high=75, size=len(universe.assets))
-# state = PortfolioState.from_forecast_and_assets(
-#     asset_forecasts=forecasts,
-#     assets=universe.assets,
-#     shares=rand_shares,
-#     cash=100_000,
-# )
-#
-# # %%
-# projection = policy.decide(state, forecasts)
-# projection.plot(type="cum_performance")
-# x = projection.risk(forecasts)
-# x.effective_bets().plot()
-# x.risk_contribution("cvar")
+forecasts.plot_asset_paths()
+# %%
+constraints: list[PortfolioConstraint] = [
+    LongOnly(),
+    FullyInvested(constraint_type="soft", soft_weight=1.0),
+    # FullyInvested(),
+    MinCashWeight(limit=0.3, constraint_type="soft", soft_weight=1.0),
+    # MaxWeight(limit=0.09),
+    MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
+    TurnoverLimit(limit=0.80),
+]
+
+policy = MPOPolicy.preset(
+    objective_type="cvar_cuts",
+    risk_aversion=0.1,
+    cash_path="data/cash.csv",
+    constraints=constraints,
+    expectation_tolerance=0.1,
+)
+
+# %%
+rng = np.random.default_rng(seed=1)
+rand_shares = rng.integers(low=10, high=75, size=len(universe.assets))
+state = PortfolioState.from_forecast_and_assets(
+    asset_forecasts=forecasts,
+    assets=universe.assets,
+    shares=rand_shares,
+    cash=100_000,
+)
+
+# %%
+projection = policy.decide(state, forecasts)
+projection.plot(type="cum_performance")
+print(projection.total_target_weights_dict)
+x = projection.risk(forecasts)
+x.effective_bets().plot()
+x.risk_contribution("cvar")

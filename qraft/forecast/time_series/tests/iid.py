@@ -621,3 +621,24 @@ def arch_test(
 
     rejected = [k for k, res in arch_lag_res.items() if res.reject_null]
     return PerAssetTestResult(results=arch_lag_res, rejected=rejected)
+
+
+def univariate_arch_test(
+    data: pl.DataFrame,
+    lags: tuple[int, ...] = _DEFAULT_IID.arch_lags,
+    assets: list[str] | None = None,
+) -> TestResultByAsset:
+    """Test each asset for ARCH effects (conditional heteroskedasticity)."""
+    sel_assets = get_assets_names(data, assets)
+    out: TestResultByAsset = {}
+
+    for asset in sel_assets:
+        x = data.get_column(asset).to_numpy()
+        x = x[np.isfinite(x)]
+        out[asset] = arch_test(
+            residual_array=x,
+            lags_to_test=lags,
+            degrees_of_freedom=0,
+        )
+
+    return out
