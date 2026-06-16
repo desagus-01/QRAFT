@@ -14,7 +14,6 @@ from qraft.core import (
     state_smooth_probs,
 )
 from qraft.core.configs import SimulationForecastConfig
-from qraft.forecast.time_series.preprocessing.white_noise import run_iid_simple
 from qraft.helper import profile
 from qraft.utils.tiingo import import_tickers_and_factors
 
@@ -83,21 +82,6 @@ with profile():
         include_fit_diagnostics=True,
         simulation_config=SimulationForecastConfig(n_sims=10_000),
     )
-
-# %%
-
-if forecasts.diagnostics is not None:
-    diags = forecasts.diagnostics
-
-invariants = diags.invariants
-assets = invariants.asset_names
-
-iid_simple = run_iid_simple(
-    data=invariants.values, prob=invariants.prob, assets=assets, lags=5
-)
-
-# %%
-iid_simple
 
 
 # %%

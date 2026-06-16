@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from polars.dataframe.frame import DataFrame
+
 from qraft.forecast.time_series.transforms.inverses import (
     InverseSpec,
 )
-from polars.dataframe.frame import DataFrame
 
 
 @dataclass(frozen=True)
@@ -36,3 +37,8 @@ class UnivariatePreprocess:
     post_data: DataFrame
     inverse_specs: dict[str, list[InverseSpec]]
     needs_further_modelling: list[str]
+
+    @property
+    def assets_already_iid(self) -> list[str]:
+        all_assets = self.post_data.columns
+        return [a for a in all_assets if a not in self.needs_further_modelling]

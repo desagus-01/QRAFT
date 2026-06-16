@@ -153,8 +153,8 @@ def autocorrelation_pair_test(
 
     # test_statistic = abs(corr) * np.sqrt(effective_sample_size(prob))
     n = pair_np.shape[0]
-    y0_demean = pair_np[:, 0] = pair_np[:, 0].mean()
-    y1_demean = pair_np[:, 1] = pair_np[:, 1].mean()
+    y0_demean = pair_np[:, 0] - pair_np[:, 0].mean()
+    y1_demean = pair_np[:, 1] - pair_np[:, 1].mean()
     gamma = max(float(np.mean(y0_demean**2)) * float(np.mean(y1_demean**2)), 1e-24)
     tau = np.mean((y0_demean**2) * (y1_demean**2)) / gamma
     se = np.sqrt(max(tau, 1e-12) / n)

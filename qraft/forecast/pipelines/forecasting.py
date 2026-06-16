@@ -39,13 +39,21 @@ def _validate_method_options(
 
 
 def _test_invariants_iid(
-    invariants: ScenarioPanel, iid_config: IIDConfig, seed: int | None
+    invariants: ScenarioPanel,
+    iid_config: IIDConfig,
+    seed: int | None,
+    already_iid_names: list[str] | None = None,
 ) -> None:
-    assets = invariants.asset_names
+    all_assets = invariants.asset_names
+    assets_to_test = all_assets
+    if already_iid_names:
+        assets_to_test = [
+            a for a in invariants.asset_names if a not in already_iid_names
+        ]
     non_iid_invariants = test_non_idd(
         data=invariants.values,
         prob=invariants.prob,
-        assets=assets,
+        assets=assets_to_test,
         cfg=iid_config,
         seed=seed,
     )
@@ -55,7 +63,7 @@ def _test_invariants_iid(
             "Invariance Check: %d assets out of %d did not pass the invariant iid tests. "
             "Consider a richer mean/vol model for the list below:\n%s",
             len(non_iid_invariants),
-            len(assets),
+            len(all_assets),
             non_iid_invariants,
         )
 
@@ -169,6 +177,7 @@ def run_forecast(
         invariants=universe_fit.invariants,
         iid_config=DEFAULT_PIPELINE_CONFIG.preprocess.iid,
         seed=seed,
+        already_iid_names=universe_fit.preprocess.assets_already_iid,
     )
 
     innovations = draw_innovations(
