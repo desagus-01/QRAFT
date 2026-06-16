@@ -74,7 +74,7 @@ class IIDConfig:
 
     lags_simple: int = 10
     lags_complex: int = 3
-    significance_level: float = 0.10
+    significance_level: float = 0.05
     mc_iters: int = 512
     perm_test_iters: int = 1000
     perm_test_min_iters: int = 100
