@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 import numpy as np
+from numpy.typing import NDArray
+
 from qraft.construction.optimization.constraints import PortfolioConstraint
 from qraft.construction.optimization.moments import HorizonMoments
 from qraft.construction.optimization.objectives.specs import (
@@ -11,12 +13,15 @@ from qraft.construction.optimization.objectives.specs import (
     TransactionCost,
     WeightedTerm,
 )
-from qraft.construction.optimization.optimization import MPOResult, MultiPeriodOptimizer
+from qraft.construction.optimization.optimization import (
+    MPOFailure,
+    MPOResult,
+    MultiPeriodOptimizer,
+)
 from qraft.construction.optimization.presets import (
     PreMadeObjectives,
     _build_preset_objective,
 )
-from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +141,9 @@ class MPOProblem:
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
+        raise_on_failure: bool = True,
         **solver_options: Any,
-    ) -> MPOResult:
+    ) -> MPOResult | MPOFailure:
         """
         Compile and solve the problem for the given moments and portfolio state.
 
@@ -158,6 +164,9 @@ class MPOProblem:
         inputs:
             Optional extra inputs forwarded to objective handlers (e.g.
             ``{"prices": ..., "volume": ...}`` for the transaction-cost term).
+        raise_on_failure:
+            If ``True``, non-optimal solves raise. If ``False``, return an
+            :class:`MPOFailure` value.
         **solver_options:
             Forwarded verbatim to the underlying CVXPY solver, merged with
             any options stored on the problem.
@@ -177,21 +186,13 @@ class MPOProblem:
             optimizer.uses_cutting_plane,
         )
 
-        if optimizer.uses_cutting_plane:
-            return optimizer.solve_iterative(
-                moments=moments,
-                current_weights=current_weights,
-                current_cash=current_cash,
-                inputs=inputs,
-                max_iter=self.max_iter,
-                **options,
-            )
-
-        return optimizer.solve(
+        return optimizer.solve_auto(
             moments=moments,
             current_weights=current_weights,
             current_cash=current_cash,
             inputs=inputs,
+            max_iter=self.max_iter,
+            raise_on_failure=raise_on_failure,
             **options,
         )
 

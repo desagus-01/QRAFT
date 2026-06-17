@@ -23,12 +23,11 @@ Tail calibration
     - [ ] equal weight portfolio
     - [ ] all cash
     - [ ] custom
+- [ ] Add sparse optimization
 
 ## Forecasting pipeline
-- [ ] Change model selection pipeline to drop bad forecast models
-- [x] create weighted OLS ✅ 2026-03-31
+- [ ] Change model selection pipeline to drop bad forecast models?
 - [ ] GARCH/ARCH should reflect prob weight...
-- [ ] Add check whether final innovs are iid?
 
 
 ## Lower Priority

@@ -6,6 +6,9 @@ from typing import Any, Literal, Sequence, cast
 
 import cvxpy as cp
 import numpy as np
+from cvxpy import Constraint, Expression
+from numpy.typing import NDArray
+
 from qraft.construction.optimization.constraints import PortfolioConstraint
 from qraft.construction.optimization.moments import HorizonMoments
 from qraft.construction.optimization.objectives import (
@@ -23,10 +26,11 @@ from qraft.construction.optimization.presets import (
     PreMadeObjectives,
     _build_preset_objective,
 )
-from cvxpy import Constraint, Expression
-from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
+
+
+_DEFAULT_SOLVER = cp.CLARABEL
 
 
 SolverStatus = Literal[
@@ -249,6 +253,16 @@ class MPOResult:
             raise ValueError(f"horizon must be in 0..{self.n_horizons - 1}")
 
 
+@dataclass(frozen=True, slots=True)
+class MPOFailure:
+    """A non-optimal solve carried as a value instead of an exception."""
+
+    status: SolverStatus
+    solver_stats: Any = None
+    message: str = ""
+    is_optimal: bool = False
+
+
 class MultiPeriodOptimizer:
     def __init__(
         self,
@@ -469,14 +483,87 @@ class MultiPeriodOptimizer:
             solver_stats=self.problem.solver_stats,
         )
 
+    def _failure_if_not_optimal(self, raise_on_failure: bool) -> MPOFailure | None:
+        status = cast(SolverStatus, self.problem.status)
+        if status in {"optimal", "optimal_inaccurate"}:
+            return None
+
+        message = f"Optimization failed: {status}"
+        if raise_on_failure:
+            raise RuntimeError(message)
+
+        logger.warning(
+            "MPO solve non-optimal: status=%s (returning MPOFailure)", status
+        )
+        return MPOFailure(
+            status=status,
+            solver_stats=self.problem.solver_stats,
+            message=message,
+        )
+
+    def _solver_error_failure(
+        self,
+        exc: cp.error.SolverError,
+        raise_on_failure: bool,
+    ) -> MPOFailure:
+        if raise_on_failure:
+            raise exc
+
+        message = f"Optimization failed: solver_error ({exc})"
+        logger.warning("MPO solve solver_error (returning MPOFailure): %s", exc)
+        return MPOFailure(
+            status="solver_error",
+            solver_stats=self.problem.solver_stats,
+            message=message,
+        )
+
+    def solve_auto(
+        self,
+        moments: HorizonMoments,
+        current_weights: NDArray[np.floating],
+        current_cash: float | None = None,
+        inputs: dict[str, Any] | None = None,
+        *,
+        max_iter: int = 200,
+        raise_on_failure: bool = True,
+        **solver_options,
+    ) -> MPOResult | MPOFailure:
+        """Single reuse-friendly entry point: dispatch cutting-plane vs direct.
+
+        Hold one compiled optimizer and call this many times (frontier gamma
+        sweep, walk-forward dates). The compiled cp.Problem, its DPP
+        canonicalization, and warm starts are then reused.
+        """
+        if self.uses_cutting_plane:
+            return self.solve_iterative(
+                moments=moments,
+                current_weights=current_weights,
+                current_cash=current_cash,
+                inputs=inputs,
+                max_iter=max_iter,
+                raise_on_failure=raise_on_failure,
+                **solver_options,
+            )
+
+        return self.solve(
+            moments=moments,
+            current_weights=current_weights,
+            current_cash=current_cash,
+            inputs=inputs,
+            raise_on_failure=raise_on_failure,
+            **solver_options,
+        )
+
     def solve(
         self,
         moments: HorizonMoments,
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
+        *,
+        raise_on_failure: bool = True,
         **solver_options,
-    ) -> MPOResult:
+    ) -> MPOResult | MPOFailure:
         initial_weights, initial_cash = self._set_current_state(
             current_weights=current_weights,
             current_cash=current_cash,
@@ -484,14 +571,19 @@ class MultiPeriodOptimizer:
 
         self._update_parameters(moments=moments, inputs=inputs)
 
-        self.problem.solve(
-            enforce_dpp=True,
-            warm_start=True,
-            **solver_options,
-        )
+        solver_options.setdefault("solver", _DEFAULT_SOLVER)
+        try:
+            self.problem.solve(
+                enforce_dpp=True,
+                warm_start=True,
+                **solver_options,
+            )
+        except cp.error.SolverError as exc:
+            return self._solver_error_failure(exc, raise_on_failure)
 
-        if self.problem.status not in {"optimal", "optimal_inaccurate"}:
-            raise RuntimeError(f"Optimization failed: {self.problem.status}")
+        failure = self._failure_if_not_optimal(raise_on_failure)
+        if failure is not None:
+            return failure
 
         objective_value = self.problem.value
 
@@ -525,14 +617,18 @@ class MultiPeriodOptimizer:
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
         max_iter: int = 200,
+        *,
+        raise_on_failure: bool = True,
         **solver_options,
-    ) -> MPOResult:
+    ) -> MPOResult | MPOFailure:
         initial_weights, initial_cash = self._set_current_state(
             current_weights=current_weights,
             current_cash=current_cash,
         )
 
         self._update_parameters(moments=moments, inputs=inputs)
+
+        solver_options.setdefault("solver", _DEFAULT_SOLVER)
 
         cutting_plane_terms = [
             (weighted_term, term_params)
@@ -545,12 +641,14 @@ class MultiPeriodOptimizer:
         objective_value: float | None = None
 
         for iteration in range(max_iter):
-            self.problem.solve(enforce_dpp=True, warm_start=True, **solver_options)
+            try:
+                self.problem.solve(enforce_dpp=True, warm_start=True, **solver_options)
+            except cp.error.SolverError as exc:
+                return self._solver_error_failure(exc, raise_on_failure)
 
-            if self.problem.status not in {"optimal", "optimal_inaccurate"}:
-                raise RuntimeError(
-                    f"Iteration {iteration}: solve failed with {self.problem.status}"
-                )
+            failure = self._failure_if_not_optimal(raise_on_failure)
+            if failure is not None:
+                return failure
 
             objective_value = self.problem.value
 

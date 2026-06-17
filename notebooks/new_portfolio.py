@@ -36,7 +36,7 @@ data, factors_cols = import_tickers_and_factors(
     "./data/tiingo_factors.csv",
 )
 
-min_price = 2
+min_price = 10
 
 
 cols_to_keep = [
@@ -52,7 +52,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:90])
+tradable_assets = list(data.columns[10:50])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -127,7 +127,10 @@ state = PortfolioState.from_forecast_and_assets(
 # %%
 projection = policy.decide(state, forecasts)
 projection.plot(type="cum_performance")
-print(projection.total_target_weights_dict)
+# %%
+
+projection.total_target_weights_dict
+# %%
 x = projection.risk(forecasts)
 x.effective_bets().plot()
 x.risk_contribution("cvar")

@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 
 import numpy as np
-from qraft.forecast.forecast_paths import ForecastPaths
 from numpy.typing import NDArray
+
+from qraft.forecast.forecast_paths import ForecastPaths
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,3 +103,18 @@ class PortfolioState:
         assets_inc_cash = self.asset_order + ["cash"]
         weights = values_inc_cash / self.portfolio_value
         return dict(zip(assets_inc_cash, weights))
+
+
+def align_state_to_assets(
+    state: PortfolioState,
+    kept_assets: list[str],
+) -> tuple[NDArray[np.floating], float, list[str], float]:
+    weights_by_asset = state.portfolio_weights_dict
+    kept_set = set(kept_assets)
+    dropped = [a for a in state.asset_order if a not in kept_set]
+    dropped_weight = sum(float(weights_by_asset[a]) for a in dropped)
+    current_cash = float(state.cash_weight) + dropped_weight
+    current_weights = np.array(
+        [float(weights_by_asset[a]) for a in kept_assets], dtype=float
+    )
+    return current_weights, current_cash, dropped, dropped_weight

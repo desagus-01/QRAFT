@@ -4,17 +4,26 @@ from typing import Literal
 
 import numpy as np
 import polars as pl
+from numpy.typing import NDArray
+
 from qraft.core.estimation import (
     weighted_correlation,
     weighted_covariance,
     weighted_mean,
 )
-from qraft.forecast.forecast_paths import AssetSubset, ForecastPaths
 from qraft.core.probability.prob_vector import ProbVector
-from numpy.typing import NDArray
+from qraft.forecast.forecast_paths import AssetSubset, ForecastPaths
 
 logger = logging.getLogger(__name__)
 PnL_OPTIONS = Literal["relative", "absolute", "log"]
+
+
+def psd_sqrt_factor(covariance: NDArray[np.floating]) -> NDArray[np.floating]:
+    """Return F with ``F @ F.T ≈ covariance`` (negative eigenvalues clamped)."""
+    cov = 0.5 * (covariance + covariance.T)
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    eigvals = np.maximum(eigvals, 0.0)
+    return eigvecs @ np.diag(np.sqrt(eigvals))
 
 
 def pnl_from_values(
@@ -98,6 +107,7 @@ class HorizonMoments:
     scenario_returns: NDArray[np.floating]
     scenario_probs: ProbVector
     cash_return: NDArray[np.floating]
+    cov_factor: NDArray[np.floating] | None = None
 
     def __post_init__(self) -> None:
         n_h, n_a = self.mean.shape
@@ -110,6 +120,11 @@ class HorizonMoments:
             raise ValueError(
                 f"scenario_returns has {self.scenario_returns.shape[0]} paths "
                 f"but scenario_probs has length {len(self.scenario_probs)}"
+            )
+        if self.cov_factor is not None and self.cov_factor.shape != (n_h, n_a, n_a):
+            raise ValueError(
+                f"cov_factor shape {self.cov_factor.shape} inconsistent with "
+                f"mean shape {self.mean.shape}"
             )
 
     @staticmethod
@@ -298,6 +313,8 @@ class HorizonMoments:
             )
         )
 
+        cov_factor = np.stack([psd_sqrt_factor(covs[h]) for h in range(covs.shape[0])])
+
         return cls(
             assets=assets,
             correlations=corrs,
@@ -308,6 +325,7 @@ class HorizonMoments:
             cash_return=cls.get_cash_return(
                 path=cash_path, step_size=step_size, periods_per_year=periods_per_year
             ),
+            cov_factor=cov_factor,
         )
 
 

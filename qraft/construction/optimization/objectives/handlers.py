@@ -4,7 +4,7 @@ import cvxpy as cp
 import numpy as np
 from numpy.typing import NDArray
 
-from qraft.construction.optimization.moments import HorizonMoments
+from qraft.construction.optimization.moments import HorizonMoments, psd_sqrt_factor
 from qraft.construction.optimization.objectives.protocol import register_objective
 from qraft.construction.optimization.objectives.specs import (
     CashReturn,
@@ -15,20 +15,6 @@ from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     TransactionCost,
 )
-
-
-def _project_on_psd_cone_and_factorize(
-    covariance: NDArray[np.floating],
-) -> NDArray[np.floating]:
-    """
-    Return F such that F @ F.T ≈ covariance, with negative eigenvalues clamped.
-
-    DPP-compliant CVXPY expression is ``cp.sum_squares(F.T @ w)``.
-    """
-    cov = 0.5 * (covariance + covariance.T)
-    eigvals, eigvecs = np.linalg.eigh(cov)
-    eigvals = np.maximum(eigvals, 0.0)
-    return eigvecs @ np.diag(np.sqrt(eigvals))
 
 
 def _cvar_alpha_check(alpha: float) -> None:
@@ -435,12 +421,15 @@ class CovarianceRiskHandler:
           ``"moments"``  – a ``HorizonMoments`` instance.
         """
         moments = inputs["moments"]
+        cov_factor = getattr(moments, "cov_factor", None)
         for h in range(moments.n_horizons):
             key = f"cov_sqrt_{h}"
-            if key in params:
-                params[key].value = _project_on_psd_cone_and_factorize(
-                    moments.covariances[h]
-                )
+            if key not in params:
+                continue
+            if cov_factor is not None:
+                params[key].value = cov_factor[h]
+            else:
+                params[key].value = psd_sqrt_factor(moments.covariances[h])
 
 
 @register_objective(TransactionCost)

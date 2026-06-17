@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
 
 import numpy as np
@@ -15,12 +15,16 @@ from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     TransactionCost,
 )
-from qraft.construction.optimization.optimization import MPOResult
+from qraft.construction.optimization.optimization import (
+    MPOFailure,
+    MPOResult,
+    MultiPeriodOptimizer,
+)
 from qraft.construction.optimization.presets import PreMadeObjectives
 from qraft.construction.optimization.problem import MPOProblem
 from qraft.construction.policy_decision import PolicyDecision
 from qraft.construction.policy_projection import PolicyProjection
-from qraft.construction.state import PortfolioState
+from qraft.construction.state import PortfolioState, align_state_to_assets
 from qraft.forecast.forecast_paths import ForecastPaths
 
 logger = logging.getLogger(__name__)
@@ -72,6 +76,9 @@ class MPOPolicy:
     problem: MPOProblem
     moments_config: MomentsConfig
     name: str = "mpo"
+    _optimizer_cache: dict[tuple[tuple[str, ...], int, int], MultiPeriodOptimizer] = (
+        field(default_factory=dict, compare=False, repr=False)
+    )
 
     @classmethod
     def preset(
@@ -121,21 +128,6 @@ class MPOPolicy:
             name=name,
         )
 
-    @staticmethod
-    def _transfer_dropped_to_cash(
-        state: PortfolioState,
-        kept_assets: list[str],
-    ) -> tuple[float, set[str], float]:
-        """Return adjusted cash weight, the set of dropped asset names, and
-        the total weight transferred from dropped assets to cash.
-        """
-        weights_by_asset = state.portfolio_weights_dict
-        kept_set = set(kept_assets)
-        dropped = {a for a in state.asset_order if a not in kept_set}
-        dropped_weight = sum(float(weights_by_asset[a]) for a in dropped)
-        adjusted_cash = float(state.cash_weight) + dropped_weight
-        return adjusted_cash, dropped, dropped_weight
-
     def compute_moments(self, forecasts: ForecastPaths) -> HorizonMoments:
         cfg = self.moments_config
         return HorizonMoments.from_forecast_paths(
@@ -149,11 +141,23 @@ class MPOPolicy:
             periods_per_year=cfg.periods_per_year,
         )
 
+    def _get_optimizer(self, moments: HorizonMoments) -> MultiPeriodOptimizer:
+        key = (tuple(moments.assets), moments.n_horizons, moments.n_scenarios)
+        optimizer = self._optimizer_cache.get(key)
+        if optimizer is None:
+            optimizer = self.problem.compile(
+                horizons=moments.n_horizons,
+                n_assets=moments.n_assets,
+                n_scenarios=moments.n_scenarios,
+            )
+            self._optimizer_cache[key] = optimizer
+        return optimizer
+
     def decide(
         self, state: PortfolioState, forecasts: ForecastPaths
     ) -> PolicyProjection:
         moments = self.compute_moments(forecasts)
-        current_cash, dropped, dropped_weight = self._transfer_dropped_to_cash(
+        current_weights, current_cash, dropped, dropped_weight = align_state_to_assets(
             state, moments.assets
         )
         if dropped:
@@ -164,14 +168,17 @@ class MPOPolicy:
                 sorted(dropped),
                 dropped_weight,
             )
-        weights_by_asset = state.portfolio_weights_dict
-        current_weights = np.array(
-            [weights_by_asset[asset] for asset in moments.assets]
-        )
-        result = self.problem.solve(
+
+        optimizer = self._get_optimizer(moments)
+        result = optimizer.solve_auto(
             moments=moments,
             current_weights=current_weights,
             current_cash=current_cash,
+            max_iter=self.problem.max_iter,
+            **self.problem.solver_options,
         )
+        if isinstance(result, MPOFailure):
+            raise RuntimeError(result.message)
+
         decision = _decision_from_mpo(result, cash_return=moments.cash_return)
         return PolicyProjection._from_policy_decision(decision, forecasts, state)
