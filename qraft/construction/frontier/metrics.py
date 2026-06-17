@@ -70,3 +70,23 @@ def ex_post_terminal_cvar(
         distribution_type="pnl",
     )
     return float(value)
+
+
+def in_model_cvar(
+    result: MPOResult,
+    moments: HorizonMoments,
+    alpha: float,
+) -> float:
+    """
+    Per-horizon CVaR summed over the plan, evaluated as optimized.
+    """
+    total = 0.0
+    for h in range(moments.n_horizons):
+        losses_h = -(moments.scenario_returns[:, h, :] @ result.planned_weights[h])
+        total += cvar(
+            distribution=losses_h,
+            prob=moments.scenario_probs,
+            alpha=alpha,
+            distribution_type="loss",
+        )
+    return total

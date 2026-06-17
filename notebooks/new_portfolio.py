@@ -6,6 +6,7 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
+    CMAConfig,
     LogConfig,
     MPOFrontierConfig,
     MPOFrontierRunner,
@@ -30,7 +31,7 @@ from qraft.helper import profile
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.WARNING))
+setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:30])
+tradable_assets = list(data.columns[10:80])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -92,7 +93,9 @@ with profile():
         seed=3,
         universe=universe,
         include_fit_diagnostics=True,
-        simulation_config=SimulationForecastConfig(n_sims=10_000),
+        simulation_config=SimulationForecastConfig(
+            method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
+        ),
     )
 
 
@@ -141,6 +144,7 @@ state = PortfolioState.from_forecast_and_assets(
 # ── Multi-period frontier sweep ─────────────────────────────────────
 frontier_config = MPOFrontierConfig(
     # risk_aversions=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
+    risk_measure="cvar_in_model",
     risk_aversions=np.logspace(-2, 1, 12),
     objective_type="cvar_auto",
     constraints=constraints,
@@ -158,7 +162,7 @@ frontier_runner = MPOFrontierRunner(
 
 frontier = frontier_runner.run_single(state, forecasts)
 # %%
-frontier.plot(risk_measure="cvar")
+frontier.plot()
 # %%
 frontier_table = pl.DataFrame(
     [
@@ -167,7 +171,6 @@ frontier_table = pl.DataFrame(
             "status": point.status,
             "expected_return": point.expected_return,
             "sum_horizon_volatility": point.volatility,
-            "ex_post_terminal_cvar": point.cvar,
             "turnover": point.turnover,
             "cash_weight": point.cash_weight,
             "objective_value": point.objective_value,
@@ -179,24 +182,3 @@ frontier_table = pl.DataFrame(
 frontier_table
 
 # %%
-# Inspect the actionable target for one preferred frontier point.
-frontier_success = [
-    point
-    for point in frontier.points
-    if point.status in {"optimal", "optimal_inaccurate"}
-]
-preferred_point = max(
-    frontier_success,
-    key=lambda point: (
-        point.expected_return / point.cvar
-        if point.expected_return is not None
-        and point.cvar is not None
-        and point.cvar != 0
-        else float("-inf")
-    ),
-)
-
-(
-    preferred_point.gamma,
-    preferred_point.target_weights,
-)

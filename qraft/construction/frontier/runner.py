@@ -7,6 +7,7 @@ from qraft.construction.frontier.config import FrontierKind, MPOFrontierConfig
 from qraft.construction.frontier.metrics import (
     ex_ante_metrics,
     ex_post_terminal_cvar,
+    in_model_cvar,
 )
 from qraft.construction.frontier.result import FrontierPoint, FrontierResult
 from qraft.construction.optimization.moments import HorizonMoments, MomentsConfig
@@ -121,15 +122,18 @@ class MPOFrontierRunner:
                 continue
 
             ante = ex_ante_metrics(result, moments)
-            tail_cvar = (
-                ex_post_terminal_cvar(
-                    result,
-                    moments,
-                    self.config.tail_metric_alpha,
-                )
-                if self.config.cvar_mode == "ex_post"
+            compute_cvar = self.config.cvar_mode == "ex_post"
+            cvar_in = (
+                in_model_cvar(result, moments, self.config.tail_metric_alpha)
+                if compute_cvar
                 else None
             )
+            cvar_term = (
+                ex_post_terminal_cvar(result, moments, self.config.tail_metric_alpha)
+                if compute_cvar
+                else None
+            )
+
             points.append(
                 FrontierPoint(
                     gamma=gamma,
@@ -137,7 +141,8 @@ class MPOFrontierRunner:
                     objective_value=result.objective_value,
                     expected_return=ante["expected_return"],
                     volatility=ante["volatility"],
-                    cvar=tail_cvar,
+                    cvar_in_model=cvar_in,
+                    cvar_terminal=cvar_term,
                     turnover=result.turnover,
                     cash_weight=result.target_cash,
                     target_weights=result.target_weights_by_asset,
@@ -146,6 +151,7 @@ class MPOFrontierRunner:
             )
 
         return FrontierResult(
+            risk_measure=self.config.risk_measure,
             points=points,
             kind=FrontierKind.EX_ANTE_MPO,
             assets=moments.assets,

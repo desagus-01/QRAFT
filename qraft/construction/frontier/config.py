@@ -22,8 +22,12 @@ def _neutral_holding_cost() -> HoldingCost:
     return HoldingCost(short_fees=0.0, long_fees=0.0, dividends=0.0)
 
 
+RiskMeasure = Literal["volatility", "cvar_in_model", "cvar_terminal"]
+
+
 @dataclass(frozen=True, slots=True)
 class MPOFrontierConfig:
+    risk_measure: RiskMeasure
     risk_aversions: Sequence[float]
     transaction_cost_weight: float = 1.0
     objective_type: PreMadeObjectives = "mean_covariance"
@@ -51,6 +55,10 @@ class MPOFrontierConfig:
             raise ValueError("tail_metric_alpha must be in (0, 1].")
         if self.holding_cost_weight < 0 or not np.isfinite(self.holding_cost_weight):
             raise ValueError("holding_cost_weight must be finite and non-negative.")
+        if self.risk_measure.startswith("cvar") and self.cvar_mode == "none":
+            raise ValueError(
+                f"risk measure {self.risk_measure} requires a dvar_mode input"
+            )
 
 
 def _validate_grid(name: str, values: Sequence[float]) -> None:
