@@ -14,6 +14,11 @@ __all__ = [
     "PortfolioState",
     "MPOProblem",
     "MPOProblemBuilder",
+    "FrontierKind",
+    "MPOFrontierConfig",
+    "FrontierPoint",
+    "FrontierResult",
+    "MPOFrontierRunner",
     "PortfolioRisk",
     "var",
     "cvar",
@@ -24,6 +29,13 @@ __all__ = [
 from qraft.construction.optimization.problem import (
     MPOProblem,
     MPOProblemBuilder,
+)
+from qraft.construction.frontier import (
+    FrontierKind,
+    FrontierPoint,
+    FrontierResult,
+    MPOFrontierConfig,
+    MPOFrontierRunner,
 )
 from qraft.construction.policies import EqualWeightPolicy, MPOPolicy
 from qraft.construction.policy_projection import PolicyProjection
