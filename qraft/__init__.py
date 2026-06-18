@@ -10,7 +10,11 @@ __all__ = [
     "PipelineConfig",
     "MPOPolicy",
     "EqualWeightPolicy",
+    "PolicyProtocol",
+    "PolicyDecision",
     "PolicyProjection",
+    "PolicyRun",
+    "run_policy",
     "PortfolioState",
     "MPOProblem",
     "MPOProblemBuilder",
@@ -37,8 +41,10 @@ from qraft.construction.frontier import (
     MPOFrontierConfig,
     MPOFrontierRunner,
 )
-from qraft.construction.policies import EqualWeightPolicy, MPOPolicy
+from qraft.construction.policies import EqualWeightPolicy, MPOPolicy, PolicyProtocol
+from qraft.construction.policy_decision import PolicyDecision
 from qraft.construction.policy_projection import PolicyProjection
+from qraft.construction.policy_run import PolicyRun, run_policy
 from qraft.construction.state import PortfolioState
 from qraft.core.configs import CMAConfig, PipelineConfig
 from qraft.core.panel import ScenarioPanel

@@ -57,7 +57,7 @@ class MPOFrontierConfig:
             raise ValueError("holding_cost_weight must be finite and non-negative.")
         if self.risk_measure.startswith("cvar") and self.cvar_mode == "none":
             raise ValueError(
-                f"risk measure {self.risk_measure} requires a dvar_mode input"
+                f"risk measure {self.risk_measure} requires a cvar_mode input"
             )
 
 

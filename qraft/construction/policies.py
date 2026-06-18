@@ -23,7 +23,6 @@ from qraft.construction.optimization.optimization import (
 from qraft.construction.optimization.presets import PreMadeObjectives
 from qraft.construction.optimization.problem import MPOProblem
 from qraft.construction.policy_decision import PolicyDecision
-from qraft.construction.policy_projection import PolicyProjection
 from qraft.construction.state import PortfolioState, align_state_to_assets
 from qraft.forecast.forecast_paths import ForecastPaths
 
@@ -35,7 +34,7 @@ class PolicyProtocol(Protocol):
 
     def decide(
         self, state: PortfolioState, forecasts: ForecastPaths
-    ) -> "PolicyProjection": ...
+    ) -> PolicyDecision: ...
 
 
 def _decision_from_mpo(
@@ -55,20 +54,17 @@ class EqualWeightPolicy:
     target_cash_weight: float
     name: str = "equal_weight"
 
-    def decide(
-        self, state: PortfolioState, forecasts: ForecastPaths
-    ) -> PolicyProjection:
+    def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
         risky_weights = 1.0 - self.target_cash_weight
         n_assets = len(state.asset_order)
         target_weights = np.full(n_assets, risky_weights / n_assets)
-        decision = PolicyDecision(
+        return PolicyDecision(
             asset_order=state.asset_order,
             target_weights_risk=target_weights,
             target_cash_weight=self.target_cash_weight,
             cash_return=np.zeros(1),
             diagnostics=None,
         )
-        return PolicyProjection._from_policy_decision(decision, forecasts, state)
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,9 +149,7 @@ class MPOPolicy:
             self._optimizer_cache[key] = optimizer
         return optimizer
 
-    def decide(
-        self, state: PortfolioState, forecasts: ForecastPaths
-    ) -> PolicyProjection:
+    def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
         moments = self.compute_moments(forecasts)
         current_weights, current_cash, dropped, dropped_weight = align_state_to_assets(
             state, moments.assets
@@ -180,5 +174,4 @@ class MPOPolicy:
         if isinstance(result, MPOFailure):
             raise RuntimeError(result.message)
 
-        decision = _decision_from_mpo(result, cash_return=moments.cash_return)
-        return PolicyProjection._from_policy_decision(decision, forecasts, state)
+        return _decision_from_mpo(result, cash_return=moments.cash_return)

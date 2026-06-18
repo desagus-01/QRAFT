@@ -39,15 +39,15 @@ class PolicyProjection:
     diagnostics: Any | None = None
 
     @classmethod
-    def _from_policy_decision(
+    def from_decision(
         cls,
         decision: PolicyDecision,
         forecasts: ForecastPaths,
         state: PortfolioState,
-    ):
+    ) -> "PolicyProjection":
         if decision.cash_return is None:
             raise ValueError(
-                "_PolicyDecision.cash_return is required to project policy forecasts"
+                "PolicyDecision.cash_return is required to project policy forecasts"
             )
 
         assets = decision.asset_order

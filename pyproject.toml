@@ -11,6 +11,7 @@ requires-python = ">=3.13"
 dependencies = [
     "arch>=8.0.0",
     "copulae>=0.8.0",
+    "cvxportfolio>=1.5.1",
     "cvxpy>=1.7.3",
     "databento>=0.63.0",
     "dotenv>=0.9.9",

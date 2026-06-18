@@ -1,7 +1,11 @@
 __all__ = [
     "MPOPolicy",
     "EqualWeightPolicy",
+    "PolicyProtocol",
+    "PolicyDecision",
     "PolicyProjection",
+    "PolicyRun",
+    "run_policy",
     "PortfolioState",
     "MPOProblem",
     "MPOProblemBuilder",
@@ -85,6 +89,12 @@ from qraft.construction.optimization.problem import (  # noqa: F401
     MPOProblem,
     MPOProblemBuilder,
 )
-from qraft.construction.policies import EqualWeightPolicy, MPOPolicy  # noqa: F401
+from qraft.construction.policies import (  # noqa: F401
+    EqualWeightPolicy,
+    MPOPolicy,
+    PolicyProtocol,
+)
+from qraft.construction.policy_decision import PolicyDecision  # noqa: F401
 from qraft.construction.policy_projection import PolicyProjection  # noqa: F401
+from qraft.construction.policy_run import PolicyRun, run_policy  # noqa: F401
 from qraft.construction.state import PortfolioState  # noqa: F401

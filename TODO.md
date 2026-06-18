@@ -17,7 +17,8 @@ Tail calibration
 ## Optimization
 - [ ] Review and implement better covariances techniques
     - [ ] Look at 72.2.1
-- [ ] Apply efficient frontier
+- [x] Apply efficient frontier ✅ 2026-06-18
+    - [ ] OOS hypertuning
 - [ ] Add option to do against benchmark
     - [ ] current portfolio
     - [ ] equal weight portfolio

@@ -134,12 +134,6 @@ class CopulaMarginalModel:
         )
 
     def update_marginals(self, target_dists: dict[str, Literal["t", "norm"]]) -> Self:
-        """Replace selected marginals with target families via quantile mapping.
-
-        For each specified marginal the function treats the current copula
-        pseudo-observations as grades and maps the empirical marginal
-        quantiles to the target distribution (Student-t or Normal).
-        """
         new_marginals = self.marginals
         new_cdfs = self.cdfs
 
@@ -167,9 +161,9 @@ class CopulaMarginalModel:
 
     def update_copula(
         self,
+        fit_method: Literal["ml", "irho", "itau"],
+        target_copula: Literal["t", "norm"],
         seed: int | None = None,
-        fit_method: Literal["ml", "irho", "itau"] = "itau",
-        target_copula: Literal["t", "norm"] = "t",
         use_weighted_fit: bool = False,
     ) -> Self:
         """Re-fit or sample a copula given the current pseudo-observations."""
