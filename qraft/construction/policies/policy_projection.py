@@ -4,7 +4,7 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from qraft.construction.policy_decision import PolicyDecision
+from qraft.construction.policies.policy_decision import PolicyDecision
 from qraft.construction.state import PortfolioState
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.forecast.forecast_paths import ForecastPaths

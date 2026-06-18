@@ -92,9 +92,10 @@ from qraft.construction.optimization.problem import (  # noqa: F401
 from qraft.construction.policies import (  # noqa: F401
     EqualWeightPolicy,
     MPOPolicy,
+    PolicyDecision,
+    PolicyProjection,
     PolicyProtocol,
+    PolicyRun,
+    run_policy,
 )
-from qraft.construction.policy_decision import PolicyDecision  # noqa: F401
-from qraft.construction.policy_projection import PolicyProjection  # noqa: F401
-from qraft.construction.policy_run import PolicyRun, run_policy  # noqa: F401
 from qraft.construction.state import PortfolioState  # noqa: F401

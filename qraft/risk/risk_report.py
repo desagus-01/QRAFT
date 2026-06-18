@@ -19,7 +19,7 @@ from qraft.risk.risk_attribution import (
 )
 
 if TYPE_CHECKING:
-    from qraft.construction.policy_projection import PolicyProjection
+    from qraft.construction.policies import PolicyProjection
 
 RiskMetrics = Literal["var", "cvar"]
 

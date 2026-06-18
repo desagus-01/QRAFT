@@ -22,7 +22,7 @@ from qraft.construction.optimization.optimization import (
 )
 from qraft.construction.optimization.presets import PreMadeObjectives
 from qraft.construction.optimization.problem import MPOProblem
-from qraft.construction.policy_decision import PolicyDecision
+from qraft.construction.policies.policy_decision import PolicyDecision
 from qraft.construction.state import PortfolioState, align_state_to_assets
 from qraft.forecast.forecast_paths import ForecastPaths
 

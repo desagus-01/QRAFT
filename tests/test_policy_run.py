@@ -1,9 +1,12 @@
 import numpy as np
 
-from qraft.construction.policies import EqualWeightPolicy
-from qraft.construction.policy_decision import PolicyDecision
-from qraft.construction.policy_projection import PolicyProjection
-from qraft.construction.policy_run import PolicyRun, run_policy
+from qraft.construction.policies import (
+    EqualWeightPolicy,
+    PolicyDecision,
+    PolicyProjection,
+    PolicyRun,
+    run_policy,
+)
 from qraft.construction.state import PortfolioState
 from qraft.forecast.forecast_paths import ForecastPaths
 

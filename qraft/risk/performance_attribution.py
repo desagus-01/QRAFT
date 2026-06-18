@@ -25,7 +25,7 @@ from qraft.risk.feature_selection import (
 )
 
 if TYPE_CHECKING:
-    from qraft.construction.policy_projection import PolicyProjection
+    from qraft.construction.policies import PolicyProjection
 
 logger = logging.getLogger(__name__)
 
