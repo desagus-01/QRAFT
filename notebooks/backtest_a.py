@@ -2,16 +2,14 @@
 import logging
 
 import numpy as np
+import polars as pl
 
 from qraft import (
     AssetUniverse,
     LogConfig,
     setup_logging,
 )
-from qraft.core import (
-    ScenarioPanel,
-    state_smooth_probs,
-)
+from qraft.backtest.market import MarketData, WindowWeighting
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
@@ -26,6 +24,9 @@ data, factors_cols = import_tickers_and_factors(
 
 min_price = 15
 
+cash = pl.read_csv(
+    "~/Documents/projects/fund/QRAFT/data/cash.csv", try_parse_dates=True
+)
 
 cols_to_keep = [
     col
@@ -46,18 +47,9 @@ universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
 
 # %%
-# ── Build historical ScenarioPanel ───────────────────────────────────
 
-prob_ex = state_smooth_probs(
-    data.height,
-    half_life=data.height / 2,
-    time_based=True,
+mkt_dt = MarketData.from_log_prices(
+    data, universe, cash=cash, weighting=WindowWeighting("state_smooth", half_life=126)
 )
 
-posterior_panel = ScenarioPanel.from_log_prices(
-    data,
-    prob=prob_ex,
-)
-# %%
-
-posterior_panel.to_frame()
+mkt_dt.history_through(t="2020-01-01")

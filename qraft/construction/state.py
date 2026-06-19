@@ -10,7 +10,7 @@ from qraft.forecast.forecast_paths import ForecastPaths
 class PortfolioState:
     asset_order: list[str]
     initial_prices: NDArray[np.floating]
-    shares: NDArray[np.int32]
+    shares: NDArray[np.floating]
     cash: float
 
     def __post_init__(self) -> None:
@@ -28,7 +28,7 @@ class PortfolioState:
         cls,
         asset_forecasts: ForecastPaths,
         assets: list[str],
-        shares: NDArray[np.int32],
+        shares: NDArray[np.floating],
         cash: float,
     ):
         if asset_forecasts.universe is None:
@@ -66,7 +66,7 @@ class PortfolioState:
         return cls(
             asset_order=assets,
             initial_prices=initial_prices,
-            shares=np.zeros(len(assets), dtype=np.int32),
+            shares=np.zeros(len(assets), dtype=np.floating),
             cash=cash,
         )
 

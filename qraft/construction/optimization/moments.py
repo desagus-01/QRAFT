@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 
 import numpy as np
@@ -132,8 +133,14 @@ class HorizonMoments:
         path: str,
         step_size: int,
         periods_per_year: int = 252,
+        *,
+        as_of: datetime | None = None,
     ) -> NDArray[np.floating]:
         cash_return = pl.read_csv(path, try_parse_dates=True)
+        if as_of is not None:
+            cash_return = cash_return.filter(pl.col("date") <= as_of)
+            if cash_return.height == 0:
+                raise ValueError(f"No cash rate available on or before {as_of!r}.")
         annual_rate = (
             cash_return.filter(pl.col("date") == pl.col("date").max())
             .drop("date")

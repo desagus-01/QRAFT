@@ -1,0 +1,407 @@
+from datetime import datetime
+
+import numpy as np
+import polars as pl
+import pytest
+
+from qraft.backtest.market import (
+    MarketData,
+    MarketDataConfig,
+    MarketSnapshot,
+    RealisedStep,
+    WindowWeighting,
+)
+from qraft.core.panel import ScenarioPanel
+from qraft.forecast.forecast_paths import AssetUniverse
+
+
+def _universe() -> AssetUniverse:
+    return AssetUniverse.factors_free(["A", "B"])
+
+
+def _price_frame() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "date": [
+                datetime(2024, 1, 1),
+                datetime(2024, 1, 2),
+                datetime(2024, 1, 3),
+            ],
+            "A": [10.0, 11.0, 12.0],
+            "B": [20.0, 22.0, 24.0],
+        }
+    )
+
+
+def _cash_frame() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "date": [
+                datetime(2024, 1, 1),
+                datetime(2024, 1, 2),
+                datetime(2024, 1, 3),
+            ],
+            "DFF": [5.0, 5.25, 5.5],
+        }
+    )
+
+
+def _market_data() -> MarketData:
+    return MarketData.from_prices(_price_frame(), _universe(), cash=_cash_frame())
+
+
+# ---------------------------------------------------------------------------
+# Dataclass smoke tests
+# ---------------------------------------------------------------------------
+
+
+def test_market_snapshot_dataclass() -> None:
+    panel = ScenarioPanel.from_prices(_price_frame())
+    snap = MarketSnapshot(
+        t=datetime(2024, 1, 2),
+        t_next=datetime(2024, 1, 3),
+        assets=["A", "B"],
+        history=panel,
+        prices_t=np.array([11.0, 22.0]),
+        cash_rate=0.001,
+    )
+    assert snap.t == datetime(2024, 1, 2)
+    assert snap.t_next == datetime(2024, 1, 3)
+    assert snap.assets == ["A", "B"]
+    assert snap.history is panel
+    np.testing.assert_allclose(snap.prices_t, [11.0, 22.0])
+    assert snap.cash_rate == 0.001
+
+
+def test_realised_step_dataclass() -> None:
+    step = RealisedStep(
+        t=datetime(2024, 1, 2),
+        t_next=datetime(2024, 1, 3),
+        prices_next=np.array([12.0, 24.0]),
+        cash_return=0.0002,
+    )
+    assert step.t == datetime(2024, 1, 2)
+    assert step.t_next == datetime(2024, 1, 3)
+    np.testing.assert_allclose(step.prices_next, [12.0, 24.0])
+    assert step.cash_return == 0.0002
+
+
+def test_market_data_config_defaults() -> None:
+    cfg = MarketDataConfig()
+    assert cfg.cash_column == "DFF"
+    assert cfg.periods_per_year == 252
+    assert cfg.cash_day_count == 360
+
+
+# ---------------------------------------------------------------------------
+# WindowWeighting
+# ---------------------------------------------------------------------------
+
+
+def test_weighting_default_scheme_is_uniform() -> None:
+    w = WindowWeighting()
+    assert w.scheme == "uniform"
+    assert w.half_life is None
+
+
+def test_weighting_state_smooth_requires_half_life() -> None:
+    with pytest.raises(ValueError, match="half_life"):
+        WindowWeighting(scheme="state_smooth")
+
+
+def test_weighting_state_smooth_accepted_with_half_life() -> None:
+    w = WindowWeighting(scheme="state_smooth", half_life=60)
+    assert w.scheme == "state_smooth"
+    assert w.half_life == 60
+
+
+def test_weighting_uniform_probs() -> None:
+    probs = WindowWeighting().probs(5)
+    assert len(probs) == 5
+    np.testing.assert_allclose(probs, np.full(5, 0.2))
+
+
+def test_weighting_state_smooth_probs_sums_to_one() -> None:
+    probs = WindowWeighting(scheme="state_smooth", half_life=60).probs(10)
+    assert len(probs) == 10
+    np.testing.assert_allclose(probs.sum(), 1.0)
+
+
+# ---------------------------------------------------------------------------
+# MarketData – construction
+# ---------------------------------------------------------------------------
+
+
+def test_from_prices_validates_date_column() -> None:
+    with pytest.raises(ValueError, match="date"):
+        MarketData.from_prices(pl.DataFrame({"A": [1.0]}), _universe())
+
+
+def test_from_prices_sorts_by_date() -> None:
+    universe = AssetUniverse.factors_free(["A"])
+    df = pl.DataFrame(
+        {
+            "date": [
+                datetime(2024, 1, 3),
+                datetime(2024, 1, 1),
+                datetime(2024, 1, 2),
+            ],
+            "A": [12.0, 10.0, 11.0],
+        }
+    )
+    md = MarketData.from_prices(df, universe)
+    assert md.trading_bars == [
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 3),
+    ]
+
+
+def test_from_prices_with_cash() -> None:
+    md = _market_data()
+    assert md.cash is not None
+    assert md.cash.columns == ["date", "DFF"]
+
+
+def test_from_prices_without_cash() -> None:
+    md = MarketData.from_prices(_price_frame(), _universe())
+    assert md.cash is None
+
+
+def test_from_log_prices() -> None:
+    df = pl.DataFrame(
+        {
+            "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+            "A": [np.log(10.0), np.log(11.0)],
+            "B": [np.log(20.0), np.log(22.0)],
+        }
+    )
+    md = MarketData.from_log_prices(df, _universe())
+    assert md.price_kind == "log_price"
+    np.testing.assert_allclose(md.prices_at(datetime(2024, 1, 1)), [10.0, 20.0])
+
+
+# ---------------------------------------------------------------------------
+# MarketData – trading_bars & prices_at
+# ---------------------------------------------------------------------------
+
+
+def test_trading_bars() -> None:
+    md = _market_data()
+    assert md.trading_bars == [
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 3),
+    ]
+
+
+def test_prices_at() -> None:
+    md = _market_data()
+    np.testing.assert_allclose(md.prices_at(datetime(2024, 1, 2)), [11.0, 22.0])
+
+
+def test_prices_at_accepts_string_date() -> None:
+    md = _market_data()
+    np.testing.assert_allclose(md.prices_at("2024-01-02"), [11.0, 22.0])
+
+
+def test_prices_at_raises_on_missing_date() -> None:
+    md = _market_data()
+    with pytest.raises(ValueError, match="No market data"):
+        md.prices_at(datetime(2024, 1, 5))
+
+
+# ---------------------------------------------------------------------------
+# MarketData – history_through
+# ---------------------------------------------------------------------------
+
+
+def test_history_through_returns_scenario_panel() -> None:
+    md = _market_data()
+    panel = md.history_through(datetime(2024, 1, 2))
+    assert isinstance(panel, ScenarioPanel)
+    assert panel.kind == "log_price"
+
+
+def test_history_through_accepts_string_date() -> None:
+    md = _market_data()
+    panel = md.history_through("2024-01-02")
+    assert panel.dates.to_list() == [datetime(2024, 1, 1), datetime(2024, 1, 2)]
+
+
+def test_history_through_raises_on_no_data() -> None:
+    md = _market_data()
+    with pytest.raises(ValueError, match="No history"):
+        md.history_through(datetime(2020, 1, 1))
+
+
+# ---------------------------------------------------------------------------
+# MarketData – cash_rate_asof
+# ---------------------------------------------------------------------------
+
+
+def test_cash_rate_asof_no_cash_returns_zero() -> None:
+    md = MarketData.from_prices(_price_frame(), _universe())
+    assert md.cash_rate_asof(datetime(2024, 1, 2)) == 0.0
+
+
+def test_cash_rate_asof_returns_per_step_return() -> None:
+    md = _market_data()
+    rate = md.cash_rate_asof(datetime(2024, 1, 2))
+    # latest known at 2024-01-02: 5.25% / 100 = 0.0525 annual
+    # per-step = (1.0525)^(1/252) - 1
+    expected = (1.0525) ** (1.0 / 252) - 1.0
+    assert rate == pytest.approx(expected)
+
+
+def test_cash_rate_asof_raises_on_no_prior_rate() -> None:
+    md = _market_data()
+    with pytest.raises(ValueError, match="No cash rate"):
+        md.cash_rate_asof(datetime(2020, 1, 1))
+
+
+def test_cash_rate_asof_with_step_size() -> None:
+    md = _market_data()
+    one_step = md.cash_rate_asof(datetime(2024, 1, 2), step_size=1)
+    five_step = md.cash_rate_asof(datetime(2024, 1, 2), step_size=5)
+    expected_five = (1.0525) ** (5.0 / 252) - 1.0
+    assert five_step == pytest.approx(expected_five)
+    assert five_step > one_step
+
+
+# ---------------------------------------------------------------------------
+# MarketData – realised_cash_return
+# ---------------------------------------------------------------------------
+
+
+def test_realised_cash_return_no_cash_returns_zero() -> None:
+    md = MarketData.from_prices(_price_frame(), _universe())
+    r = md.realised_cash_return(datetime(2024, 1, 1), datetime(2024, 1, 2))
+    assert r == 0.0
+
+
+def test_realised_cash_return_uses_act_360() -> None:
+    md = _market_data()
+    r = md.realised_cash_return(datetime(2024, 1, 1), datetime(2024, 1, 2))
+    # rate at t_prev=2024-01-01: 5.0% -> 0.05 -> 0.05 * 1 / 360
+    assert r == pytest.approx(0.05 / 360)
+
+
+def test_realised_cash_return_accepts_string_dates() -> None:
+    md = _market_data()
+    r = md.realised_cash_return("2024-01-01", "2024-01-02")
+    assert r == pytest.approx(0.05 / 360)
+
+
+def test_realised_cash_return_multi_day_interval() -> None:
+    md = _market_data()
+    r = md.realised_cash_return(datetime(2024, 1, 1), datetime(2024, 1, 3))
+    # 0.05 * 2 / 360
+    assert r == pytest.approx(0.05 * 2 / 360)
+
+
+def test_realised_cash_return_raises_on_no_prior_rate() -> None:
+    md = _market_data()
+    with pytest.raises(ValueError, match="No cash rate"):
+        md.realised_cash_return(datetime(2020, 1, 1), datetime(2024, 1, 2))
+
+
+# ---------------------------------------------------------------------------
+# MarketData – snapshot_at / realised_step
+# ---------------------------------------------------------------------------
+
+
+def test_snapshot_at() -> None:
+    md = _market_data()
+    snap = md.snapshot_at(datetime(2024, 1, 2), datetime(2024, 1, 3))
+    assert isinstance(snap, MarketSnapshot)
+    assert snap.t == datetime(2024, 1, 2)
+    assert snap.t_next == datetime(2024, 1, 3)
+    assert snap.assets == ["A", "B"]
+    assert isinstance(snap.history, ScenarioPanel)
+    np.testing.assert_allclose(snap.prices_t, [11.0, 22.0])
+    assert snap.cash_rate > 0
+
+
+def test_snapshot_at_accepts_string_dates() -> None:
+    md = _market_data()
+    snap = md.snapshot_at("2024-01-02", "2024-01-03")
+    assert snap.t == datetime(2024, 1, 2)
+    assert snap.t_next == datetime(2024, 1, 3)
+    np.testing.assert_allclose(snap.prices_t, [11.0, 22.0])
+
+
+def test_realised_step() -> None:
+    md = _market_data()
+    step = md.realised_step(datetime(2024, 1, 2), datetime(2024, 1, 3))
+    assert isinstance(step, RealisedStep)
+    assert step.t == datetime(2024, 1, 2)
+    assert step.t_next == datetime(2024, 1, 3)
+    np.testing.assert_allclose(step.prices_next, [12.0, 24.0])
+    assert step.cash_return > 0
+
+
+# ---------------------------------------------------------------------------
+# Edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_universe_with_factors_are_excluded_from_prices_at() -> None:
+    universe = AssetUniverse(assets=["A"], factors=["B"])
+    md = MarketData.from_prices(_price_frame(), universe)
+    np.testing.assert_allclose(md.prices_at(datetime(2024, 1, 2)), [11.0])
+    np.testing.assert_allclose(md.prices_at(datetime(2024, 1, 3)), [12.0])
+
+
+def test_log_price_frame_converted_to_price_output() -> None:
+    df = pl.DataFrame(
+        {
+            "date": [datetime(2024, 1, 1)],
+            "A": [np.log(15.0)],
+            "B": [np.log(30.0)],
+        }
+    )
+    md = MarketData.from_log_prices(df, _universe())
+    np.testing.assert_allclose(md.prices_at(datetime(2024, 1, 1)), [15.0, 30.0])
+
+
+def test_from_prices_accepts_string_date_columns() -> None:
+    df = pl.DataFrame(
+        {
+            "date": ["2024-01-01", "2024-01-02"],
+            "A": [10.0, 11.0],
+            "B": [20.0, 22.0],
+        }
+    )
+    cash = pl.DataFrame({"date": ["2024-01-01"], "DFF": [5.0]})
+    md = MarketData.from_prices(df, _universe(), cash=cash)
+    assert md.trading_bars == [datetime(2024, 1, 1), datetime(2024, 1, 2)]
+    np.testing.assert_allclose(md.prices_at("2024-01-02"), [11.0, 22.0])
+    assert md.cash_rate_asof("2024-01-02") == pytest.approx((1.05) ** (1.0 / 252) - 1.0)
+
+
+def test_cash_rate_asof_uses_latest_rate_before_t() -> None:
+    df = pl.DataFrame(
+        {
+            "date": [datetime(2024, 1, 1), datetime(2024, 1, 5)],
+            "DFF": [5.0, 6.0],
+        }
+    )
+    md = MarketData.from_prices(_price_frame(), _universe(), cash=df)
+    # At t=2024-01-03, latest rate <= t is 5.0 (from 2024-01-01)
+    assert md.cash_rate_asof(datetime(2024, 1, 3)) == pytest.approx(
+        (1.05) ** (1.0 / 252) - 1.0
+    )
+
+
+def test_realised_cash_return_uses_rate_at_t_prev() -> None:
+    df = pl.DataFrame(
+        {
+            "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+            "DFF": [5.0, 6.0],
+        }
+    )
+    md = MarketData.from_prices(_price_frame(), _universe(), cash=df)
+    # uses rate at 2024-01-01 (t_prev), which is 5.0%
+    r = md.realised_cash_return(datetime(2024, 1, 1), datetime(2024, 1, 3))
+    assert r == pytest.approx(0.05 * 2 / 360)
