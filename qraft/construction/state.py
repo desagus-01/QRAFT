@@ -66,7 +66,7 @@ class PortfolioState:
         return cls(
             asset_order=assets,
             initial_prices=initial_prices,
-            shares=np.zeros(len(assets), dtype=np.floating),
+            shares=np.zeros(len(assets), dtype=float),
             cash=cash,
         )
 
