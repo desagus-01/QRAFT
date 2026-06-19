@@ -58,7 +58,7 @@ def run_iid_complex(
 ) -> dict[str, TestResultByAsset]:
     """Run the expensive copula IID screen."""
     copula_marginal_model = CopulaMarginalModel.from_data_and_prob(
-        data=data.select(assets),
+        data=data.select(["date", *assets]),
         prob=prob,
     )
 
@@ -111,7 +111,7 @@ def check_white_noise(
         cfg = IIDConfig()
 
     simple_tests = run_iid_simple(
-        data=data,
+        data=data.select(assets),
         prob=prob,
         assets=assets,
         lags=cfg.lags_simple,
@@ -177,7 +177,7 @@ def _find_nonwhite_noise_assets(
 ) -> list[str]:
     """Return assets whose increments fail the white-noise screen."""
     wn = check_white_noise(
-        data=increments.values.select(assets),
+        data=increments.to_frame(),
         assets=assets,
         prob=increments.prob,
         cfg=cfg,
@@ -195,7 +195,7 @@ def test_non_idd(
     seed: int | None = None,
 ) -> list[str]:
     """return those assets that are not iid."""
-    panel = ScenarioPanel.from_log_prices(data.select(assets), prob)
+    panel = ScenarioPanel.from_log_prices(data.select(["date", *assets]), prob)
     return _find_nonwhite_noise_assets(
         increments=panel.diff() if on_increment else panel,
         assets=assets,

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import polars as pl
 
@@ -119,7 +121,17 @@ def test_run_iid_complex_passes_configured_iteration_controls(monkeypatch) -> No
     )
 
     white_noise.run_iid_complex(
-        data=pl.DataFrame({"x": [1.0, 2.0, 3.0, 4.0]}),
+        data=pl.DataFrame(
+            {
+                "date": [
+                    datetime(2024, 1, 1),
+                    datetime(2024, 1, 2),
+                    datetime(2024, 1, 3),
+                    datetime(2024, 1, 4),
+                ],
+                "x": [1.0, 2.0, 3.0, 4.0],
+            }
+        ),
         prob=np.full(4, 0.25),
         assets=["x"],
         lags=1,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Annotated, Literal
 
 import numpy as np
 import polars as pl
@@ -12,6 +12,7 @@ from qraft.core.probability.distributions import uniform_probs
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 
 ScenarioPanelKind = Literal["log_price", "return", "invariant", "level"]
+DatetimeSeries = Annotated[pl.Series, "dtype: pl.Datetime"]
 
 
 def redistribute_prob_mass(
@@ -38,7 +39,7 @@ def compensate_prob(prob: ProbVector, n_remove: int) -> ProbVector:
 @dataclass(frozen=True)
 class ScenarioPanel:
     values: pl.DataFrame
-    dates: pl.Series | None  # TODO: Change to just time to make simulations use it too
+    dates: DatetimeSeries
     prob: ProbVector
     kind: ScenarioPanelKind = "level"
 
@@ -68,13 +69,11 @@ class ScenarioPanel:
         self.prob.setflags(write=False)
         object.__setattr__(self, "prob", self.prob)
 
-        if self.dates is not None:
-            if len(self.dates) != self.values.height:
-                raise ValueError(
-                    f"dates length {len(self.dates)} != rows {self.values.height}"
-                )
-            if self.dates.name != "date":
-                object.__setattr__(self, "dates", self.dates.rename("date"))
+        if len(self.dates) != self.values.height:
+            raise ValueError(
+                f"dates length {len(self.dates)} != rows {self.values.height}"
+            )
+        object.__setattr__(self, "dates", normalize_datetime_series(self.dates))
 
     @classmethod
     def from_log_prices(
@@ -83,12 +82,7 @@ class ScenarioPanel:
         prob: ProbVector | None = None,
         drop_nulls: bool = False,
     ) -> ScenarioPanel:
-        if "date" in df.columns:
-            dates: pl.Series | None = df.get_column("date")
-            values = df.drop("date")
-        else:
-            dates = None
-            values = df
+        dates, values = _split_dates_and_values(df)
 
         if prob is None:
             prob = uniform_probs(values.height)
@@ -104,8 +98,7 @@ class ScenarioPanel:
         df: pl.DataFrame,
         prob: ProbVector | None = None,
     ) -> ScenarioPanel:
-        dates = df.get_column("date") if "date" in df.columns else None
-        values = df.drop("date") if "date" in df.columns else df
+        dates, values = _split_dates_and_values(df)
         arr = values.to_numpy()
         try:
             if not np.isfinite(arr).all():
@@ -159,12 +152,7 @@ class ScenarioPanel:
         drop_nulls: bool,
         kind: ScenarioPanelKind,
     ) -> ScenarioPanel:
-        if "date" in df.columns:
-            dates: pl.Series | None = df.get_column("date")
-            values = df.drop("date")
-        else:
-            dates = None
-            values = df
+        dates, values = _split_dates_and_values(df)
 
         if prob is None:
             prob = uniform_probs(values.height)
@@ -175,9 +163,6 @@ class ScenarioPanel:
         return cls(values=values, dates=dates, prob=prob, kind=kind)
 
     def to_frame(self) -> DataFrame:
-        if self.dates is None:
-            return self.values
-
         return DataFrame({"date": self.dates}).hstack(self.values)
 
     def drop_nulls(self) -> ScenarioPanel:
@@ -190,12 +175,12 @@ class ScenarioPanel:
     @staticmethod
     def _drop_null_rows(
         values: pl.DataFrame,
-        dates: pl.Series | None,
+        dates: pl.Series,
         prob: ProbVector,
-    ) -> tuple[pl.DataFrame, pl.Series | None, ProbVector]:
+    ) -> tuple[pl.DataFrame, pl.Series, ProbVector]:
         if values.height != prob.shape[0]:
             raise ValueError(f"prob length {prob.shape[0]} != rows {values.height}")
-        if dates is not None and len(dates) != values.height:
+        if len(dates) != values.height:
             raise ValueError(f"dates length {len(dates)} != rows {values.height}")
 
         null_mask = values.select(pl.any_horizontal(pl.all().is_null())).to_series()
@@ -205,7 +190,7 @@ class ScenarioPanel:
 
         keep_mask = ~null_mask
         clean = values.filter(keep_mask)
-        new_dates = dates.filter(keep_mask) if dates is not None else None
+        new_dates = dates.filter(keep_mask)
 
         dropped_idx = np.flatnonzero(null_mask.to_numpy())
         new_prob = redistribute_prob_mass(prob, dropped_idx)
@@ -219,7 +204,7 @@ class ScenarioPanel:
         diffed = self.values.with_columns(
             [pl.col(c).diff(lag).alias(c) for c in self.values.columns]
         ).slice(lag)
-        new_dates = self.dates.slice(lag) if self.dates is not None else None
+        new_dates = self.dates.slice(lag)
         new_prob = compensate_prob(self.prob, lag)
         new_kind: ScenarioPanelKind = (
             "return" if self.kind == "log_price" else self.kind
@@ -239,3 +224,21 @@ class ScenarioPanel:
 
     def __len__(self) -> int:
         return self.values.height
+
+
+def _split_dates_and_values(df: pl.DataFrame) -> tuple[pl.Series, pl.DataFrame]:
+    if "date" not in df.columns:
+        raise ValueError("ScenarioPanel input must contain a 'date' column")
+    return df.get_column("date"), df.drop("date")
+
+
+def normalize_datetime_series(dates: pl.Series) -> DatetimeSeries:
+    if dates.dtype == pl.Date:
+        normalized = dates.cast(pl.Datetime)
+    elif isinstance(dates.dtype, pl.Datetime):
+        normalized = dates
+    else:
+        raise TypeError(
+            f"ScenarioPanel.dates must have Date/Datetime dtype, got {dates.dtype}"
+        )
+    return normalized.rename("date")

@@ -5,10 +5,11 @@ from dataclasses import dataclass, replace
 from typing import Literal
 
 import numpy as np
+import polars as pl
 from numpy.typing import NDArray
 from polars import DataFrame
 
-from qraft.core.panel import ScenarioPanel
+from qraft.core.panel import DatetimeSeries, ScenarioPanel, normalize_datetime_series
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from qraft.forecast.pipelines.fitted_universe import FittedUniverse
 from qraft.utils.visuals import plot_simulation_results
@@ -64,6 +65,7 @@ AssetSubset = Literal["all", "tradable", "factors"]
 @dataclass(frozen=True, slots=True)
 class ForecastPaths:
     asset_paths: dict[str, NDArray[np.floating]]
+    dates: DatetimeSeries
     path_probs: ProbVector
     initial_prices: dict[str, float]
     universe: AssetUniverse | None = None
@@ -94,13 +96,19 @@ class ForecastPaths:
             self.asset_paths[asset] = path
 
         assert base_shape is not None
-        n_paths, _ = base_shape
+        n_paths, n_horizons = base_shape
 
         if len(self.path_probs) != n_paths:
             raise ValueError(
                 f"path_probs length {len(self.path_probs)} "
                 f"must equal number of paths {n_paths}"
             )
+        if len(self.dates) != n_horizons:
+            raise ValueError(
+                f"dates length {len(self.dates)} must equal number of horizons "
+                f"{n_horizons}"
+            )
+        object.__setattr__(self, "dates", normalize_datetime_series(self.dates))
 
     @property
     def price_stack(self) -> NDArray[np.floating]:
@@ -115,6 +123,10 @@ class ForecastPaths:
     def n_horizons(self) -> int:
         first = next(iter(self.asset_paths.values()))
         return first.shape[1]
+
+    @property
+    def horizon_labels(self) -> list[str]:
+        return [f"t+{step}" for step in range(1, self.n_horizons + 1)]
 
     @property
     def assets_and_factors_names(self) -> list[str]:
@@ -180,10 +192,11 @@ class ForecastPaths:
             raise ValueError(f"No paths available for subset={subset!r}")
 
         values = DataFrame({asset: arr[:, idx] for asset, arr in paths.items()})
+        date = self.dates[idx]
 
         return ScenarioPanel(
             values=values,
-            dates=None,
+            dates=pl.Series("date", [date] * values.height),
             prob=self.path_probs,
             kind="level",
         )

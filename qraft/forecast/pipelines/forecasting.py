@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 import numpy as np
+import polars as pl
 
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
@@ -50,8 +52,10 @@ def _test_invariants_iid(
         assets_to_test = [
             a for a in invariants.asset_names if a not in already_iid_names
         ]
+    if not assets_to_test:
+        return
     non_iid_invariants = test_non_idd(
-        data=invariants.values,
+        data=invariants.to_frame(),
         prob=invariants.prob,
         assets=assets_to_test,
         cfg=iid_config,
@@ -137,6 +141,19 @@ def _check_missing_assets(new_assets: list[str], old_assets: list[str]) -> bool:
     return bool(set(new_assets) - set(old_assets))
 
 
+def _forecast_dates_from_history(dates: pl.Series, horizon: int) -> pl.Series:
+    if len(dates) < 2:
+        raise ValueError("run_forecast requires at least two dates to infer cadence")
+
+    previous_date = dates[-2]
+    last_date = dates[-1]
+    step = last_date - previous_date
+    if step <= timedelta(0):
+        raise ValueError("ScenarioPanel dates must be strictly increasing")
+
+    return pl.Series("date", [last_date + step * i for i in range(1, horizon + 1)])
+
+
 def run_forecast(
     panel: ScenarioPanel,
     universe: AssetUniverse,
@@ -211,6 +228,7 @@ def run_forecast(
 
     return ForecastPaths(
         asset_paths=transformed,
+        dates=_forecast_dates_from_history(panel.dates, simulation_config.horizon),
         path_probs=innovations.path_probs,
         universe=universe,
         initial_prices=initial_prices,

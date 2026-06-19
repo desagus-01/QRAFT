@@ -9,7 +9,7 @@ from numpy import interp
 from polars import DataFrame
 
 from qraft.core.configs import CMAConfig
-from qraft.core.panel import ScenarioPanel, ScenarioPanelKind
+from qraft.core.panel import DatetimeSeries, ScenarioPanel, ScenarioPanelKind
 from qraft.core.probability.distributions import uniform_probs
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from qraft.core.probability.sampling import (
@@ -54,14 +54,14 @@ class CopulaMarginalModel:
     cdfs: DataFrame
     copula_grades: DataFrame
     prob: ProbVector
-    dates: pl.Series | None
+    dates: DatetimeSeries
     kind: ScenarioPanelKind = "level"
 
     def __post_init__(self) -> None:
         self._validate_frames()
         validate_prob_vector(self.prob)
         self.prob.setflags(write=False)
-        if self.dates is not None and len(self.dates) != self.marginals.height:
+        if len(self.dates) != self.marginals.height:
             raise ValueError(
                 f"dates length {len(self.dates)} != frame height {self.marginals.height}"
             )
@@ -187,7 +187,7 @@ class CopulaMarginalModel:
             prob=uniform_probs(
                 new_copula.height
             ),  # needs to be this as we got iid draws
-            dates=None,
+            dates=self.dates,
         )
 
     def update_distribution(

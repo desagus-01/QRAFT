@@ -6,13 +6,14 @@ from functools import cached_property
 from typing import TYPE_CHECKING
 
 import numpy as np
+import polars as pl
 from numpy.typing import NDArray
 from polars import DataFrame
 
 from qraft.core.estimation import (
     EquationTypes,
 )
-from qraft.core.panel import ScenarioPanel
+from qraft.core.panel import DatetimeSeries, ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.risk.factor_ols import (
     FactorAttributionModel,
@@ -37,6 +38,7 @@ class PortfolioPerformanceAttribution:
     factor_performance_forecast: dict[str, NDArray[np.floating]]
     portfolio_performance_forecast: NDArray[np.floating]
     path_probs: ProbVector
+    dates: DatetimeSeries
 
     @property
     def exposures(self) -> dict[str, float]:
@@ -67,7 +69,7 @@ class PortfolioPerformanceAttribution:
 
         return ScenarioPanel(
             values=values,
-            dates=None,
+            dates=self.dates,
             prob=self.path_probs,
         )
 
@@ -77,6 +79,7 @@ def portfolio_factor_attribution(
     factors_forecast: dict[str, NDArray[np.floating]],
     initial_prices: dict[str, float],
     horizon: int,
+    date,
     eq_type: EquationTypes = "c",
     auto_select_factors: bool = False,
     criterion: Criterion | None = None,
@@ -122,4 +125,5 @@ def portfolio_factor_attribution(
         factor_performance_forecast={k: factors_cum[k] for k in selected},
         portfolio_performance_forecast=portfolio_cum,
         path_probs=policy_projection.path_probs,
+        dates=pl.Series("date", [date] * len(policy_projection.path_probs)),
     )

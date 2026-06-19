@@ -1,4 +1,7 @@
+from datetime import datetime
+
 import numpy as np
+import polars as pl
 
 from qraft.construction.policies import (
     EqualWeightPolicy,
@@ -17,6 +20,7 @@ def _forecasts() -> ForecastPaths:
             "A": np.array([[11.0, 12.0], [9.0, 10.0]]),
             "B": np.array([[22.0, 24.0], [18.0, 20.0]]),
         },
+        dates=pl.Series("date", [datetime(2024, 1, 3), datetime(2024, 1, 4)]),
         path_probs=np.array([0.5, 0.5]),
         initial_prices={"A": 10.0, "B": 20.0},
     )
@@ -38,6 +42,12 @@ def test_policy_decide_returns_decision_without_projecting() -> None:
     assert decision.asset_order == ["A", "B"]
     np.testing.assert_allclose(decision.target_weights_risk, [0.4, 0.4])
     assert decision.target_cash_weight == 0.2
+
+
+def test_forecast_at_step_repeats_horizon_date() -> None:
+    panel = _forecasts().at_step(2)
+
+    assert panel.dates.to_list() == [datetime(2024, 1, 4), datetime(2024, 1, 4)]
 
 
 def test_projection_is_created_independently_from_decision() -> None:

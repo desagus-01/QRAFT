@@ -48,6 +48,7 @@ class PortfolioRisk:
             factors_forecast=asset_forecasts.factor_paths,
             initial_prices=asset_forecasts.initial_prices,
             horizon=horizon,
+            date=asset_forecasts.dates[horizon],
             auto_select_factors=auto_select_factors,
             criterion=criterion,
         )

@@ -1,3 +1,6 @@
+from datetime import datetime
+from types import SimpleNamespace
+
 import numpy as np
 import polars as pl
 import pytest
@@ -16,11 +19,12 @@ class DummyFittedUniverse:
     def __init__(self) -> None:
         self.invariants = ScenarioPanel(
             values=pl.DataFrame({"asset": [0.01, 0.02]}),
-            dates=None,
+            dates=pl.Series("date", [datetime(2024, 1, 2), datetime(2024, 1, 3)]),
             prob=np.full(2, 0.5),
             kind="invariant",
         )
         self.inverse_specs = {"asset": []}
+        self.preprocess = SimpleNamespace(assets_already_iid=["asset"])
 
     def simulate(self, innovation_paths):
         return {
@@ -30,7 +34,12 @@ class DummyFittedUniverse:
 
 def _panel() -> ScenarioPanel:
     return ScenarioPanel.from_log_prices(
-        pl.DataFrame({"asset": [1.0, 1.1]}),
+        pl.DataFrame(
+            {
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "asset": [1.0, 1.1],
+            }
+        ),
         prob=np.full(2, 0.5),
     )
 
@@ -98,7 +107,14 @@ def test_run_forecast_leaves_stochastic_steps_unseeded_when_seed_is_omitted(
 
 
 def test_run_forecast_rejects_non_log_price_panel() -> None:
-    panel = ScenarioPanel.from_levels(pl.DataFrame({"asset": [100.0, 101.0]}))
+    panel = ScenarioPanel.from_levels(
+        pl.DataFrame(
+            {
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "asset": [100.0, 101.0],
+            }
+        )
+    )
 
     with pytest.raises(ValueError, match="kind='log_price'"):
         forecasting.run_forecast(
@@ -108,7 +124,14 @@ def test_run_forecast_rejects_non_log_price_panel() -> None:
 
 
 def test_draw_innovations_rejects_non_invariant_panel() -> None:
-    panel = ScenarioPanel.from_returns(pl.DataFrame({"asset": [0.01, -0.02]}))
+    panel = ScenarioPanel.from_returns(
+        pl.DataFrame(
+            {
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "asset": [0.01, -0.02],
+            }
+        )
+    )
 
     with pytest.raises(ValueError, match="kind='invariant'"):
         forecasting.draw_innovations(

@@ -58,3 +58,6 @@ posterior_panel = ScenarioPanel.from_log_prices(
     data,
     prob=prob_ex,
 )
+# %%
+
+posterior_panel.to_frame()

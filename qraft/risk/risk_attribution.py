@@ -96,7 +96,7 @@ class PortfolioRiskAttribution:
             },
             joint_panel=ScenarioPanel(
                 values=risk_values,
-                dates=None,
+                dates=perf_panel.dates,
                 prob=perf_panel.prob,
             ),
         )

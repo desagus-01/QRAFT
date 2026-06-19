@@ -8,12 +8,9 @@ from qraft.core.panel import ScenarioPanel
 
 
 @dataclass(frozen=True, slots=True)
-class Market:
+class MarketSnapshot:
     t: datetime
     t_next: datetime
     assets: list[str]
     history: ScenarioPanel
-    current_prices: NDArray[np.floating]
-
-    current_prices: NDArray[np.floating]
-    cash_return: float
+    prices_t: NDArray[np.floating]
