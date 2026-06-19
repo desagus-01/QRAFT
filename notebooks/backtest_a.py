@@ -6,14 +6,27 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
+    CMAConfig,
     LogConfig,
+    MPOPolicy,
     setup_logging,
 )
+from qraft.backtest.execution import PipelineForecaster
 from qraft.backtest.market import MarketData, WindowWeighting
+from qraft.backtest.schedule import RebalanceSchedule
+from qraft.backtest.simulator import run_backtest
+from qraft.construction import (
+    FullyInvested,
+    LongOnly,
+    MinCashWeight,
+    PortfolioConstraint,
+    TurnoverLimit,
+)
+from qraft.core.configs import SimulationForecastConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.INFO))
+setup_logging(LogConfig(level=logging.WARN))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -41,7 +54,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:80])
+tradable_assets = list(data.columns[10:20])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -53,3 +66,39 @@ mkt_dt = MarketData.from_log_prices(
 )
 
 mkt_dt.history_through(t="2020-01-01")
+# %%
+constraints: list[PortfolioConstraint] = [
+    LongOnly(),
+    FullyInvested(constraint_type="soft", soft_weight=1.0),
+    # FullyInvested(),
+    MinCashWeight(limit=0.3, constraint_type="soft", soft_weight=1.0),
+    # MaxWeight(limit=0.09),
+    # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
+    TurnoverLimit(limit=0.80),
+]
+
+policy = MPOPolicy.preset(
+    objective_type="mean_covariance",
+    risk_aversion=0.1,
+    cash_path="data/cash.csv",
+    constraints=constraints,
+    expectation_tolerance=0.2,
+)
+
+
+result = run_backtest(
+    mkt_dt,
+    policy,  # MPOPolicy -> requires_forecast=True
+    schedule=RebalanceSchedule("quarter_end"),
+    forecaster=PipelineForecaster(
+        simulation_config=SimulationForecastConfig(
+            method="cma",
+            n_sims=10_000,
+            cma_config=CMAConfig(target_copula="t"),
+        ),
+    ),
+)
+# %%
+
+result.nav
+result.nav_dates
