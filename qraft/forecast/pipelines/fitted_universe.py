@@ -186,7 +186,7 @@ def _test_invariants_iid(
             a for a in invariants.asset_names if a not in already_iid_names
         ]
     if not assets_to_test:
-        return
+        return []
     non_iid_invariants = test_non_idd(
         data=invariants.to_frame(),
         prob=invariants.prob,
@@ -208,7 +208,7 @@ def _test_invariants_iid(
 
 def _remove_non_invariants(
     invariants_panel: ScenarioPanel,
-    seed: int,
+    seed: int | None,
     already_iid: list[str],
     protected: set[str] | None = None,
 ) -> ScenarioPanel:

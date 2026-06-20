@@ -103,10 +103,6 @@ def draw_innovations(
     )
 
 
-def _check_missing_assets(new_assets: list[str], old_assets: list[str]) -> bool:
-    return bool(set(new_assets) - set(old_assets))
-
-
 def _forecast_dates_from_history(dates: pl.Series, horizon: int) -> pl.Series:
     if len(dates) < 2:
         raise ValueError("run_forecast requires at least two dates to infer cadence")
@@ -185,9 +181,6 @@ def run_forecast(
             len(universe.all_tickers),
             forecast_assets,
         )
-
-    if _check_missing_assets(forecast_assets, list(transformed.keys())):
-        raise RuntimeError("Forecast output is missing assets")
 
     last_row = data.tail(1)
     initial_prices = {
