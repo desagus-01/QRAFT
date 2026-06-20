@@ -3,11 +3,14 @@ from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from qraft.forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
 from matplotlib.axes import Axes
 from numpy._typing._array_like import NDArray
 from scipy.stats import f as f_dist
 from typing_extensions import Literal
+
+from qraft.forecast.time_series.tests.types import HypTestRes, format_hyp_test_result
+
+_MIN_CYCLES = 2
 
 SEASONAL_PERIODS = Literal["weekly", "monthly", "quarterly", "semi-annual", "annual"]
 
@@ -204,25 +207,31 @@ def get_periodogram_p_val(
     )
 
 
-def periodogram_seasonality_test(
-    data: NDArray[np.floating], seasonal_period: SEASONAL_PERIODS
-) -> SeasonalityPeriodTest:
+def periodogram_seasonality_test(data, seasonal_period) -> SeasonalityPeriodTest:
     seasonal_period_n = SEASONAL_MAP[seasonal_period]
-    data = _make_len_multiple_of_seasonal_period(
-        data=data, seasonal_period=seasonal_period_n
-    )
+    if data.shape[0] < _MIN_CYCLES * seasonal_period_n:
+        return SeasonalityPeriodTest(
+            seasonal_period=seasonal_period,
+            seasonal_frequency_radian=2 * np.pi / seasonal_period_n,
+            evidence_of_seasonality=False,
+            res=HypTestRes(
+                stat=0.0,
+                p_val=1.0,
+                sign_lvl=0.05,
+                null=f"No {seasonal_period} seasonality",
+                reject_null=False,
+                desc=f"Insufficient data ({data.shape[0]} obs) to test {seasonal_period}; "
+                f"need >= {_MIN_CYCLES * seasonal_period_n}.",
+            ),
+        )
+    data = _make_len_multiple_of_seasonal_period(data, seasonal_period_n)
     period = periodogram(data=data, need_demean=False)
     stat, p_val = get_periodogram_p_val(
         periodogram=period, seasonal_period=seasonal_period_n
     )
-
-    hypothesis_test_res = format_hyp_test_result(
+    res = format_hyp_test_result(
         p_val=p_val, stat=stat, null=f"No {seasonal_period} seasonality"
     )
-
     return SeasonalityPeriodTest(
-        seasonal_period=seasonal_period,
-        seasonal_frequency_radian=2 * np.pi / SEASONAL_MAP[seasonal_period],
-        evidence_of_seasonality=hypothesis_test_res.reject_null,
-        res=hypothesis_test_res,
+        seasonal_period, 2 * np.pi / seasonal_period_n, res.reject_null, res
     )

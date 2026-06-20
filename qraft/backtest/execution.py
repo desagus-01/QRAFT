@@ -5,10 +5,9 @@ from typing import Protocol
 import numpy as np
 from numpy.typing import NDArray
 
-from qraft.backtest.market import MarketSnapshot, RealisedStep
+from qraft.backtest.market import MarketSnapshot
 from qraft.construction.policies import PolicyDecision
 from qraft.construction.state import PortfolioState
-from qraft.core.configs import PipelineConfig, SimulationForecastConfig
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 from qraft.forecast.pipelines.forecasting import run_forecast
 
@@ -23,13 +22,8 @@ class Forecaster(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class PipelineForecaster:
-    simulation_config: SimulationForecastConfig
-    pipeline_config: PipelineConfig | None = None
     seed: int | None = None
-    min_history: int = (
-        504  # >= 2 annual cycles; below this the seasonality test is degenerate
-    )
-    ...
+    min_history: int = 504
 
     def forecast(
         self, snapshot: MarketSnapshot, universe: AssetUniverse
@@ -64,13 +58,6 @@ class BacktestResult:
     periods: list[BacktestPeriod]
 
 
-@dataclass(frozen=True, slots=True)
-class ExecutionResult:
-    executed_share_trades: NDArray[np.floating]
-    shares_after: NDArray[np.floating]
-    cash_after: float
-
-
 def _target_weights_full(
     decision: PolicyDecision, asset_order: list[str]
 ) -> NDArray[np.floating]:
@@ -87,23 +74,10 @@ def execute_frictionless(
     cash: float,
     prices: NDArray[np.floating],
     asset_order: list[str],
-) -> ExecutionResult:
+) -> tuple[NDArray[np.floating], NDArray[np.floating], float]:
     asset_value = shares * prices
     nav = float(asset_value.sum() + cash)
     target_value = _target_weights_full(decision, asset_order) * nav
     trade_value = target_value - asset_value
     executed = trade_value / prices
-    return ExecutionResult(
-        executed_share_trades=executed,
-        shares_after=shares + executed,
-        cash_after=cash - float(trade_value.sum()),  # self-financing plug
-    )
-
-
-def advance_holdings(
-    shares: NDArray[np.floating], cash: float, realised: RealisedStep
-) -> tuple[NDArray[np.floating], float, float]:
-    """Frictionless: compound cash over the bar, mark holdings. Returns (shares, cash, pre_trade_nav)."""
-    cash = cash * (1.0 + realised.cash_return)
-    nav = float(shares @ realised.prices_next + cash)
-    return shares, cash, nav
+    return executed, shares + executed, cash - float(trade_value.sum())

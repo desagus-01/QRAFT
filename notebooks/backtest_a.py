@@ -6,14 +6,12 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
-    CMAConfig,
+    EqualWeightPolicy,
     LogConfig,
     MPOPolicy,
     setup_logging,
 )
-from qraft.backtest.execution import PipelineForecaster
 from qraft.backtest.market import MarketData, WindowWeighting
-from qraft.backtest.schedule import RebalanceSchedule
 from qraft.backtest.simulator import run_backtest
 from qraft.construction import (
     FullyInvested,
@@ -22,7 +20,6 @@ from qraft.construction import (
     PortfolioConstraint,
     TurnoverLimit,
 )
-from qraft.core.configs import SimulationForecastConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
@@ -37,9 +34,8 @@ data, factors_cols = import_tickers_and_factors(
 
 min_price = 15
 
-cash = pl.read_csv(
-    "~/Documents/projects/fund/QRAFT/data/cash.csv", try_parse_dates=True
-)
+cash = pl.read_csv("data/cash.csv", try_parse_dates=True)
+
 
 cols_to_keep = [
     col
@@ -86,19 +82,20 @@ policy = MPOPolicy.preset(
 )
 
 
-result = run_backtest(
-    mkt_dt,
-    policy,  # MPOPolicy -> requires_forecast=True
-    schedule=RebalanceSchedule("quarter_end"),
-    forecaster=PipelineForecaster(
-        simulation_config=SimulationForecastConfig(
-            method="cma",
-            n_sims=10_000,
-            cma_config=CMAConfig(target_copula="t"),
-        ),
-    ),
-)
+# result = run_backtest(
+#     mkt_dt,
+#     policy,  # MPOPolicy -> requires_forecast=True
+#     schedule=RebalanceSchedule("quarter_end"),
+#     forecaster=PipelineForecaster(
+#         simulation_config=SimulationForecastConfig(
+#             method="cma",
+#             n_sims=10_000,
+#             cma_config=CMAConfig(target_copula="t"),
+#         ),
+#     ),
+# )
+
+result = run_backtest(market=mkt_dt, policy=EqualWeightPolicy)
 # %%
 
 result.nav
-result.nav_dates

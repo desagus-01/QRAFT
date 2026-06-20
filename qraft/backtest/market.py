@@ -23,20 +23,9 @@ class MarketSnapshot:
 
     t: datetime
     t_next: datetime
-    assets: list[str]
     history: ScenarioPanel
     prices_t: NDArray[np.floating]
     cash_rate: float
-
-
-@dataclass(frozen=True, slots=True)
-class RealisedStep:
-    """Realised leg over (t, t_next] — handed only to accounting / fill."""
-
-    t: datetime
-    t_next: datetime
-    prices_next: NDArray[np.floating]
-    cash_return: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,20 +170,9 @@ class MarketData:
         return MarketSnapshot(
             t=t,
             t_next=t_next,
-            assets=list(self.universe.assets),
             history=self.history_through(t),
             prices_t=self.prices_at(t),
             cash_rate=self.cash_rate_asof(t, step_size=step_size),
-        )
-
-    def realised_step(self, t: DateLike, t_next: DateLike) -> RealisedStep:
-        t = self._as_datetime(t)
-        t_next = self._as_datetime(t_next)
-        return RealisedStep(
-            t=t,
-            t_next=t_next,
-            prices_next=self.prices_at(t_next),
-            cash_return=self.realised_cash_return(t, t_next),
         )
 
     @staticmethod

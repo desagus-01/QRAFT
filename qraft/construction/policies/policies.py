@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Protocol, Sequence
+from typing import Any, ClassVar, Protocol, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -53,6 +53,7 @@ def _decision_from_mpo(
 class EqualWeightPolicy:
     target_cash_weight: float
     name: str = "equal_weight"
+    requires_forecast: ClassVar[bool] = False
 
     def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
         risky_weights = 1.0 - self.target_cash_weight
@@ -69,6 +70,7 @@ class EqualWeightPolicy:
 
 @dataclass(frozen=True, slots=True)
 class MPOPolicy:
+    requires_forecast: ClassVar[bool] = True
     problem: MPOProblem
     moments_config: MomentsConfig
     name: str = "mpo"
