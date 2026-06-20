@@ -102,6 +102,7 @@ class PipelineConfig:
     volatility: VolatilityModelConfig = field(default_factory=VolatilityModelConfig)
     quality: QualityConfig = field(default_factory=QualityConfig)
     preprocess: PreprocessConfig = field(default_factory=PreprocessConfig)
+    exclude_non_invariants: bool = True
 
 
 DEFAULT_PIPELINE_CONFIG: PipelineConfig = PipelineConfig()

@@ -1,9 +1,12 @@
+import logging
 from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
 
 from qraft.forecast.forecast_paths import ForecastPaths
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,12 +39,25 @@ class PortfolioState:
                 "ForecastPaths.universe must be set to construct a PortfolioState"
             )
 
+        forecast_assets = list(asset_forecasts.initial_prices.keys())
+        kept, missing = cls._resolve_assets(assets, forecast_assets)
+
+        if missing:
+            logger.warning(
+                "Building PortfolioState: %d asset(s) not in forecast — "
+                "omitted from state: %s",
+                len(missing),
+                missing,
+            )
+            idx_map = [assets.index(a) for a in kept]
+            shares = shares[idx_map]
+
         initial_prices = np.asarray(
-            [asset_forecasts.initial_prices[asset] for asset in assets]
+            [asset_forecasts.initial_prices[asset] for asset in kept]
         )
 
         return cls(
-            asset_order=assets,
+            asset_order=kept,
             initial_prices=initial_prices,
             shares=shares,
             cash=cash,
@@ -59,16 +75,37 @@ class PortfolioState:
                 "ForecastPaths.universe must be set to construct a PortfolioState"
             )
 
+        forecast_assets = list(asset_forecasts.initial_prices.keys())
+        kept, missing = cls._resolve_assets(assets, forecast_assets)
+
+        if missing:
+            logger.warning(
+                "Building PortfolioState: %d asset(s) not in forecast — "
+                "omitted from state: %s",
+                len(missing),
+                missing,
+            )
+
         initial_prices = np.asarray(
-            [asset_forecasts.initial_prices[asset] for asset in assets]
+            [asset_forecasts.initial_prices[asset] for asset in kept]
         )
 
         return cls(
-            asset_order=assets,
+            asset_order=kept,
             initial_prices=initial_prices,
-            shares=np.zeros(len(assets), dtype=float),
+            shares=np.zeros(len(kept), dtype=float),
             cash=cash,
         )
+
+    @staticmethod
+    def _resolve_assets(
+        requested: list[str],
+        available: list[str],
+    ) -> tuple[list[str], list[str]]:
+        avail_set = set(available)
+        kept = [a for a in requested if a in avail_set]
+        missing = [a for a in requested if a not in avail_set]
+        return kept, missing
 
     @property
     def initial_prices_dict(self) -> dict[str, NDArray[np.floating]]:

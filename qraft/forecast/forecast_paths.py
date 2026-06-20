@@ -149,7 +149,11 @@ class ForecastPaths:
     def price_stack_for(self, assets: list[str]) -> NDArray[np.floating]:
         missing = set(assets) - self.asset_paths.keys()
         if missing:
-            raise ValueError(f"Assets not found in forecast: {missing}")
+            raise ValueError(
+                f"Assets not found in forecast: {missing}. "
+                f"Forecast contains {len(self.asset_paths)} asset(s); "
+                f"{len(assets)} requested."
+            )
         return np.stack([self.asset_paths[a] for a in assets], axis=0)
 
     def _paths_for(self, subset: AssetSubset) -> dict[str, NDArray[np.floating]]:

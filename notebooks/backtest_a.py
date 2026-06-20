@@ -1,6 +1,7 @@
 # %%
 import logging
 
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
@@ -98,4 +99,18 @@ policy = MPOPolicy.preset(
 result = run_backtest(market=mkt_dt, policy=EqualWeightPolicy)
 # %%
 
-result.nav
+# Build a Polars DataFrame
+
+df = pl.DataFrame({"date": result.nav_dates, "nav": result.nav}).sort("date")
+
+plt.figure(figsize=(12, 6))
+plt.plot(df["date"].to_list(), df["nav"].to_list(), marker="o", linewidth=2)
+
+plt.title("NAV Over Time")
+plt.xlabel("Date")
+plt.ylabel("NAV")
+plt.grid(True)
+plt.xticks(rotation=45)
+plt.tight_layout()
+
+plt.show()

@@ -66,7 +66,7 @@ posterior_panel = ScenarioPanel.from_log_prices(
 fit = FittedUniverse.fit(
     posterior_panel.to_frame(),
     posterior_panel.prob,
-    assets=universe.all_tickers,
+    universe=universe,
     pipeline_config=DEFAULT_PIPELINE_CONFIG,
 )
 

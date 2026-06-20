@@ -42,3 +42,15 @@ class UnivariatePreprocess:
     def assets_already_iid(self) -> list[str]:
         all_assets = self.post_data.columns
         return [a for a in all_assets if a not in self.needs_further_modelling]
+
+    def filter_to(self, keep: set[str]) -> "UnivariatePreprocess":
+        cols = ["date"] + [c for c in self.post_data.columns if c in keep]
+        filtered_data = self.post_data.select(cols)
+
+        filtered_inverse = {k: v for k, v in self.inverse_specs.items() if k in keep}
+        filtered_modelling = [a for a in self.needs_further_modelling if a in keep]
+        return UnivariatePreprocess(
+            post_data=filtered_data,
+            inverse_specs=filtered_inverse,
+            needs_further_modelling=filtered_modelling,
+        )

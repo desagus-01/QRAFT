@@ -9,7 +9,6 @@ import polars as pl
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
-    IIDConfig,
     PipelineConfig,
     SamplingMethod,
     SimulationForecastConfig,
@@ -19,7 +18,6 @@ from qraft.core.probability.sampling import weighted_bootstrapping_idx
 from qraft.core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
 from qraft.forecast.pipelines.fitted_universe import FittedUniverse
-from qraft.forecast.time_series.preprocessing.white_noise import test_non_idd
 from qraft.forecast.time_series.transforms.inverses import apply_inverse_transforms
 
 logger = logging.getLogger(__name__)
@@ -37,38 +35,6 @@ def _validate_method_options(
     if len(universe.all_tickers) <= 1 and method == "cma":
         raise ValueError(
             "Must have more than one asset in order to use the copula method."
-        )
-
-
-def _test_invariants_iid(
-    invariants: ScenarioPanel,
-    iid_config: IIDConfig,
-    seed: int | None,
-    already_iid_names: list[str] | None = None,
-) -> None:
-    all_assets = invariants.asset_names
-    assets_to_test = all_assets
-    if already_iid_names:
-        assets_to_test = [
-            a for a in invariants.asset_names if a not in already_iid_names
-        ]
-    if not assets_to_test:
-        return
-    non_iid_invariants = test_non_idd(
-        data=invariants.to_frame(),
-        prob=invariants.prob,
-        assets=assets_to_test,
-        cfg=iid_config,
-        seed=seed,
-    )
-
-    if non_iid_invariants:
-        logger.warning(
-            "Invariance Check: %d assets out of %d did not pass the invariant iid tests. "
-            "Consider a richer mean/vol model for the list below:\n%s",
-            len(non_iid_invariants),
-            len(all_assets),
-            non_iid_invariants,
         )
 
 
@@ -185,16 +151,9 @@ def run_forecast(
     universe_fit = FittedUniverse.fit(
         data=data,
         prob=prob,
-        assets=universe.all_tickers,
+        universe=universe,
         seed=seed,
         pipeline_config=pipeline_config,
-    )
-
-    _test_invariants_iid(
-        invariants=universe_fit.invariants,
-        iid_config=DEFAULT_PIPELINE_CONFIG.preprocess.iid,
-        seed=seed,
-        already_iid_names=universe_fit.preprocess.assets_already_iid,
     )
 
     innovations = draw_innovations(
@@ -216,21 +175,36 @@ def run_forecast(
         back_to_price=simulation_config.back_to_price,
     )
 
-    if _check_missing_assets(universe.all_tickers, list(transformed.keys())):
+    forecast_assets = list(transformed.keys())
+    n_dropped = len(universe.all_tickers) - len(forecast_assets)
+    if n_dropped > 0:
+        logger.info(
+            "Forecast produced %d assets (dropped %d from original universe of %d): %s",
+            len(forecast_assets),
+            n_dropped,
+            len(universe.all_tickers),
+            forecast_assets,
+        )
+
+    if _check_missing_assets(forecast_assets, list(transformed.keys())):
         raise RuntimeError("Forecast output is missing assets")
 
     last_row = data.tail(1)
     initial_prices = {
         col: np.exp((last_row[col][0]))
-        for col in universe.all_tickers
+        for col in forecast_assets
         if col in last_row.columns
     }
+
+    filtered_factors = [f for f in universe.factors if f in forecast_assets]
+    filtered_assets = [a for a in universe.assets if a in forecast_assets]
+    forecast_universe = AssetUniverse(assets=filtered_assets, factors=filtered_factors)
 
     return ForecastPaths(
         asset_paths=transformed,
         dates=_forecast_dates_from_history(panel.dates, simulation_config.horizon),
         path_probs=innovations.path_probs,
-        universe=universe,
+        universe=forecast_universe,
         initial_prices=initial_prices,
         diagnostics=None if not include_fit_diagnostics else universe_fit,
     )

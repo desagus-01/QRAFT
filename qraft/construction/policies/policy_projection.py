@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -11,6 +12,8 @@ from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.risk.feature_selection import Criterion
 from qraft.risk.risk_report import PortfolioRisk
 from qraft.utils.visuals import plot_simulation_results
+
+logger = logging.getLogger(__name__)
 
 
 def create_cash_forecasts(
@@ -51,6 +54,12 @@ class PolicyProjection:
             )
 
         assets = decision.asset_order
+        missing = set(assets) - forecasts.initial_prices.keys()
+        if missing:
+            raise KeyError(
+                f"PolicyDecision references assets not in the forecast: {missing}. "
+                "Ensure the decision's asset_order is a subset of the forecast universe."
+            )
         initial_prices = np.array([forecasts.initial_prices[asset] for asset in assets])
         allocated_shares = (
             decision.target_weights_risk * state.portfolio_value
