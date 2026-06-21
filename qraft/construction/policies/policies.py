@@ -1,10 +1,11 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Protocol, Sequence
+from typing import Any, Protocol, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
 
+from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.optimization.constraints import PortfolioConstraint
 from qraft.construction.optimization.moments import (
     HorizonMoments,
@@ -24,6 +25,12 @@ from qraft.construction.optimization.presets import PreMadeObjectives
 from qraft.construction.optimization.problem import MPOProblem
 from qraft.construction.policies.policy_decision import PolicyDecision
 from qraft.construction.state import PortfolioState, align_state_to_assets
+from qraft.core.configs import (
+    DEFAULT_PIPELINE_CONFIG,
+    DEFAULT_SIMULATION_CONFIG,
+    PipelineConfig,
+    SimulationForecastConfig,
+)
 from qraft.forecast.forecast_paths import ForecastPaths
 
 logger = logging.getLogger(__name__)
@@ -31,9 +38,10 @@ logger = logging.getLogger(__name__)
 
 class PolicyProtocol(Protocol):
     name: str
+    min_history: int
 
     def decide(
-        self, state: PortfolioState, forecasts: ForecastPaths
+        self, snapshot: MarketSnapshot, state: PortfolioState
     ) -> PolicyDecision: ...
 
 
@@ -53,9 +61,13 @@ def _decision_from_mpo(
 class EqualWeightPolicy:
     target_cash_weight: float
     name: str = "equal_weight"
-    requires_forecast: ClassVar[bool] = False
+    min_history: int = 0
 
-    def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
+    def decide(
+        self,
+        snapshot: MarketSnapshot,
+        state: PortfolioState,
+    ) -> PolicyDecision:
         risky_weights = 1.0 - self.target_cash_weight
         n_assets = len(state.asset_order)
         target_weights = np.full(n_assets, risky_weights / n_assets)
@@ -70,9 +82,12 @@ class EqualWeightPolicy:
 
 @dataclass(frozen=True, slots=True)
 class MPOPolicy:
-    requires_forecast: ClassVar[bool] = True
     problem: MPOProblem
     moments_config: MomentsConfig
+    simulation_config: SimulationForecastConfig
+    pipeline_config: PipelineConfig
+    seed: int | None = None
+    min_history: int = 504
     name: str = "mpo"
     _optimizer_cache: dict[tuple[tuple[str, ...], int, int], MultiPeriodOptimizer] = (
         field(default_factory=dict, compare=False, repr=False)
@@ -90,6 +105,10 @@ class MPOPolicy:
         pnl_type: PnL_OPTIONS = "relative",
         expectation_tolerance: float | None = 1.0,
         step_size: int = 1,
+        simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
+        pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
+        seed: int | None = None,
+        min_history: int = 504,
         periods_per_year: int = 252,
         alpha: float | None = 0.05,
         constraints: Sequence[PortfolioConstraint] = (),
@@ -123,7 +142,11 @@ class MPOPolicy:
                 step_size=step_size,
                 periods_per_year=periods_per_year,
             ),
+            simulation_config=simulation_config,
+            pipeline_config=pipeline_config,
             name=name,
+            seed=seed,
+            min_history=min_history,
         )
 
     def compute_moments(self, forecasts: ForecastPaths) -> HorizonMoments:

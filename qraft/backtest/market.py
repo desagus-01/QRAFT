@@ -6,6 +6,7 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
+from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.distributions import state_smooth_probs, uniform_probs
 from qraft.core.probability.prob_vector import ProbVector
@@ -15,17 +16,6 @@ from qraft.utils.helpers import str_to_datetime
 PriceKind = Literal["price", "log_price"]
 WeightingScheme = Literal["uniform", "state_smooth"]
 DateLike = datetime | str
-
-
-@dataclass(frozen=True, slots=True)
-class MarketSnapshot:
-    """Decision view at t — only information available at or before t."""
-
-    t: datetime
-    t_next: datetime
-    history: ScenarioPanel
-    prices_t: NDArray[np.floating]
-    cash_rate: float
 
 
 @dataclass(frozen=True, slots=True)
