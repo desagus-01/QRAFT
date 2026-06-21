@@ -11,7 +11,6 @@ __all__ = [
     "IIDConfig",
     "PreprocessConfig",
     "FittedUniverse",
-    "get_univariate_results",
     "run_univariate_preprocess",
     "Signal",
     "SimulationForecast",

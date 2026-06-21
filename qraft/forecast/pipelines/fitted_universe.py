@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Mapping
+from typing import Mapping
 
 import numpy as np
 import polars as pl
@@ -11,19 +11,29 @@ from numpy.typing import NDArray
 from qraft.core.configs import DEFAULT_PIPELINE_CONFIG, IIDConfig, PipelineConfig
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
+from qraft.forecast.forecast_paths import AssetUniverse
 from qraft.forecast.pipelines.model_selection import run_univariate_pipeline
-
-if TYPE_CHECKING:
-    from qraft.forecast.forecast_paths import AssetUniverse
 from qraft.forecast.pipelines.preprocess import run_univariate_preprocess
 from qraft.forecast.simulation.simulate_paths import simulate_asset_paths
 from qraft.forecast.simulation.state import SimulationForecast
 from qraft.forecast.time_series.models.fitted_types import UnivariateRes
-from qraft.forecast.time_series.preprocessing.types import UnivariatePreprocess
+from qraft.forecast.time_series.preprocessing.types import (
+    TransformDecision,
+    UnivariatePreprocess,
+)
 from qraft.forecast.time_series.preprocessing.white_noise import test_non_idd
 from qraft.forecast.time_series.transforms.inverses import InverseSpec
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class ForecastRecipe:
+    detrend: dict[str, TransformDecision]
+    deseason: dict[str, list[tuple[str, float]]]
+    mean_orders: dict[str, tuple[int, int] | None]
+    vol_orders: dict[str, tuple[int, int, int] | None]
+    survivors: list[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +164,21 @@ class FittedUniverse:
                 innovations=innovation_paths[:, :, i],
             )
         return paths
+
+    def recipe(self) -> ForecastRecipe:
+        return ForecastRecipe(
+            detrend=self.preprocess.detrend_decision,
+            deseason=self.preprocess.deseason_decision,
+            mean_orders={
+                a: getattr(m.mean_res, "model_order", None)
+                for a, m in self.models.items()
+            },
+            vol_orders={
+                a: getattr(m.volatility_res, "model_order", None)
+                for a, m in self.models.items()
+            },
+            survivors=list(self.assets),
+        )
 
 
 def _build_simulation_forecasts(

@@ -219,4 +219,6 @@ def run_univariate_preprocess(
         post_data=final,
         inverse_specs=inverse_specs,
         needs_further_modelling=assets_need_preprocess,
+        detrend_decision=detrend.decision,
+        deseason_decision=deseason.decision,
     )

@@ -14,15 +14,6 @@ class TransformDecision:
     order: int | None = None
 
 
-#
-# @dataclass(frozen=True)
-# class AppliedTransform:
-#     asset: str
-#     decision: TransformDecision
-#     inverse_spec: InverseSpec | None = None
-#
-
-
 @dataclass(frozen=True)
 class PipelineAssetBatchRes:
     type: Literal["trend", "seasonality"]
@@ -37,6 +28,8 @@ class UnivariatePreprocess:
     post_data: DataFrame
     inverse_specs: dict[str, list[InverseSpec]]
     needs_further_modelling: list[str]
+    detrend_decision: dict[str, TransformDecision]
+    deseason_decision: dict[str, list[tuple[str, float]]]
 
     @property
     def assets_already_iid(self) -> list[str]:
@@ -53,4 +46,6 @@ class UnivariatePreprocess:
             post_data=filtered_data,
             inverse_specs=filtered_inverse,
             needs_further_modelling=filtered_modelling,
+            detrend_decision=self.detrend_decision,
+            deseason_decision=self.deseason_decision,
         )
