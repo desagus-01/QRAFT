@@ -125,6 +125,41 @@ def _admissable_garch_model(
     return True
 
 
+def fit_garch(
+    asset_array: NDArray[np.floating],
+    order: tuple[int, int, int],
+    distribution: GARCH_DISTRIBUTIONS,
+    cfg: VolatilityModelConfig,
+) -> AutoGARCHRes | None:
+    """Fit a single GARCH candidate and return the result if admissible."""
+    p, o, q = order
+    proposed_model = arch_model(
+        asset_array * GARCH_FIT_SCALE,
+        mean="zero",
+        p=p,
+        o=o,
+        q=q,
+        dist=distribution,
+        rescale=False,
+    ).fit(disp="off")
+
+    if proposed_model.convergence_flag != 0:
+        return None
+
+    params = _descale_garch_params(proposed_model.params.to_dict())  # type: ignore[attr-defined]
+    persistence = _garch_persistence_calc(params)
+
+    if not _admissable_garch_model(params, cfg):
+        return None
+
+    return _garch_result(
+        proposed_model,
+        model_order=order,
+        persistence=persistence,
+        admissible=True,
+    )
+
+
 def auto_garch(
     asset_array: NDArray[np.floating],
     cfg: VolatilityModelConfig | None = None,
@@ -151,45 +186,17 @@ def auto_garch(
         if (key == (1, 0, 1)) and (distribution == "t"):
             continue
 
-        proposed_model = arch_model(
-            asset_array * GARCH_FIT_SCALE,
-            mean="zero",
-            p=p,
-            o=o,
-            q=q,
-            dist=distribution,
-            rescale=False,
-        ).fit(disp="off")
-
-        if proposed_model.convergence_flag != 0:
+        result = fit_garch(asset_array, key, distribution, cfg)
+        if result is None:
             logger.info(
-                "Asset=%s GARCH%s dist=%s did not converge (flag=%s); dropping candidate",
-                asset_name,
-                key,
-                distribution,
-                proposed_model.convergence_flag,
-            )
-            continue
-
-        params = _descale_garch_params(proposed_model.params.to_dict())  # type: ignore[attr-defined]
-        persistence = _garch_persistence_calc(params)
-        if not _admissable_garch_model(params, cfg):
-            logger.info(
-                "Asset=%s GARCH%s dist=%s failed admissibility checks; dropping candidate",
+                "Asset=%s GARCH%s dist=%s failed fitting or admissibility checks; "
+                "dropping candidate",
                 asset_name,
                 key,
                 distribution,
             )
             continue
-
-        garch_candidates.append(
-            _garch_result(
-                proposed_model,
-                model_order=key,
-                persistence=persistence,
-                admissible=True,
-            )
-        )
+        garch_candidates.append(result)
 
     base_params = _descale_garch_params(base_model.params.to_dict())  # type: ignore[attr-defined]
     base_persistence = _garch_persistence_calc(base_params)

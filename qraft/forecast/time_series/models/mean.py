@@ -100,6 +100,43 @@ def _arma_filter(
     return True
 
 
+def fit_arma(
+    asset_array: NDArray[np.floating],
+    order: tuple[int, int],
+    cfg: MeanModelConfig,
+) -> AutoARMARes | None:
+    """Fit an ARIMA(p,0,q) model for a single candidate order and return the result if admissible."""
+    ar, ma = order
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", category=ConvergenceWarning)
+            model = ARIMA(asset_array, order=(ar, 0, ma), trend="c")
+            res = model.fit(method="statespace")
+    except (ConvergenceWarning, Exception):
+        return None
+
+    params = _build_arma_parameters(
+        model.param_names,
+        res.arparams,
+        res.maparams,
+        np.asarray(res.params, dtype=float),
+    )
+
+    if not _arma_filter(params, cfg):
+        return None
+
+    return AutoARMARes(
+        model_order=order,
+        params=params,
+        degrees_of_freedom=ar + ma + 1,
+        criteria=cfg.information_criteria,
+        criteria_res=float(getattr(res, cfg.information_criteria)),
+        p_values=res.pvalues,  # type: ignore[attr-defined]
+        residuals=res.resid,  # type: ignore[attr-defined]
+        residual_scale=float(np.std(res.resid, ddof=1)),  # type: ignore[attr-defined]
+    )
+
+
 def auto_arma(
     asset_array: NDArray[np.floating],
     cfg: MeanModelConfig | None = None,
@@ -142,63 +179,17 @@ def auto_arma(
     arma_res = []
 
     for ar_order, ma_order in candidates_for_arma:
-        try:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("error", category=ConvergenceWarning)
-
-                model = ARIMA(
-                    asset_array,
-                    order=(ar_order, 0, ma_order),
-                    seasonal_order=[0, 0, 0, 0],
-                    trend="c",
-                )
-                res = model.fit(method="statespace")
-        except ConvergenceWarning:
+        result = fit_arma(asset_array, (ar_order, ma_order), cfg)
+        if result is None:
             logger.info(
-                "Asset=%s Model (%s, %s) failed to converge. Will be dropped from candidates list",
+                "Asset=%s Model (%s, %s) failed fitting or admissibility checks; "
+                "will be dropped from candidates list",
                 asset_name,
                 ar_order,
                 ma_order,
             )
             continue
-        except Exception as exc:
-            logger.info(
-                "Asset=%s Model (%s, %s) failed with error=%s. Will be dropped from candidates list",
-                asset_name,
-                ar_order,
-                ma_order,
-                type(exc).__name__,
-            )
-            continue
-
-        params = _build_arma_parameters(
-            model.param_names,
-            res.arparams,
-            res.maparams,
-            np.asarray(res.params, dtype=float),
-        )
-
-        if not _arma_filter(params, cfg):
-            logger.info(
-                "Asset=%s Model (%s, %s) failed ARMA admissibility checks; will drop it",
-                asset_name,
-                ar_order,
-                ma_order,
-            )
-            continue
-
-        arma_res.append(
-            AutoARMARes(
-                model_order=(ar_order, ma_order),
-                params=params,
-                degrees_of_freedom=ar_order + ma_order + 1,
-                criteria=cfg.information_criteria,
-                criteria_res=float(getattr(res, cfg.information_criteria)),
-                p_values=res.pvalues,  # type: ignore[attr-defined]
-                residuals=res.resid,  # type: ignore[attr-defined]
-                residual_scale=float(np.std(res.resid, ddof=1)),  # type: ignore[attr-defined]
-            )
-        )
+        arma_res.append(result)
     if not arma_res:
         raise ValueError("No ARMA models were fitted, likely due to failed convergence")
 
