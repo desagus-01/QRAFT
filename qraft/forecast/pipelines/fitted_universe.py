@@ -34,7 +34,10 @@ from qraft.forecast.time_series.preprocessing.types import (
     UnivariatePreprocess,
 )
 from qraft.forecast.time_series.preprocessing.white_noise import test_non_idd
-from qraft.forecast.time_series.transforms.inverses import InverseSpec
+from qraft.forecast.time_series.transforms.inverses import (
+    DifferenceInverseSpec,
+    InverseSpec,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,7 @@ logger = logging.getLogger(__name__)
 class ForecastRecipe:
     detrend: dict[str, TransformDecision]
     deseason: dict[str, list[tuple[str, float]]]
+    needs_modelling: list[str]
     mean_orders: dict[str, tuple[int, int] | None]
     vol_orders: dict[str, tuple[int, int, int] | None]
     survivors: list[str]
@@ -181,6 +185,7 @@ class FittedUniverse:
         return ForecastRecipe(
             detrend=self.preprocess.detrend_decision,
             deseason=self.preprocess.deseason_decision,
+            needs_modelling=list(self.preprocess.needs_further_modelling),
             mean_orders={
                 a: getattr(m.mean_res, "model_order", None)
                 for a, m in self.models.items()
@@ -209,8 +214,12 @@ def fit_with_orders(
     recipe: ForecastRecipe,
     cfg: PipelineConfig,
 ) -> dict[str, UnivariateRes]:
+    need = set(recipe.needs_modelling)
     out: dict[str, UnivariateRes] = {}
     for a in recipe.survivors:
+        if a not in need:
+            out[a] = UnivariateRes(mean_res=None, volatility_res=None, quality=None)
+            continue
         arr = post_data.select(a).drop_nulls().to_numpy().ravel()
         mean_order = recipe.mean_orders[a]
         if mean_order is not None:
@@ -237,13 +246,29 @@ def recondition(
         base=data, patch=after_detrend, assets=recipe.survivors, suffix="_detrend"
     )
     post, inv_s = apply_deseason(merged, recipe.deseason)
+    # apply_deseason only returns columns for assets with season decisions;
+    # re-attach any survivor columns it dropped.
+    missing = [a for a in recipe.survivors if a not in post.columns]
+    if missing:
+        post = post.join(merged.select(["date"] + missing), on="date", how="left")
+
     models = fit_with_orders(post, recipe, cfg)
+
+    inverse_specs = _merge_inv(inv_d, inv_s, recipe.survivors)
+    need = set(recipe.needs_modelling)
+    for a in recipe.survivors:
+        if a not in need:
+            last_level = float(data.get_column(a).drop_nulls()[-1])
+            inverse_specs[a] = [
+                DifferenceInverseSpec(order=1, initial_values=np.asarray([last_level]))
+            ]
+
     return FittedUniverse(
         assets=recipe.survivors,
         preprocess=UnivariatePreprocess(
             post_data=post,
-            inverse_specs=_merge_inv(inv_d, inv_s, recipe.survivors),
-            needs_further_modelling=recipe.survivors,
+            inverse_specs=inverse_specs,
+            needs_further_modelling=[a for a in recipe.survivors if a in need],
             detrend_decision=recipe.detrend,
             deseason_decision=recipe.deseason,
         ),

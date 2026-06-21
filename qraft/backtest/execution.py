@@ -1,40 +1,12 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
 
 import numpy as np
 from numpy.typing import NDArray
 
-from qraft.backtest.market import MarketSnapshot
 from qraft.construction.policies import PolicyDecision
 from qraft.construction.state import PortfolioState
-from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
-from qraft.forecast.pipelines.forecasting import run_forecast
-
-
-class Forecaster(Protocol):
-    min_history: int
-
-    def forecast(
-        self, snapshot: MarketSnapshot, universe: AssetUniverse
-    ) -> ForecastPaths: ...
-
-
-@dataclass(frozen=True, slots=True)
-class PipelineForecaster:
-    seed: int | None = None
-    min_history: int = 504
-
-    def forecast(
-        self, snapshot: MarketSnapshot, universe: AssetUniverse
-    ) -> ForecastPaths:
-        return run_forecast(
-            panel=snapshot.history,
-            universe=universe,
-            seed=self.seed,
-            simulation_config=self.simulation_config,
-            pipeline_config=self.pipeline_config,
-        )
+from qraft.forecast.forecast_paths import ForecastPaths
 
 
 @dataclass(frozen=True, slots=True)

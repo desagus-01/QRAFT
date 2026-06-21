@@ -10,8 +10,8 @@ from qraft.core.configs import PipelineConfig
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.distributions import uniform_probs
 from qraft.forecast.pipelines.fitted_universe import (
-    ForecastRecipe,
     FittedUniverse,
+    ForecastRecipe,
     _merge_inv,
     fit_with_orders,
     recondition,
@@ -30,7 +30,6 @@ from qraft.forecast.time_series.transforms.inverses import (
     DifferenceInverseSpec,
     SeasonalInverseSpec,
 )
-
 
 # ---------------------------------------------------------------------------
 # _merge_inv
@@ -82,6 +81,7 @@ def test_fit_with_orders_demean_fallback() -> None:
     recipe = ForecastRecipe(
         detrend={},
         deseason={},
+        needs_modelling=["A"],
         mean_orders={"A": None},
         vol_orders={"A": None},
         survivors=["A"],
@@ -114,6 +114,7 @@ def test_fit_with_orders_arma() -> None:
     recipe = ForecastRecipe(
         detrend={},
         deseason={},
+        needs_modelling=["A"],
         mean_orders={"A": (1, 0)},
         vol_orders={"A": None},
         survivors=["A"],
@@ -144,6 +145,7 @@ def test_fit_with_orders_arma_and_garch(tmp_path: pytest.TempPathFactory) -> Non
     recipe = ForecastRecipe(
         detrend={},
         deseason={},
+        needs_modelling=["A"],
         mean_orders={"A": (1, 0)},
         vol_orders={"A": (1, 0, 1)},
         survivors=["A"],
@@ -171,6 +173,7 @@ def test_fit_with_orders_multiple_assets() -> None:
     recipe = ForecastRecipe(
         detrend={},
         deseason={},
+        needs_modelling=["A", "B"],
         mean_orders={"A": None, "B": None},
         vol_orders={"A": None, "B": None},
         survivors=["A", "B"],
@@ -204,6 +207,7 @@ def test_recondition_returns_fitted_universe() -> None:
     recipe = ForecastRecipe(
         detrend={"A": TransformDecision(kind="difference", order=1)},
         deseason={"A": [("w1", np.pi / 6)]},
+        needs_modelling=["A"],
         mean_orders={"A": None},
         vol_orders={"A": None},
         survivors=["A"],
@@ -243,6 +247,7 @@ def test_recondition_recipe_round_trip() -> None:
     recipe = ForecastRecipe(
         detrend={"A": TransformDecision(kind="difference", order=1)},
         deseason={"A": [("w1", np.pi / 6)]},
+        needs_modelling=["A"],
         mean_orders={"A": None},
         vol_orders={"A": None},
         survivors=["A"],
@@ -256,3 +261,69 @@ def test_recondition_recipe_round_trip() -> None:
     assert round_tripped.deseason == recipe.deseason
     assert round_tripped.mean_orders == recipe.mean_orders
     assert round_tripped.vol_orders == recipe.vol_orders
+
+
+# ---------------------------------------------------------------------------
+# parity: recondition ≡ fit on the same window
+# ---------------------------------------------------------------------------
+
+
+def test_recondition_parity_with_fit() -> None:
+    """recondition(recipe, …) must produce the same FittedUniverse as
+    FittedUniverse.fit(…) on the same data window, up to the deterministic
+    components (seed=0).  Uses a mix of RW-ish, AR(1) and seasonal assets."""
+    from qraft.forecast.forecast_paths import AssetUniverse
+
+    n = 80
+    rng = np.random.default_rng(42)
+
+    # RW-ish asset (already iid after differencing → no further modelling)
+    rw = np.cumsum(rng.normal(0, 0.02, n))
+
+    # AR(1) asset (needs mean modelling)
+    ar = np.zeros(n)
+    phi = 0.7
+    for i in range(1, n):
+        ar[i] = phi * ar[i - 1] + rng.normal(0, 0.1)
+
+    # Seasonal + trend asset (needs detrend, deseason, modelling)
+    trend = np.cumsum(rng.normal(0, 0.05, n))
+    seasonal = 0.3 * np.sin(np.pi / 6 * np.arange(n))
+    noise = rng.normal(0, 0.02, n)
+    seasonal_asset = 100.0 + trend + seasonal + noise
+
+    dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(n)]
+    data = pl.DataFrame({"date": dates, "RW": rw, "AR": ar, "SEAS": seasonal_asset})
+    prob = uniform_probs(data.height)
+    universe = AssetUniverse(assets=["RW", "AR", "SEAS"], factors=[])
+    cfg = PipelineConfig(exclude_non_invariants=False)
+
+    fit_result = FittedUniverse.fit(data, prob, universe, cfg, seed=0)
+    recipe = fit_result.recipe()
+    rec_result = recondition(recipe, data, prob, cfg)
+
+    for asset in recipe.survivors:
+        f_res = fit_result.models[asset]
+        r_res = rec_result.models[asset]
+
+        assert type(f_res.mean_res) is type(r_res.mean_res), (
+            f"{asset}: mean type mismatch {type(f_res.mean_res)} vs {type(r_res.mean_res)}"
+        )
+        if f_res.mean_res is not None and r_res.mean_res is not None:
+            np.testing.assert_allclose(
+                f_res.mean_res.residuals, r_res.mean_res.residuals, atol=1e-12
+            )
+
+    np.testing.assert_array_equal(
+        fit_result.assets, rec_result.assets, err_msg="asset lists differ"
+    )
+
+    assert fit_result.preprocess.needs_further_modelling == (
+        rec_result.preprocess.needs_further_modelling
+    ), "needs_further_modelling differs"
+
+    np.testing.assert_array_equal(
+        fit_result.invariants.values.to_numpy(),
+        rec_result.invariants.values.to_numpy(),
+        err_msg="invariants differ",
+    )
