@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, replace
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import polars as pl
@@ -11,8 +11,10 @@ from polars import DataFrame
 
 from qraft.core.panel import DatetimeSeries, ScenarioPanel, normalize_datetime_series
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
-from qraft.forecast.pipelines.fitted_universe import FittedUniverse
 from qraft.utils.visuals import plot_simulation_results
+
+if TYPE_CHECKING:
+    from qraft.forecast.pipelines.fitted_universe import FittedUniverse
 
 logger = logging.getLogger(__name__)
 

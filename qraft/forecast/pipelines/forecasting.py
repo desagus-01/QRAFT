@@ -5,6 +5,7 @@ from datetime import timedelta
 
 import numpy as np
 import polars as pl
+from polars import DataFrame
 
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
@@ -116,6 +117,67 @@ def _forecast_dates_from_history(dates: pl.Series, horizon: int) -> pl.Series:
     return pl.Series("date", [last_date + step * i for i in range(1, horizon + 1)])
 
 
+def _forecast_from_fit(
+    panel: ScenarioPanel,
+    asset_universe: AssetUniverse,
+    universe_fit: FittedUniverse,
+    last_data: DataFrame,
+    n_rows: int,
+    seed: int | None = None,
+    include_fit_diagnostics: bool = False,
+    *,
+    simulation_config: SimulationForecastConfig,
+) -> ForecastPaths:
+    innovations = draw_innovations(
+        invariants=universe_fit.invariants,
+        horizon=simulation_config.horizon,
+        n_sims=simulation_config.n_sims,
+        seed=seed,
+        method=simulation_config.method,
+        cma_config=simulation_config.cma_config,
+    )
+
+    simulated = universe_fit.simulate(innovations.values)
+
+    logger.info("Forecast complete - applying inverse transforms")
+    transformed = apply_inverse_transforms(
+        asset_data_dict=simulated,
+        n_original=n_rows,
+        inverse_specs=universe_fit.inverse_specs,
+        back_to_price=simulation_config.back_to_price,
+    )
+
+    forecast_assets = list(transformed.keys())
+    n_dropped = len(asset_universe.all_tickers) - len(forecast_assets)
+    if n_dropped > 0:
+        logger.info(
+            "Forecast produced %d assets (dropped %d from original universe of %d): %s",
+            len(forecast_assets),
+            n_dropped,
+            len(asset_universe.all_tickers),
+            forecast_assets,
+        )
+
+    initial_prices = {
+        col: np.exp((last_data[col][0]))
+        for col in forecast_assets
+        if col in last_data.columns
+    }
+
+    filtered_factors = [f for f in asset_universe.factors if f in forecast_assets]
+    filtered_assets = [a for a in asset_universe.assets if a in forecast_assets]
+    forecast_universe = AssetUniverse(assets=filtered_assets, factors=filtered_factors)
+
+    return ForecastPaths(
+        asset_paths=transformed,
+        dates=_forecast_dates_from_history(panel.dates, simulation_config.horizon),
+        path_probs=innovations.path_probs,
+        universe=forecast_universe,
+        initial_prices=initial_prices,
+        diagnostics=None if not include_fit_diagnostics else universe_fit,
+    )
+
+
 def run_forecast(
     panel: ScenarioPanel,
     universe: AssetUniverse,
@@ -151,53 +213,13 @@ def run_forecast(
         seed=seed,
         pipeline_config=pipeline_config,
     )
-
-    innovations = draw_innovations(
-        invariants=universe_fit.invariants,
-        horizon=simulation_config.horizon,
-        n_sims=simulation_config.n_sims,
+    return _forecast_from_fit(
+        panel=panel,
+        asset_universe=universe,
+        universe_fit=universe_fit,
+        last_data=data.tail(1),
+        n_rows=data.height,
         seed=seed,
-        method=simulation_config.method,
-        cma_config=simulation_config.cma_config,
-    )
-
-    simulated = universe_fit.simulate(innovations.values)
-
-    logger.info("Forecast complete - applying inverse transforms")
-    transformed = apply_inverse_transforms(
-        asset_data_dict=simulated,
-        n_original=data.height,
-        inverse_specs=universe_fit.inverse_specs,
-        back_to_price=simulation_config.back_to_price,
-    )
-
-    forecast_assets = list(transformed.keys())
-    n_dropped = len(universe.all_tickers) - len(forecast_assets)
-    if n_dropped > 0:
-        logger.info(
-            "Forecast produced %d assets (dropped %d from original universe of %d): %s",
-            len(forecast_assets),
-            n_dropped,
-            len(universe.all_tickers),
-            forecast_assets,
-        )
-
-    last_row = data.tail(1)
-    initial_prices = {
-        col: np.exp((last_row[col][0]))
-        for col in forecast_assets
-        if col in last_row.columns
-    }
-
-    filtered_factors = [f for f in universe.factors if f in forecast_assets]
-    filtered_assets = [a for a in universe.assets if a in forecast_assets]
-    forecast_universe = AssetUniverse(assets=filtered_assets, factors=filtered_factors)
-
-    return ForecastPaths(
-        asset_paths=transformed,
-        dates=_forecast_dates_from_history(panel.dates, simulation_config.horizon),
-        path_probs=innovations.path_probs,
-        universe=forecast_universe,
-        initial_prices=initial_prices,
-        diagnostics=None if not include_fit_diagnostics else universe_fit,
+        include_fit_diagnostics=include_fit_diagnostics,
+        simulation_config=simulation_config,
     )

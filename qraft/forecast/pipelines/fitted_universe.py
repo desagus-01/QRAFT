@@ -12,11 +12,23 @@ from qraft.core.configs import DEFAULT_PIPELINE_CONFIG, IIDConfig, PipelineConfi
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.forecast.forecast_paths import AssetUniverse
-from qraft.forecast.pipelines.model_selection import run_univariate_pipeline
+from qraft.forecast.pipelines.model_selection import (
+    _demean_fallback,
+    run_univariate_pipeline,
+)
 from qraft.forecast.pipelines.preprocess import run_univariate_preprocess
 from qraft.forecast.simulation.simulate_paths import simulate_asset_paths
 from qraft.forecast.simulation.state import SimulationForecast
-from qraft.forecast.time_series.models.fitted_types import UnivariateRes
+from qraft.forecast.time_series.models.fitted_types import (
+    UnivariateRes,
+)
+from qraft.forecast.time_series.models.mean import fit_arma
+from qraft.forecast.time_series.models.volatility import fit_garch
+from qraft.forecast.time_series.preprocessing.apply import (
+    apply_deseason,
+    apply_detrend,
+    overwrite_with_transforms,
+)
 from qraft.forecast.time_series.preprocessing.types import (
     TransformDecision,
     UnivariatePreprocess,
@@ -179,6 +191,68 @@ class FittedUniverse:
             },
             survivors=list(self.assets),
         )
+
+
+def _merge_inv(
+    inv_d: dict[str, InverseSpec],
+    inv_s: dict[str, InverseSpec],
+    survivors: list[str],
+) -> dict[str, list[InverseSpec]]:
+    return {
+        a: [spec for spec in (inv_d.get(a), inv_s.get(a)) if spec is not None]
+        for a in survivors
+    }
+
+
+def fit_with_orders(
+    post_data: pl.DataFrame,
+    recipe: ForecastRecipe,
+    cfg: PipelineConfig,
+) -> dict[str, UnivariateRes]:
+    out: dict[str, UnivariateRes] = {}
+    for a in recipe.survivors:
+        arr = post_data.select(a).drop_nulls().to_numpy().ravel()
+        mean_order = recipe.mean_orders[a]
+        if mean_order is not None:
+            mean_res = fit_arma(arr, mean_order, cfg.mean)
+        else:
+            mean_res = _demean_fallback(arr)
+        vol_order = recipe.vol_orders[a]
+        if vol_order is not None and mean_res is not None:
+            vol_res = fit_garch(mean_res.residuals, vol_order, "t", cfg.volatility)
+        else:
+            vol_res = None
+        out[a] = UnivariateRes(mean_res=mean_res, volatility_res=vol_res, quality=None)
+    return out
+
+
+def recondition(
+    recipe: ForecastRecipe,
+    data: pl.DataFrame,
+    prob: ProbVector,
+    cfg: PipelineConfig,
+) -> FittedUniverse:
+    after_detrend, inv_d = apply_detrend(data, recipe.detrend, prob)
+    merged = overwrite_with_transforms(
+        base=data, patch=after_detrend, assets=recipe.survivors, suffix="_detrend"
+    )
+    post, inv_s = apply_deseason(merged, recipe.deseason)
+    models = fit_with_orders(post, recipe, cfg)
+    return FittedUniverse(
+        assets=recipe.survivors,
+        preprocess=UnivariatePreprocess(
+            post_data=post,
+            inverse_specs=_merge_inv(inv_d, inv_s, recipe.survivors),
+            needs_further_modelling=recipe.survivors,
+            detrend_decision=recipe.detrend,
+            deseason_decision=recipe.deseason,
+        ),
+        models=models,
+        simulation_forecasts=_build_simulation_forecasts(
+            post, models, recipe.survivors, cfg.volatility.variance_cap_factor
+        ),
+        invariants=_build_invariants_panel(post, models, recipe.survivors, prob),
+    )
 
 
 def _build_simulation_forecasts(
