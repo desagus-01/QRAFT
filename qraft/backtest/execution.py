@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,6 +20,10 @@ class BacktestPeriod:
     state_after: PortfolioState
     solver_status: str | None
     forecasts: ForecastPaths | None = None
+    decision_error: str | None = None
+
+
+BacktestWarning = dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +33,7 @@ class BacktestResult:
     nav_dates: list[datetime]
     nav: NDArray[np.floating]
     periods: list[BacktestPeriod]
+    warnings_log: list[BacktestWarning] = field(default_factory=list)
 
 
 def _target_weights_full(

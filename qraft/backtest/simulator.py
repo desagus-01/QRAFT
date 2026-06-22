@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+import traceback
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 
 from qraft.backtest.execution import (
     BacktestPeriod,
     BacktestResult,
+    BacktestWarning,
     execute_frictionless,
 )
 from qraft.backtest.forecasting import BacktestForecaster  # noqa: F401
@@ -17,6 +20,25 @@ from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
 
 logger = logging.getLogger(__name__)
+
+
+def _make_warning(
+    message: str,
+    bar: datetime | None = None,
+    asset: str | None = None,
+    exception: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> BacktestWarning:
+    record: BacktestWarning = {"message": message}
+    if bar is not None:
+        record["bar"] = bar
+    if asset is not None:
+        record["asset"] = asset
+    if exception is not None:
+        record["exception"] = exception
+    if details:
+        record["details"] = details
+    return record
 
 
 def run_backtest(
@@ -43,6 +65,7 @@ def run_backtest(
     nav_dates: list[datetime] = []
     nav: list[float] = []
     decision_index = 0
+    warnings_log: list[BacktestWarning] = []
 
     # A bundled policy (e.g. ForecastingMPOPolicy) can produce its own inputs;
     # otherwise inputs come from an explicit forecaster, else there are none.
@@ -60,7 +83,7 @@ def run_backtest(
 
         # fill the decision queued one bar earlier
         if pending is not None and bar in exec_to_decision:
-            d_bar, decision, status = pending
+            d_bar, decision, status, error_msg = pending
             before = PortfolioState(asset_order, prices, shares, cash)
             executed, shares, cash = execute_frictionless(
                 decision, shares, cash, prices, asset_order
@@ -74,6 +97,7 @@ def run_backtest(
                     executed_share_trades=executed,
                     state_after=PortfolioState(asset_order, prices, shares, cash),
                     solver_status=status,
+                    decision_error=error_msg,
                 )
             )
             pending = None
@@ -84,6 +108,7 @@ def run_backtest(
                 bar, schedule.execution_bar(bar, bars), step_size=step_size
             )
             state = PortfolioState(asset_order, snapshot.prices_t, shares, cash)
+            error_msg: str | None = None
             try:
                 policy_inputs = (
                     inputs_source.policy_inputs_at(snapshot, decision_index)
@@ -94,11 +119,25 @@ def run_backtest(
                 status = getattr(decision.diagnostics, "status", "ok")
             except Exception as exc:  # one bad forecast/solve must not abort the run
                 logger.warning("decision at %s failed (%s); holding.", bar, exc)
+                logger.debug(
+                    "Traceback for failed decision at %s:\n%s",
+                    bar,
+                    traceback.format_exc(),
+                )
+                exc_str = f"{type(exc).__name__}: {exc}"
+                warnings_log.append(
+                    _make_warning(
+                        message="decision failed; holding current weights",
+                        bar=bar,
+                        exception=exc_str,
+                    )
+                )
                 decision = PolicyDecision(
                     asset_order, state.asset_weights, float(state.cash_weight)
                 )
                 status = "solver_error"
-            pending = (bar, decision, status)
+                error_msg = exc_str
+            pending = (bar, decision, status, error_msg)
             decision_index += 1
 
         nav_dates.append(bar)
@@ -106,9 +145,9 @@ def run_backtest(
         prev = bar
 
     if warmup and not periods:
-        logger.warning(
-            "No decisions: history never reached policy.min_history=%d.", warmup
-        )
+        msg = f"No decisions: history never reached policy.min_history={warmup}."
+        logger.warning(msg)
+        warnings_log.append(_make_warning(message=msg))
 
     return BacktestResult(
         policy_name=policy.name,
@@ -116,4 +155,5 @@ def run_backtest(
         nav_dates=nav_dates,
         nav=np.array(nav),
         periods=periods,
+        warnings_log=warnings_log,
     )

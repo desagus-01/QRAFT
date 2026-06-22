@@ -9,6 +9,7 @@ from qraft import (
     AssetUniverse,
     LogConfig,
     MPOPolicy,
+    PipelineConfig,
     ScenarioPanel,
     setup_logging,
 )
@@ -25,13 +26,12 @@ from qraft.construction import (
 )
 from qraft.construction.optimization.moments import PolicyInputConfig
 from qraft.core import state_smooth_probs
-from qraft.core.configs import SimulationForecastConfig
-from qraft.core.scenarios.copula_marginal import CMAConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.WARN))
+# setup_logging(LogConfig(level=logging.WARN))
 
+setup_logging(LogConfig(log_file="backtest.log"))
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
 data, factors_cols = import_tickers_and_factors(
@@ -97,13 +97,13 @@ constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(constraint_type="soft", soft_weight=1.0),
     MinCashWeight(limit=0.3, constraint_type="soft", soft_weight=1.0),
-    TurnoverLimit(limit=0.80),
+    TurnoverLimit(limit=0.30),
 ]
 
 policy = ForecastingMPOPolicy(
     policy=MPOPolicy.preset(
-        objective_type="cvar_cuts",
-        risk_aversion=0.1,
+        objective_type="mean_covariance",
+        risk_aversion=0.02,
         constraints=constraints,
         min_history=504,
     ),
@@ -113,10 +113,11 @@ policy = ForecastingMPOPolicy(
         risk="both",
         expectation_tolerance=0.2,
     ),
-    simulation_config=SimulationForecastConfig(
-        method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
-    ),
-    recipe_every=4,  # full re-selection every 12 rebalances
+    # simulation_config=SimulationForecastConfig(
+    #     method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
+    # ),
+    pipeline_config=PipelineConfig(exclude_non_invariants=False),
+    recipe_every=6,  # full re-selection every 12 rebalances
     forecast_every=1,  # recondition every rebalance
     min_history=504,
 )

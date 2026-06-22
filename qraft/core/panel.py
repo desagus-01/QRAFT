@@ -51,15 +51,22 @@ class ScenarioPanel:
         if self.values.height == 0:
             raise ValueError("ScenarioPanel cannot be empty")
         try:
-            values_are_finite = np.isfinite(self.values.to_numpy()).all()
+            arr = self.values.to_numpy()
+            finite_mask = np.isfinite(arr)
+            if not finite_mask.all():
+                bad_cols = [
+                    col
+                    for i, col in enumerate(self.values.columns)
+                    if not np.isfinite(arr[:, i]).all()
+                ]
+                raise ValueError(
+                    f"ScenarioPanel.values must contain only finite numeric "
+                    f"values; columns with NaN/Inf: {bad_cols}"
+                )
         except TypeError as exc:
             raise ValueError(
                 "ScenarioPanel.values must contain only finite numeric values"
             ) from exc
-        if not values_are_finite:
-            raise ValueError(
-                "ScenarioPanel.values must contain only finite numeric values"
-            )
 
         if self.prob.shape[0] != self.values.height:
             raise ValueError(
