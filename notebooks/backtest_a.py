@@ -1,6 +1,7 @@
 # %%
 import logging
 
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
@@ -8,9 +9,13 @@ from qraft import (
     AssetUniverse,
     LogConfig,
     MPOPolicy,
+    ScenarioPanel,
     setup_logging,
 )
+from qraft.backtest.forecasting import ForecastingMPOPolicy
 from qraft.backtest.market import MarketData, WindowWeighting
+from qraft.backtest.schedule import RebalanceSchedule
+from qraft.backtest.simulator import run_backtest
 from qraft.construction import (
     FullyInvested,
     LongOnly,
@@ -18,10 +23,14 @@ from qraft.construction import (
     PortfolioConstraint,
     TurnoverLimit,
 )
+from qraft.construction.optimization.moments import PolicyInputConfig
+from qraft.core import state_smooth_probs
+from qraft.core.configs import SimulationForecastConfig
+from qraft.core.scenarios.copula_marginal import CMAConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.INFO))
+setup_logging(LogConfig(level=logging.WARN))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -48,11 +57,21 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:50])
+tradable_assets = list(data.columns[10:90])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
+prob_ex = state_smooth_probs(
+    data.height,
+    half_life=data.height / 2,
+    time_based=True,
+)
 
+
+posterior_panel = ScenarioPanel.from_log_prices(
+    data,
+    prob=prob_ex,
+)
 # %%
 
 mkt_dt = MarketData.from_log_prices(
@@ -60,48 +79,65 @@ mkt_dt = MarketData.from_log_prices(
 )
 
 # %%
+# forecasts = run_forecast(
+#     panel=posterior_panel,
+#     seed=3,
+#     universe=universe,
+#     include_fit_diagnostics=True,
+#     simulation_config=SimulationForecastConfig(
+#         method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
+#     ),
+# )
+#
+#
+# # %%
+# forecasts.plot_asset_paths()
+# %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(constraint_type="soft", soft_weight=1.0),
-    # FullyInvested(),
     MinCashWeight(limit=0.3, constraint_type="soft", soft_weight=1.0),
-    # MaxWeight(limit=0.09),
-    # MaxWeightTopN(top_n=10, sum_limit=0.4, constraint_type="soft", soft_weight=500),
     TurnoverLimit(limit=0.80),
 ]
 
-policy = MPOPolicy.preset(
-    objective_type="mean_covariance",
-    risk_aversion=0.1,
-    cash_path="data/cash.csv",
-    constraints=constraints,
-    expectation_tolerance=0.2,
+policy = ForecastingMPOPolicy(
+    policy=MPOPolicy.preset(
+        objective_type="cvar_cuts",
+        risk_aversion=0.1,
+        constraints=constraints,
+        min_history=504,
+    ),
+    input_config=PolicyInputConfig(
+        cash_path="data/cash.csv",
+        expected_returns="forecast",
+        risk="both",
+        expectation_tolerance=0.2,
+    ),
+    simulation_config=SimulationForecastConfig(
+        method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
+    ),
+    recipe_every=4,  # full re-selection every 12 rebalances
+    forecast_every=1,  # recondition every rebalance
+    min_history=504,
 )
 
 
-policy
+result = run_backtest(mkt_dt, policy, schedule=RebalanceSchedule("quarter_end"))
 
-# %%
-# result = run_backtest(
-#     market=mkt_dt,
-#     policy=policy,
-#     schedule=RebalanceSchedule("quarter_end"),
-# )
-#
 # # %%
 #
 # # Build a Polars DataFrame
 #
-# df = pl.DataFrame({"date": result.nav_dates, "nav": result.nav}).sort("date")
-#
-# plt.figure(figsize=(12, 6))
-# plt.plot(df["date"].to_list(), df["nav"].to_list(), marker="o", linewidth=2)
-#
-# plt.title("NAV Over Time")
-# plt.xlabel("Date")
-# plt.ylabel("NAV")
-# plt.grid(True)
-# plt.xticks(rotation=45)
-# plt.tight_layout()
-#
-# plt.show()
+df = pl.DataFrame({"date": result.nav_dates, "nav": result.nav}).sort("date")
+
+plt.figure(figsize=(12, 6))
+plt.plot(df["date"].to_list(), df["nav"].to_list(), marker="o", linewidth=2)
+
+plt.title("NAV Over Time")
+plt.xlabel("Date")
+plt.ylabel("NAV")
+plt.grid(True)
+plt.xticks(rotation=45)
+plt.tight_layout()
+
+plt.show()

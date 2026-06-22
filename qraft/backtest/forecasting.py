@@ -4,6 +4,8 @@ import logging
 
 from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
+from qraft.construction.policies import MPOPolicy, PolicyDecision
+from qraft.construction.state import PortfolioState
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
@@ -138,3 +140,66 @@ class BacktestForecaster:
 
     def _seed_for(self, step: int) -> int | None:
         return None if self.seed is None else self.seed + step
+
+
+class ForecastingMPOPolicy:
+    """Batteries-included MPO strategy for a backtest.
+
+    Bundles an :class:`MPOPolicy` optimizer with a :class:`BacktestForecaster`
+    (forecast cadence + recipe cache). It exposes exactly what ``run_backtest``
+    needs — ``policy_inputs_at`` (produce PolicyInputs for a rebalance) and
+    ``decide`` (optimize against them) — so ``run_backtest(market, policy)``
+    works with no separate ``forecaster=`` argument. ``construction`` stays a
+    pure optimizer; forecast-then-optimize orchestration lives here.
+    """
+
+    def __init__(
+        self,
+        policy: MPOPolicy,
+        input_config: PolicyInputConfig,
+        *,
+        recipe_every: int = 12,
+        forecast_every: int = 1,
+        pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
+        simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
+        seed: int | None = None,
+        min_history: int = 0,
+        name: str | None = None,
+    ) -> None:
+        self._policy = policy
+        self._forecaster = BacktestForecaster(
+            input_config,
+            recipe_every=recipe_every,
+            forecast_every=forecast_every,
+            pipeline_config=pipeline_config,
+            simulation_config=simulation_config,
+            seed=seed,
+        )
+        self.name = name or policy.name
+        self.min_history = min_history
+
+    def policy_inputs_at(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
+        return self._forecaster.policy_inputs_at(snapshot, step)
+
+    def decide(
+        self,
+        state: PortfolioState,
+        policy_inputs: PolicyInputs | None = None,
+        *,
+        inputs: dict | None = None,
+    ) -> PolicyDecision:
+        if policy_inputs is None:
+            raise ValueError(
+                "ForecastingMPOPolicy.decide needs PolicyInputs (run_backtest "
+                "supplies them via policy_inputs_at); use decide_at() for a "
+                "one-shot decision from a snapshot."
+            )
+        return self._policy.optimize(
+            state=state, policy_inputs=policy_inputs, inputs=inputs
+        )
+
+    def decide_at(
+        self, snapshot: MarketSnapshot, state: PortfolioState, step: int = 0
+    ) -> PolicyDecision:
+        """One-shot forecast + optimize from a snapshot (outside run_backtest)."""
+        return self.decide(state, self.policy_inputs_at(snapshot, step))

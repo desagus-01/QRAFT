@@ -24,7 +24,7 @@ def run_backtest(
     policy: PolicyProtocol,
     *,
     schedule: RebalanceSchedule = RebalanceSchedule(),
-    forecaster: "BacktestForecaster | None" = None,
+    forecaster: BacktestForecaster | None = None,
     initial_cash: float = 100.0,
     step_size: int = 1,
 ) -> BacktestResult:
@@ -43,6 +43,14 @@ def run_backtest(
     nav_dates: list[datetime] = []
     nav: list[float] = []
     decision_index = 0
+
+    # A bundled policy (e.g. ForecastingMPOPolicy) can produce its own inputs;
+    # otherwise inputs come from an explicit forecaster, else there are none.
+    inputs_source = (
+        forecaster
+        if forecaster is not None
+        else (policy if hasattr(policy, "policy_inputs_at") else None)
+    )
 
     prev: datetime | None = None
     for i, bar in enumerate(bars):
@@ -78,8 +86,8 @@ def run_backtest(
             state = PortfolioState(asset_order, snapshot.prices_t, shares, cash)
             try:
                 policy_inputs = (
-                    forecaster.policy_inputs_at(snapshot, decision_index)
-                    if forecaster is not None
+                    inputs_source.policy_inputs_at(snapshot, decision_index)
+                    if inputs_source is not None
                     else None
                 )
                 decision = policy.decide(state, policy_inputs)
