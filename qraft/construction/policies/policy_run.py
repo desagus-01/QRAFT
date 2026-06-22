@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.policies.policies import PolicyProtocol
 from qraft.construction.policies.policy_decision import PolicyDecision
 from qraft.construction.policies.policy_projection import PolicyProjection
@@ -17,11 +18,12 @@ class PolicyRun:
 
 def run_policy(
     policy: PolicyProtocol,
+    snapshot: MarketSnapshot,
     state: PortfolioState,
     forecasts: ForecastPaths,
 ) -> PolicyRun:
     """Make a policy decision and project it through the supplied forecasts."""
 
-    decision = policy.decide(state, forecasts)
+    decision = policy.decide(snapshot, state)
     projection = PolicyProjection.from_decision(decision, forecasts, state)
     return PolicyRun(decision=decision, projection=projection)

@@ -7,12 +7,13 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
-    EqualWeightPolicy,
+    CMAConfig,
     LogConfig,
     MPOPolicy,
     setup_logging,
 )
 from qraft.backtest.market import MarketData, WindowWeighting
+from qraft.backtest.schedule import RebalanceSchedule
 from qraft.backtest.simulator import run_backtest
 from qraft.construction import (
     FullyInvested,
@@ -21,10 +22,11 @@ from qraft.construction import (
     PortfolioConstraint,
     TurnoverLimit,
 )
+from qraft.core.configs import SimulationForecastConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.WARN))
+setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
@@ -51,7 +53,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:50])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -62,7 +64,6 @@ mkt_dt = MarketData.from_log_prices(
     data, universe, cash=cash, weighting=WindowWeighting("state_smooth", half_life=126)
 )
 
-mkt_dt.history_through(t="2020-01-01")
 # %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
@@ -80,23 +81,19 @@ policy = MPOPolicy.preset(
     cash_path="data/cash.csv",
     constraints=constraints,
     expectation_tolerance=0.2,
+    simulation_config=SimulationForecastConfig(
+        method="cma",
+        n_sims=10_000,
+        cma_config=CMAConfig(target_copula="t"),
+    ),
 )
 
+result = run_backtest(
+    market=mkt_dt,
+    policy=policy,
+    schedule=RebalanceSchedule("quarter_end"),
+)
 
-# result = run_backtest(
-#     mkt_dt,
-#     policy,  # MPOPolicy -> requires_forecast=True
-#     schedule=RebalanceSchedule("quarter_end"),
-#     forecaster=PipelineForecaster(
-#         simulation_config=SimulationForecastConfig(
-#             method="cma",
-#             n_sims=10_000,
-#             cma_config=CMAConfig(target_copula="t"),
-#         ),
-#     ),
-# )
-
-result = run_backtest(market=mkt_dt, policy=EqualWeightPolicy)
 # %%
 
 # Build a Polars DataFrame

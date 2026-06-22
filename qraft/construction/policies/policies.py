@@ -32,6 +32,7 @@ from qraft.core.configs import (
     SimulationForecastConfig,
 )
 from qraft.forecast.forecast_paths import ForecastPaths
+from qraft.forecast.pipelines.forecasting import run_forecast
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,19 @@ class MPOPolicy:
             self._optimizer_cache[key] = optimizer
         return optimizer
 
-    def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
+    def decide(self, snapshot: MarketSnapshot, state: PortfolioState) -> PolicyDecision:
+        forecasts = run_forecast(
+            panel=snapshot.history,
+            universe=snapshot.universe,
+            seed=self.seed,
+            simulation_config=self.simulation_config,
+            pipeline_config=self.pipeline_config,
+        )
+        return self._optimize(state=state, forecasts=forecasts)
+
+    def _optimize(
+        self, state: PortfolioState, forecasts: ForecastPaths
+    ) -> PolicyDecision:
         moments = self.compute_moments(forecasts)
         current_weights, current_cash, dropped, dropped_weight = align_state_to_assets(
             state, moments.assets

@@ -8,7 +8,6 @@ import numpy as np
 from qraft.backtest.execution import (
     BacktestPeriod,
     BacktestResult,
-    Forecaster,
     execute_frictionless,
 )
 from qraft.backtest.market import MarketData
@@ -25,16 +24,9 @@ def run_backtest(
     *,
     schedule: RebalanceSchedule = RebalanceSchedule(),
     initial_cash: float = 100.0,
-    forecaster: Forecaster | None = None,
     step_size: int = 1,
-    store_forecasts: bool = True,
 ) -> BacktestResult:
-    needs_forecast = getattr(policy, "requires_forecast", True)
-    if needs_forecast and forecaster is None:
-        raise ValueError(
-            f"policy {policy.name!r} requires a forecaster; pass forecaster=..."
-        )
-    warmup = getattr(forecaster, "min_history", 0) if needs_forecast else 0
+    warmup = policy.min_history
 
     bars = market.trading_bars
     asset_order = list(market.universe.assets)
@@ -44,7 +36,7 @@ def run_backtest(
 
     shares = np.zeros(len(asset_order))
     cash = initial_cash
-    pending = None  # (decision_bar, decision, forecasts, status)
+    pending = None  # (decision_bar, decision, status)
     periods: list[BacktestPeriod] = []
     nav_dates: list[datetime] = []
     nav: list[float] = []
@@ -57,7 +49,7 @@ def run_backtest(
 
         # fill the decision queued one bar earlier
         if pending is not None and bar in exec_to_decision:
-            d_bar, decision, fc, status = pending
+            d_bar, decision, status = pending
             before = PortfolioState(asset_order, prices, shares, cash)
             executed, shares, cash = execute_frictionless(
                 decision, shares, cash, prices, asset_order
@@ -71,7 +63,6 @@ def run_backtest(
                     executed_share_trades=executed,
                     state_after=PortfolioState(asset_order, prices, shares, cash),
                     solver_status=status,
-                    forecasts=fc if store_forecasts else None,
                 )
             )
             pending = None
@@ -83,28 +74,23 @@ def run_backtest(
             )
             state = PortfolioState(asset_order, snapshot.prices_t, shares, cash)
             try:
-                forecasts = (
-                    forecaster.forecast(snapshot, market.universe)
-                    if needs_forecast
-                    else None
-                )
-                decision = policy.decide(state, forecasts)
+                decision = policy.decide(snapshot, state)
                 status = getattr(decision.diagnostics, "status", "ok")
             except Exception as exc:  # one bad forecast/solve must not abort the run
                 logger.warning("decision at %s failed (%s); holding.", bar, exc)
                 decision = PolicyDecision(
                     asset_order, state.asset_weights, float(state.cash_weight)
                 )
-                forecasts, status = None, "solver_error"
-            pending = (bar, decision, forecasts, status)
+                status = "solver_error"
+            pending = (bar, decision, status)
 
         nav_dates.append(bar)
         nav.append(float(shares @ prices + cash))
         prev = bar
 
-    if needs_forecast and not periods:
+    if warmup and not periods:
         logger.warning(
-            "No decisions: history never reached forecaster.min_history=%d.", warmup
+            "No decisions: history never reached policy.min_history=%d.", warmup
         )
 
     return BacktestResult(

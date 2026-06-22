@@ -160,6 +160,7 @@ class MarketData:
         return MarketSnapshot(
             t=t,
             t_next=t_next,
+            universe=self.universe,
             history=self.history_through(t),
             prices_t=self.prices_at(t),
             cash_rate=self.cash_rate_asof(t, step_size=step_size),
