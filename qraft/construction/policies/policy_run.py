@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.policies.policies import PolicyProtocol
 from qraft.construction.policies.policy_decision import PolicyDecision
@@ -20,7 +19,6 @@ class PolicyRun:
 
 def run_policy(
     policy: PolicyProtocol,
-    snapshot: MarketSnapshot,
     state: PortfolioState,
     forecasts: ForecastPaths | None = None,
     policy_inputs: PolicyInputs | None = None,
@@ -28,15 +26,7 @@ def run_policy(
 ) -> PolicyRun:
     """Make a policy decision and optionally project it through supplied forecasts."""
 
-    if policy_inputs is not None and hasattr(policy, "make_decision"):
-        decision = policy.make_decision(
-            snapshot,
-            state,
-            policy_inputs=policy_inputs,
-            inputs=inputs,
-        )
-    else:
-        decision = policy.decide(snapshot, state)
+    decision = policy.decide(state, policy_inputs, inputs=inputs)
 
     projection = (
         PolicyProjection.from_decision(decision, forecasts, state)

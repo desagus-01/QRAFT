@@ -1,6 +1,5 @@
 __all__ = [
     "MPOPolicy",
-    "ForecastingMPOPolicy",
     "EqualWeightPolicy",
     "PolicyProtocol",
     "PolicyDecision",
@@ -96,7 +95,6 @@ from qraft.construction.optimization.problem import (  # noqa: F401
 )
 from qraft.construction.policies import (  # noqa: F401
     EqualWeightPolicy,
-    ForecastingMPOPolicy,
     MPOPolicy,
     PolicyDecision,
     PolicyProjection,

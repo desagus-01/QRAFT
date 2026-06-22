@@ -10,6 +10,7 @@ from qraft.backtest.execution import (
     BacktestResult,
     execute_frictionless,
 )
+from qraft.backtest.forecasting import BacktestForecaster  # noqa: F401
 from qraft.backtest.market import MarketData
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
@@ -23,6 +24,7 @@ def run_backtest(
     policy: PolicyProtocol,
     *,
     schedule: RebalanceSchedule = RebalanceSchedule(),
+    forecaster: "BacktestForecaster | None" = None,
     initial_cash: float = 100.0,
     step_size: int = 1,
 ) -> BacktestResult:
@@ -40,6 +42,7 @@ def run_backtest(
     periods: list[BacktestPeriod] = []
     nav_dates: list[datetime] = []
     nav: list[float] = []
+    decision_index = 0
 
     prev: datetime | None = None
     for i, bar in enumerate(bars):
@@ -74,7 +77,12 @@ def run_backtest(
             )
             state = PortfolioState(asset_order, snapshot.prices_t, shares, cash)
             try:
-                decision = policy.decide(snapshot, state)
+                policy_inputs = (
+                    forecaster.policy_inputs_at(snapshot, decision_index)
+                    if forecaster is not None
+                    else None
+                )
+                decision = policy.decide(state, policy_inputs)
                 status = getattr(decision.diagnostics, "status", "ok")
             except Exception as exc:  # one bad forecast/solve must not abort the run
                 logger.warning("decision at %s failed (%s); holding.", bar, exc)
@@ -83,6 +91,7 @@ def run_backtest(
                 )
                 status = "solver_error"
             pending = (bar, decision, status)
+            decision_index += 1
 
         nav_dates.append(bar)
         nav.append(float(shares @ prices + cash))

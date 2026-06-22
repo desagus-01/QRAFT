@@ -9,7 +9,6 @@ __all__ = [
     "LogConfig",
     "PipelineConfig",
     "MPOPolicy",
-    "ForecastingMPOPolicy",
     "EqualWeightPolicy",
     "PolicyProtocol",
     "PolicyDecision",
@@ -54,7 +53,6 @@ from qraft.construction.optimization.moments import (
 )
 from qraft.construction.policies import (
     EqualWeightPolicy,
-    ForecastingMPOPolicy,
     MPOPolicy,
     PolicyDecision,
     PolicyProjection,

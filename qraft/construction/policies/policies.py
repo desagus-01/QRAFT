@@ -31,7 +31,13 @@ class PolicyProtocol(Protocol):
     @property
     def min_history(self) -> int: ...
 
-    def decide(self, state: PortfolioState) -> PolicyDecision: ...
+    def decide(
+        self,
+        state: PortfolioState,
+        policy_inputs: PolicyInputs | None = None,
+        *,
+        inputs: dict[str, Any] | None = None,
+    ) -> PolicyDecision: ...
 
 
 def _decision_from_mpo(
@@ -55,6 +61,9 @@ class EqualWeightPolicy:
     def decide(
         self,
         state: PortfolioState,
+        policy_inputs: PolicyInputs | None = None,
+        *,
+        inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
         risky_weights = 1.0 - self.target_cash_weight
         n_assets = len(state.asset_order)
@@ -130,7 +139,7 @@ class MPOPolicy:
     def decide(
         self,
         state: PortfolioState,
-        policy_inputs: PolicyInputs,
+        policy_inputs: PolicyInputs | None = None,
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
