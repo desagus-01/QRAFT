@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
-from qraft.construction.optimization.moments import HorizonMoments
+from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     ObjectiveSpec,
@@ -137,7 +137,7 @@ class MPOProblem:
     def solve(
         self,
         *,
-        moments: HorizonMoments,
+        moments: PolicyInputs,
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
@@ -154,7 +154,7 @@ class MPOProblem:
         Parameters
         ----------
         moments:
-            Horizon moments produced by :class:`HorizonMoments`.  Determines
+            Policy inputs produced by :class:`PolicyInputs`.  Determines
             the problem size and supplies all data parameters to the solver.
         current_weights:
             Current risky-asset weights, shape ``(n_assets,)``.

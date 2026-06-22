@@ -4,7 +4,7 @@ import cvxpy as cp
 import numpy as np
 from numpy.typing import NDArray
 
-from qraft.construction.optimization.moments import HorizonMoments, psd_sqrt_factor
+from qraft.construction.optimization.moments import PolicyInputs, psd_sqrt_factor
 from qraft.construction.optimization.objectives.protocol import register_objective
 from qraft.construction.optimization.objectives.specs import (
     CashReturn,
@@ -54,9 +54,9 @@ class ExpectedReturnHandler:
     ) -> None:
         """
         Expected ``inputs`` keys:
-          ``"moments"``  – a ``HorizonMoments`` instance.
+          ``"moments"``  – a ``PolicyInputs`` instance.
         """
-        params["mean"].value = inputs["moments"].mean
+        params["mean"].value = inputs["moments"].require_mean()
 
 
 @register_objective(CashReturn)
@@ -97,12 +97,12 @@ class CashReturnHandler:
         Populate the cash return parameter from ``inputs["moments"].cash_return``.
 
         Expected ``inputs`` keys:
-          ``"moments"`` – a :class:`HorizonMoments` instance whose
+          ``"moments"`` – a :class:`PolicyInputs` instance whose
           ``cash_return`` field is a 1-D array of shape ``(1,)`` or
           ``(horizons,)``.
         """
         moments = inputs["moments"]
-        cash_ret = np.asarray(moments.cash_return, dtype=float).ravel()
+        cash_ret = np.asarray(moments.require_cash_return(), dtype=float).ravel()
         horizons = params["cash_return"].shape[0]
 
         if cash_ret.size == 1:
@@ -110,7 +110,7 @@ class CashReturnHandler:
             cash_ret = np.full(horizons, cash_ret[0])
         elif cash_ret.size != horizons:
             raise ValueError(
-                f"HorizonMoments.cash_return has {cash_ret.size} value(s) but "
+                f"PolicyInputs.cash_return has {cash_ret.size} value(s) but "
                 f"the optimizer was built with {horizons} horizon(s). "
                 "Provide either a scalar or a vector of length horizons."
             )
@@ -172,11 +172,12 @@ class CVaRCuttingPlaneHandler:
         inputs: dict[str, Any],
     ) -> None:
         moments = inputs["moments"]
-        probs = np.asarray(moments.scenario_probs, dtype=float)
+        scenario_returns, scenario_probs = moments.require_scenarios()
+        probs = np.asarray(scenario_probs, dtype=float)
 
         for h in range(moments.n_horizons):
             n = moments.n_assets
-            R_h = np.asarray(moments.scenario_returns[:, h, :], dtype=float)
+            R_h = np.asarray(scenario_returns[:, h, :], dtype=float)
 
             if R_h.shape != (params["n_scenarios"], n):
                 raise ValueError(
@@ -302,9 +303,9 @@ class CVaRCuttingPlaneHandler:
         spec: CVaRCuttingPlane,
         params: dict[str, Any],
         weights_val: NDArray[np.floating],
-        moments: HorizonMoments,
+        moments: PolicyInputs,
     ) -> bool:
-        probs = moments.scenario_probs
+        scenario_returns, probs = moments.require_scenarios()
 
         converged = True
         for h in range(moments.n_horizons):
@@ -312,7 +313,7 @@ class CVaRCuttingPlaneHandler:
                 spec,
                 params,
                 weights_val[h, :],
-                moments.scenario_returns[:, h, :],
+                scenario_returns[:, h, :],
                 probs,
                 h,
             )
@@ -377,11 +378,12 @@ class CVaRRiskHandler:
         inputs: dict[str, Any],
     ) -> None:
         moments = inputs["moments"]
-        params["probs"].value = np.asarray(moments.scenario_probs, dtype=float)
+        scenario_returns, scenario_probs = moments.require_scenarios()
+        params["probs"].value = np.asarray(scenario_probs, dtype=float)
         for h in range(moments.n_horizons):
             key = f"R_{h}"
             if key in params:
-                params[key].value = moments.scenario_returns[:, h, :]
+                params[key].value = scenario_returns[:, h, :]
 
 
 @register_objective(CovarianceRisk)
@@ -418,10 +420,11 @@ class CovarianceRiskHandler:
     ) -> None:
         """
         Expected ``inputs`` keys:
-          ``"moments"``  – a ``HorizonMoments`` instance.
+          ``"moments"``  – a ``PolicyInputs`` instance.
         """
         moments = inputs["moments"]
         cov_factor = getattr(moments, "cov_factor", None)
+        covariances = None if cov_factor is not None else moments.require_covariances()
         for h in range(moments.n_horizons):
             key = f"cov_sqrt_{h}"
             if key not in params:
@@ -429,7 +432,7 @@ class CovarianceRiskHandler:
             if cov_factor is not None:
                 params[key].value = cov_factor[h]
             else:
-                params[key].value = psd_sqrt_factor(moments.covariances[h])
+                params[key].value = psd_sqrt_factor(covariances[h])
 
 
 @register_objective(TransactionCost)
@@ -523,7 +526,11 @@ class TransactionCostHandler:
 
         params["tc_linear"].value = np.maximum(linear_coeff, 0.0)
 
-        sigma = np.sqrt(np.maximum(np.diag(moments.covariances[0]), 0.0))
+        if spec.market_impact == 0.0:
+            sigma = np.zeros(n)
+        else:
+            covariances = moments.require_covariances()
+            sigma = np.sqrt(np.maximum(np.diag(covariances[0]), 0.0))
 
         volume: NDArray[np.floating] | None = inputs.get("volume")
         if volume is not None and np.all(volume > 0):

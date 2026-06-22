@@ -9,6 +9,7 @@ __all__ = [
     "LogConfig",
     "PipelineConfig",
     "MPOPolicy",
+    "ForecastingMPOPolicy",
     "EqualWeightPolicy",
     "PolicyProtocol",
     "PolicyDecision",
@@ -18,6 +19,10 @@ __all__ = [
     "PortfolioState",
     "MPOProblem",
     "MPOProblemBuilder",
+    "PolicyInputs",
+    "PolicyInputConfig",
+    "ExpectedReturnSource",
+    "RiskSource",
     "FrontierKind",
     "MPOFrontierConfig",
     "FrontierPoint",
@@ -41,8 +46,15 @@ from qraft.construction.optimization.problem import (
     MPOProblem,
     MPOProblemBuilder,
 )
+from qraft.construction.optimization.moments import (
+    ExpectedReturnSource,
+    PolicyInputConfig,
+    PolicyInputs,
+    RiskSource,
+)
 from qraft.construction.policies import (
     EqualWeightPolicy,
+    ForecastingMPOPolicy,
     MPOPolicy,
     PolicyDecision,
     PolicyProjection,

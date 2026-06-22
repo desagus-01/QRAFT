@@ -10,7 +10,7 @@ from qraft.construction.frontier.metrics import (
     in_model_cvar,
 )
 from qraft.construction.frontier.result import FrontierPoint, FrontierResult
-from qraft.construction.optimization.moments import HorizonMoments, MomentsConfig
+from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
 from qraft.construction.optimization.optimization import (
     MPOFailure,
     MultiPeriodOptimizer,
@@ -26,23 +26,26 @@ class MPOFrontierRunner:
     def __init__(
         self,
         config: MPOFrontierConfig,
-        moments_config: MomentsConfig,
+        input_config: PolicyInputConfig,
     ) -> None:
         self.config = config
-        self.moments_config = moments_config
+        self.input_config = input_config
         self._cache: dict[
             tuple[float, float, tuple[str, ...], int, int], MultiPeriodOptimizer
         ] = {}
 
-    def _compute_moments(self, forecasts: ForecastPaths) -> HorizonMoments:
-        cfg = self.moments_config
-        return HorizonMoments.from_forecast_paths(
-            forecast_paths=forecasts,
+    def _build_policy_inputs(self, forecasts: ForecastPaths) -> PolicyInputs:
+        cfg = self.input_config
+        return PolicyInputs.from_policy_sources(
+            forecasts=forecasts,
             cash_path=cfg.cash_path,
+            expected_returns=cfg.expected_returns,
+            risk=cfg.risk,
             horizons=cfg.horizons,
             subset=cfg.subset,
             pnl_type=cfg.pnl_type,
             expectation_tolerance=cfg.expectation_tolerance,
+            mean_decay=cfg.mean_decay,
             step_size=cfg.step_size,
             periods_per_year=cfg.periods_per_year,
         )
@@ -50,7 +53,7 @@ class MPOFrontierRunner:
     def _optimizer(
         self,
         gamma: float,
-        moments: HorizonMoments,
+        moments: PolicyInputs,
     ) -> MultiPeriodOptimizer:
         key = (
             gamma,
@@ -87,7 +90,7 @@ class MPOFrontierRunner:
         forecasts: ForecastPaths,
         inputs: Mapping[str, Any] | None = None,
     ) -> FrontierResult:
-        moments = self._compute_moments(forecasts)
+        moments = self._build_policy_inputs(forecasts)
         current_weights, current_cash, dropped, dropped_weight = align_state_to_assets(
             state, moments.assets
         )

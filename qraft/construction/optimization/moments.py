@@ -12,11 +12,14 @@ from qraft.core.estimation import (
     weighted_covariance,
     weighted_mean,
 )
-from qraft.core.probability.prob_vector import ProbVector
+from qraft.core.panel import ScenarioPanel
+from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
 from qraft.forecast.forecast_paths import AssetSubset, ForecastPaths
 
 logger = logging.getLogger(__name__)
 PnL_OPTIONS = Literal["relative", "absolute", "log"]
+ExpectedReturnSource = Literal["historical", "forecast"]
+RiskSource = Literal["covariance", "cvar", "both"]
 
 
 def psd_sqrt_factor(covariance: NDArray[np.floating]) -> NDArray[np.floating]:
@@ -100,33 +103,138 @@ def incremental_returns_from_forecast_paths(
 
 
 @dataclass(frozen=True, slots=True)
-class HorizonMoments:
+class PolicyInputs:
+    """
+    Optimizer-ready horizon-indexed policy inputs.
+
+    The object is intentionally source-agnostic: values may come from forecast
+    paths, historical estimates, signals, or user-provided arrays. Objective
+    handlers validate only the fields they actually require.
+    """
+
     assets: list[str]
-    correlations: NDArray[np.floating]
-    covariances: NDArray[np.floating]
-    mean: NDArray[np.floating]
-    scenario_returns: NDArray[np.floating]
-    scenario_probs: ProbVector
-    cash_return: NDArray[np.floating]
+    mean: NDArray[np.floating] | None = None
+    covariances: NDArray[np.floating] | None = None
+    correlations: NDArray[np.floating] | None = None
+    scenario_returns: NDArray[np.floating] | None = None
+    scenario_probs: ProbVector | None = None
+    cash_return: NDArray[np.floating] | None = None
     cov_factor: NDArray[np.floating] | None = None
 
     def __post_init__(self) -> None:
-        n_h, n_a = self.mean.shape
-        if self.scenario_returns.shape[1:] != (n_h, n_a):
+        if not self.assets:
+            raise ValueError("PolicyInputs.assets cannot be empty.")
+
+        n_a = len(self.assets)
+        horizon_counts: list[int] = []
+
+        if self.mean is not None:
+            self._validate_matrix("mean", self.mean, n_a)
+            horizon_counts.append(int(self.mean.shape[0]))
+
+        if self.covariances is not None:
+            self._validate_cube("covariances", self.covariances, n_a)
+            horizon_counts.append(int(self.covariances.shape[0]))
+
+        if self.correlations is not None:
+            self._validate_cube("correlations", self.correlations, n_a)
+            horizon_counts.append(int(self.correlations.shape[0]))
+
+        if self.cov_factor is not None:
+            self._validate_cube("cov_factor", self.cov_factor, n_a)
+            horizon_counts.append(int(self.cov_factor.shape[0]))
+
+        if self.scenario_returns is not None:
+            if self.scenario_returns.ndim != 3:
+                raise ValueError(
+                    "scenario_returns must have shape "
+                    "(n_scenarios, n_horizons, n_assets)."
+                )
+            if self.scenario_returns.shape[2] != n_a:
+                raise ValueError(
+                    f"scenario_returns asset dimension {self.scenario_returns.shape[2]} "
+                    f"does not match assets length {n_a}."
+                )
+            horizon_counts.append(int(self.scenario_returns.shape[1]))
+
+        if self.scenario_probs is not None:
+            validate_prob_vector(self.scenario_probs)
+
+        if (self.scenario_returns is None) != (self.scenario_probs is None):
             raise ValueError(
-                f"scenario_returns shape {self.scenario_returns.shape} "
-                f"inconsistent with mean shape {self.mean.shape}"
+                "scenario_returns and scenario_probs must be provided together."
             )
-        if self.scenario_returns.shape[0] != len(self.scenario_probs):
+
+        if self.scenario_returns is not None and self.scenario_probs is not None:
+            if self.scenario_returns.shape[0] != len(self.scenario_probs):
+                raise ValueError(
+                    f"scenario_returns has {self.scenario_returns.shape[0]} paths "
+                    f"but scenario_probs has length {len(self.scenario_probs)}."
+                )
+
+        if self.cash_return is not None:
+            cash = np.asarray(self.cash_return, dtype=float).ravel()
+            if cash.size == 0:
+                raise ValueError("cash_return cannot be empty.")
+            if cash.size > 1:
+                horizon_counts.append(int(cash.size))
+            object.__setattr__(self, "cash_return", cash)
+
+        if not horizon_counts:
             raise ValueError(
-                f"scenario_returns has {self.scenario_returns.shape[0]} paths "
-                f"but scenario_probs has length {len(self.scenario_probs)}"
+                "PolicyInputs must contain at least one horizon-indexed input."
             )
-        if self.cov_factor is not None and self.cov_factor.shape != (n_h, n_a, n_a):
+
+        first = horizon_counts[0]
+        if any(h != first for h in horizon_counts):
             raise ValueError(
-                f"cov_factor shape {self.cov_factor.shape} inconsistent with "
-                f"mean shape {self.mean.shape}"
+                f"All horizon-indexed inputs must have the same horizon count; "
+                f"got {horizon_counts}."
             )
+
+    @staticmethod
+    def _validate_matrix(name: str, value: NDArray[np.floating], n_assets: int) -> None:
+        if value.ndim != 2 or value.shape[1] != n_assets:
+            raise ValueError(
+                f"{name} must have shape (n_horizons, {n_assets}); got {value.shape}."
+            )
+        if not np.all(np.isfinite(value)):
+            raise ValueError(f"{name} contains NaN or inf.")
+
+    @staticmethod
+    def _validate_cube(name: str, value: NDArray[np.floating], n_assets: int) -> None:
+        if value.ndim != 3 or value.shape[1:] != (n_assets, n_assets):
+            raise ValueError(
+                f"{name} must have shape "
+                f"(n_horizons, {n_assets}, {n_assets}); got {value.shape}."
+            )
+        if not np.all(np.isfinite(value)):
+            raise ValueError(f"{name} contains NaN or inf.")
+
+    def require_mean(self) -> NDArray[np.floating]:
+        if self.mean is None:
+            raise ValueError("This objective requires PolicyInputs.mean.")
+        return self.mean
+
+    def require_covariances(self) -> NDArray[np.floating]:
+        if self.covariances is None:
+            raise ValueError("This objective requires PolicyInputs.covariances.")
+        return self.covariances
+
+    def require_scenarios(
+        self,
+    ) -> tuple[NDArray[np.floating], ProbVector]:
+        if self.scenario_returns is None or self.scenario_probs is None:
+            raise ValueError(
+                "This objective requires forecast-based scenario_returns and "
+                "scenario_probs."
+            )
+        return self.scenario_returns, self.scenario_probs
+
+    def require_cash_return(self) -> NDArray[np.floating]:
+        if self.cash_return is None:
+            raise ValueError("This objective requires PolicyInputs.cash_return.")
+        return self.cash_return
 
     @staticmethod
     def get_cash_return(
@@ -152,23 +260,38 @@ class HorizonMoments:
 
     @property
     def n_horizons(self) -> int:
-        return int(self.mean.shape[0])
+        for value in (
+            self.mean,
+            self.covariances,
+            self.correlations,
+            self.cov_factor,
+        ):
+            if value is not None:
+                return int(value.shape[0])
+        if self.scenario_returns is not None:
+            return int(self.scenario_returns.shape[1])
+        if self.cash_return is not None:
+            return np.asarray(self.cash_return).size
+        raise RuntimeError("PolicyInputs has no horizon-indexed input.")
 
     @property
     def n_assets(self) -> int:
-        return int(self.mean.shape[1])
+        return len(self.assets)
 
     @property
     def n_scenarios(self) -> int:
+        if self.scenario_returns is None:
+            return 1
         return int(self.scenario_returns.shape[0])
 
     @property
     def mean_frame(self) -> pl.DataFrame:
         """Wide frame: one row per horizon, one column per asset."""
+        mean = self.require_mean()
         rows = [
             {
                 "horizon": h + 1,
-                **{a: float(self.mean[h, i]) for i, a in enumerate(self.assets)},
+                **{a: float(mean[h, i]) for i, a in enumerate(self.assets)},
             }
             for h in range(self.n_horizons)
         ]
@@ -183,33 +306,63 @@ class HorizonMoments:
         return pl.DataFrame(data)
 
     def correlation_frame(self, horizon: int = 0) -> pl.DataFrame:
+        if self.correlations is None:
+            raise ValueError("PolicyInputs.correlations is required.")
         return self._matrix_frame(self.correlations, horizon)
 
     def covariance_frame(self, horizon: int = 0) -> pl.DataFrame:
-        return self._matrix_frame(self.covariances, horizon)
+        return self._matrix_frame(self.require_covariances(), horizon)
 
     @staticmethod
-    def _drop_assets_by_expectation_tolerance(
+    def _filter_by_asset_indices(
+        value: NDArray[np.floating] | None,
+        keep_idx: NDArray[np.integer],
+        *,
+        kind: Literal["matrix", "cube", "scenarios"],
+    ) -> NDArray[np.floating] | None:
+        if value is None:
+            return None
+        if kind == "matrix":
+            return value[:, keep_idx]
+        if kind == "cube":
+            return value[:, keep_idx][:, :, keep_idx]
+        if kind == "scenarios":
+            return value[:, :, keep_idx]
+        raise ValueError(f"Unknown filter kind: {kind!r}")
+
+    @classmethod
+    def _filter_policy_fields_by_expectation_tolerance(
+        cls,
+        *,
         assets: list[str],
-        means: NDArray[np.floating],
-        covariances: NDArray[np.floating],
-        correlations: NDArray[np.floating],
-        scenario_returns: NDArray[np.floating],
+        mean: NDArray[np.floating],
+        covariances: NDArray[np.floating] | None,
+        correlations: NDArray[np.floating] | None,
+        scenario_returns: NDArray[np.floating] | None,
+        cov_factor: NDArray[np.floating] | None,
         expectation_tolerance: float | None,
     ) -> tuple[
         list[str],
         NDArray[np.floating],
-        NDArray[np.floating],
-        NDArray[np.floating],
-        NDArray[np.floating],
+        NDArray[np.floating] | None,
+        NDArray[np.floating] | None,
+        NDArray[np.floating] | None,
+        NDArray[np.floating] | None,
     ]:
         if expectation_tolerance is None:
-            return assets, means, covariances, correlations, scenario_returns
+            return (
+                assets,
+                mean,
+                covariances,
+                correlations,
+                scenario_returns,
+                cov_factor,
+            )
 
         if expectation_tolerance < 0:
             raise ValueError("expectation_tolerance must be non-negative.")
 
-        breached = np.abs(means) > expectation_tolerance
+        breached = np.abs(mean) > expectation_tolerance
         drop_mask = np.any(breached, axis=0)
 
         if not np.any(drop_mask):
@@ -217,7 +370,14 @@ class HorizonMoments:
                 "No assets dropped. All expected returns are within ±%.6e.",
                 expectation_tolerance,
             )
-            return assets, means, covariances, correlations, scenario_returns
+            return (
+                assets,
+                mean,
+                covariances,
+                correlations,
+                scenario_returns,
+                cov_factor,
+            )
 
         keep_idx = np.where(~drop_mask)[0]
         drop_idx = np.where(drop_mask)[0]
@@ -232,7 +392,7 @@ class HorizonMoments:
             asset = assets[asset_idx]
             bad_horizons = np.where(breached[:, asset_idx])[0]
             offending_values = ", ".join(
-                f"horizon {h + 1}: mean={means[h, asset_idx]:.6e}" for h in bad_horizons
+                f"horizon {h + 1}: mean={mean[h, asset_idx]:.6e}" for h in bad_horizons
             )
             logger.warning(
                 "Dropping asset %s because expected return breached ±%.6e. "
@@ -243,11 +403,6 @@ class HorizonMoments:
             )
 
         filtered_assets = [assets[i] for i in keep_idx]
-        filtered_means = means[:, keep_idx]
-        filtered_covariances = covariances[:, keep_idx][:, :, keep_idx]
-        filtered_correlations = correlations[:, keep_idx][:, :, keep_idx]
-        filtered_scenario_returns = scenario_returns[:, :, keep_idx]
-
         logger.warning(
             "Dropped %d asset(s) due to expectation_tolerance=%.6e. "
             "Remaining assets: %d.",
@@ -258,32 +413,76 @@ class HorizonMoments:
 
         return (
             filtered_assets,
-            filtered_means,
-            filtered_covariances,
-            filtered_correlations,
-            filtered_scenario_returns,
+            mean[:, keep_idx],
+            cls._filter_by_asset_indices(covariances, keep_idx, kind="cube"),
+            cls._filter_by_asset_indices(correlations, keep_idx, kind="cube"),
+            cls._filter_by_asset_indices(scenario_returns, keep_idx, kind="scenarios"),
+            cls._filter_by_asset_indices(cov_factor, keep_idx, kind="cube"),
         )
 
+    @staticmethod
+    def _historical_mean(
+        history: ScenarioPanel,
+        *,
+        assets: list[str],
+        horizons: int,
+        mean_decay: float,
+    ) -> NDArray[np.floating]:
+        if history.kind == "log_price":
+            returns = history.diff().drop_nulls()
+        elif history.kind == "return":
+            returns = history.drop_nulls()
+        else:
+            raise ValueError(
+                "historical expected returns require history.kind "
+                "'log_price' or 'return'."
+            )
+
+        missing = set(assets) - set(returns.values.columns)
+        if missing:
+            raise ValueError(f"Assets not present in history: {sorted(missing)}.")
+
+        data = returns.values.select(assets).to_numpy()
+        base_mean = weighted_mean(data=data, prob=returns.prob)
+        decay = np.asarray([mean_decay**h for h in range(horizons)], dtype=float)
+        return decay[:, None] * base_mean[None, :]
+
     @classmethod
-    def from_forecast_paths(
+    def from_policy_sources(
         cls,
-        forecast_paths: ForecastPaths,
+        *,
+        forecasts: ForecastPaths,
         cash_path: str,
+        expected_returns: ExpectedReturnSource = "forecast",
+        risk: RiskSource = "both",
+        history: ScenarioPanel | None = None,
         horizons: int | None = None,
         subset: AssetSubset = "tradable",
         pnl_type: PnL_OPTIONS = "relative",
         expectation_tolerance: float | None = 1.0,
+        mean_decay: float = 1.0,
         step_size: int = 1,
         periods_per_year: int = 252,
-    ) -> "HorizonMoments":
+        as_of: datetime | None = None,
+    ) -> "PolicyInputs":
         """
-        Build stacked multi-horizon moments from simulated price paths.
+        Build policy inputs from two simple choices: expected returns and risk.
 
-        Moments at each horizon h use the incremental period-over-period
-        return from t_{h-1} to t_h, not the cumulative return from t_0.
+        ``expected_returns`` selects the source of the optimizer mean. ``risk``
+        always uses ``ForecastPaths`` and selects which risk representation is
+        included.
         """
+        if expected_returns not in {"historical", "forecast"}:
+            raise ValueError(
+                "expected_returns must be one of 'historical' or 'forecast'."
+            )
+        if risk not in {"covariance", "cvar", "both"}:
+            raise ValueError("risk must be one of 'covariance', 'cvar', or 'both'.")
+        if expected_returns == "historical" and history is None:
+            raise ValueError("history is required when expected_returns='historical'.")
+
         pnl_by_asset = incremental_returns_from_forecast_paths(
-            forecast_paths=forecast_paths,
+            forecast_paths=forecasts,
             horizons=horizons,
             subset=subset,
             pnl_type=pnl_type,
@@ -291,57 +490,119 @@ class HorizonMoments:
 
         assets = list(pnl_by_asset.keys())
         n_assets = len(assets)
-        horizons = next(iter(pnl_by_asset.values())).shape[1]
-        prob = forecast_paths.path_probs
-        n_paths = forecast_paths.n_simulations
+        n_horizons = next(iter(pnl_by_asset.values())).shape[1]
+        n_paths = forecasts.n_simulations
+        prob = forecasts.path_probs
 
-        inc_returns = np.empty((n_paths, horizons, n_assets), dtype=float)
-        for col_idx, (asset, asset_returns) in enumerate(pnl_by_asset.items()):
+        inc_returns = np.empty((n_paths, n_horizons, n_assets), dtype=float)
+        for col_idx, asset_returns in enumerate(pnl_by_asset.values()):
             inc_returns[:, :, col_idx] = asset_returns
 
-        means = np.empty((horizons, n_assets), dtype=float)
-        covs = np.empty((horizons, n_assets, n_assets), dtype=float)
-        corrs = np.empty((horizons, n_assets, n_assets), dtype=float)
-
-        for h in range(horizons):
-            pnl_matrix = inc_returns[:, h, :]
-            means[h] = weighted_mean(data=pnl_matrix, prob=prob)
-            covs[h] = weighted_covariance(data=pnl_matrix, prob=prob)
-            corrs[h] = weighted_correlation(data=pnl_matrix, prob=prob)
-
-        assets, means, covs, corrs, inc_returns = (
-            cls._drop_assets_by_expectation_tolerance(
+        if expected_returns == "forecast":
+            mean = np.empty((n_horizons, n_assets), dtype=float)
+            for h in range(n_horizons):
+                mean[h] = weighted_mean(data=inc_returns[:, h, :], prob=prob)
+        else:
+            if history is None:
+                raise ValueError(
+                    "history is required when expected_returns='historical'."
+                )
+            mean = cls._historical_mean(
+                history,
                 assets=assets,
-                means=means,
-                covariances=covs,
-                correlations=corrs,
-                expectation_tolerance=expectation_tolerance,
-                scenario_returns=inc_returns,
+                horizons=n_horizons,
+                mean_decay=mean_decay,
             )
+
+        covariances = correlations = cov_factor = None
+        if risk in {"covariance", "both"}:
+            covariances = np.empty((n_horizons, n_assets, n_assets), dtype=float)
+            correlations = np.empty((n_horizons, n_assets, n_assets), dtype=float)
+            for h in range(n_horizons):
+                pnl_matrix = inc_returns[:, h, :]
+                covariances[h] = weighted_covariance(data=pnl_matrix, prob=prob)
+                correlations[h] = weighted_correlation(data=pnl_matrix, prob=prob)
+            cov_factor = np.stack(
+                [psd_sqrt_factor(covariances[h]) for h in range(n_horizons)]
+            )
+
+        scenario_returns = inc_returns if risk in {"cvar", "both"} else None
+        scenario_probs = prob if scenario_returns is not None else None
+
+        (
+            assets,
+            mean,
+            covariances,
+            correlations,
+            scenario_returns,
+            cov_factor,
+        ) = cls._filter_policy_fields_by_expectation_tolerance(
+            assets=assets,
+            mean=mean,
+            covariances=covariances,
+            correlations=correlations,
+            scenario_returns=scenario_returns,
+            cov_factor=cov_factor,
+            expectation_tolerance=expectation_tolerance,
         )
 
-        cov_factor = np.stack([psd_sqrt_factor(covs[h]) for h in range(covs.shape[0])])
+        return cls.from_arrays(
+            assets=assets,
+            mean=mean,
+            covariances=covariances,
+            correlations=correlations,
+            scenario_returns=scenario_returns,
+            scenario_probs=scenario_probs,
+            cash_return=cls.get_cash_return(
+                path=cash_path,
+                step_size=step_size,
+                periods_per_year=periods_per_year,
+                as_of=as_of,
+            ),
+            cov_factor=cov_factor,
+        )
 
+    @classmethod
+    def from_arrays(
+        cls,
+        *,
+        assets: list[str],
+        mean: NDArray[np.floating] | None = None,
+        covariances: NDArray[np.floating] | None = None,
+        correlations: NDArray[np.floating] | None = None,
+        scenario_returns: NDArray[np.floating] | None = None,
+        scenario_probs: ProbVector | None = None,
+        cash_return: NDArray[np.floating] | float | None = None,
+        cov_factor: NDArray[np.floating] | None = None,
+    ) -> "PolicyInputs":
+        cash_array = (
+            None if cash_return is None else np.asarray(cash_return, dtype=float)
+        )
+        if cov_factor is None and covariances is not None:
+            cov_factor = np.stack(
+                [psd_sqrt_factor(covariances[h]) for h in range(covariances.shape[0])]
+            )
         return cls(
             assets=assets,
-            correlations=corrs,
-            covariances=covs,
-            mean=means,
-            scenario_returns=inc_returns,
-            scenario_probs=prob,
-            cash_return=cls.get_cash_return(
-                path=cash_path, step_size=step_size, periods_per_year=periods_per_year
-            ),
+            mean=mean,
+            covariances=covariances,
+            correlations=correlations,
+            scenario_returns=scenario_returns,
+            scenario_probs=scenario_probs,
+            cash_return=cash_array,
             cov_factor=cov_factor,
         )
 
 
 @dataclass(frozen=True, slots=True)
-class MomentsConfig:
+class PolicyInputConfig:
     cash_path: str
+    expected_returns: ExpectedReturnSource = "forecast"
+    risk: RiskSource = "both"
     horizons: int | None = None
     subset: AssetSubset = "tradable"
     pnl_type: PnL_OPTIONS = "relative"
     expectation_tolerance: float | None = 1.0
+    mean_decay: float = 1.0
     step_size: int = 1
     periods_per_year: int = 252

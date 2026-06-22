@@ -1,20 +1,16 @@
 # %%
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
 from qraft import (
     AssetUniverse,
-    CMAConfig,
     LogConfig,
     MPOPolicy,
     setup_logging,
 )
 from qraft.backtest.market import MarketData, WindowWeighting
-from qraft.backtest.schedule import RebalanceSchedule
-from qraft.backtest.simulator import run_backtest
 from qraft.construction import (
     FullyInvested,
     LongOnly,
@@ -22,7 +18,6 @@ from qraft.construction import (
     PortfolioConstraint,
     TurnoverLimit,
 )
-from qraft.core.configs import SimulationForecastConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
@@ -81,33 +76,32 @@ policy = MPOPolicy.preset(
     cash_path="data/cash.csv",
     constraints=constraints,
     expectation_tolerance=0.2,
-    simulation_config=SimulationForecastConfig(
-        method="cma",
-        n_sims=10_000,
-        cma_config=CMAConfig(target_copula="t"),
-    ),
 )
 
-result = run_backtest(
-    market=mkt_dt,
-    policy=policy,
-    schedule=RebalanceSchedule("quarter_end"),
-)
+
+policy
 
 # %%
-
-# Build a Polars DataFrame
-
-df = pl.DataFrame({"date": result.nav_dates, "nav": result.nav}).sort("date")
-
-plt.figure(figsize=(12, 6))
-plt.plot(df["date"].to_list(), df["nav"].to_list(), marker="o", linewidth=2)
-
-plt.title("NAV Over Time")
-plt.xlabel("Date")
-plt.ylabel("NAV")
-plt.grid(True)
-plt.xticks(rotation=45)
-plt.tight_layout()
-
-plt.show()
+# result = run_backtest(
+#     market=mkt_dt,
+#     policy=policy,
+#     schedule=RebalanceSchedule("quarter_end"),
+# )
+#
+# # %%
+#
+# # Build a Polars DataFrame
+#
+# df = pl.DataFrame({"date": result.nav_dates, "nav": result.nav}).sort("date")
+#
+# plt.figure(figsize=(12, 6))
+# plt.plot(df["date"].to_list(), df["nav"].to_list(), marker="o", linewidth=2)
+#
+# plt.title("NAV Over Time")
+# plt.xlabel("Date")
+# plt.ylabel("NAV")
+# plt.grid(True)
+# plt.xticks(rotation=45)
+# plt.tight_layout()
+#
+# plt.show()

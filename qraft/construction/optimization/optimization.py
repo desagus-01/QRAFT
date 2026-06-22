@@ -10,7 +10,7 @@ from cvxpy import Constraint, Expression
 from numpy.typing import NDArray
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
-from qraft.construction.optimization.moments import HorizonMoments
+from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.optimization.objectives import (
     handlers as _objective_handlers,  # noqa: F401
 )
@@ -436,7 +436,7 @@ class MultiPeriodOptimizer:
 
     def _update_parameters(
         self,
-        moments: HorizonMoments,
+        moments: PolicyInputs,
         inputs: dict[str, Any] | None,
     ) -> None:
         solver_inputs = {"moments": moments, **(inputs or {})}
@@ -450,7 +450,7 @@ class MultiPeriodOptimizer:
 
     def _build_result(
         self,
-        moments: HorizonMoments,
+        moments: PolicyInputs,
         initial_weights: NDArray[np.floating],
         initial_cash: float,
         objective_value: float,
@@ -519,7 +519,7 @@ class MultiPeriodOptimizer:
 
     def solve_auto(
         self,
-        moments: HorizonMoments,
+        moments: PolicyInputs,
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
@@ -556,7 +556,7 @@ class MultiPeriodOptimizer:
 
     def solve(
         self,
-        moments: HorizonMoments,
+        moments: PolicyInputs,
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
@@ -612,7 +612,7 @@ class MultiPeriodOptimizer:
 
     def solve_iterative(
         self,
-        moments: HorizonMoments,
+        moments: PolicyInputs,
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,

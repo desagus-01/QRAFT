@@ -1,5 +1,6 @@
 __all__ = [
     "MPOPolicy",
+    "ForecastingMPOPolicy",
     "EqualWeightPolicy",
     "PolicyProtocol",
     "PolicyDecision",
@@ -12,9 +13,11 @@ __all__ = [
     "MPOResult",
     "MultiPeriodOptimizer",
     "SolverStatus",
-    "HorizonMoments",
-    "MomentsConfig",
+    "PolicyInputs",
+    "PolicyInputConfig",
     "PnL_OPTIONS",
+    "ExpectedReturnSource",
+    "RiskSource",
     "PortfolioConstraint",
     "LongOnly",
     "FullyInvested",
@@ -64,9 +67,11 @@ from qraft.construction.optimization.constraints import (  # noqa: F401
     TurnoverLimit,
 )
 from qraft.construction.optimization.moments import (  # noqa: F401
-    HorizonMoments,
-    MomentsConfig,
+    ExpectedReturnSource,
     PnL_OPTIONS,
+    PolicyInputConfig,
+    PolicyInputs,
+    RiskSource,
 )
 from qraft.construction.optimization.objectives.specs import (  # noqa: F401
     CashReturn,
@@ -91,6 +96,7 @@ from qraft.construction.optimization.problem import (  # noqa: F401
 )
 from qraft.construction.policies import (  # noqa: F401
     EqualWeightPolicy,
+    ForecastingMPOPolicy,
     MPOPolicy,
     PolicyDecision,
     PolicyProjection,
