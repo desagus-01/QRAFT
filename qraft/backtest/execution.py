@@ -5,6 +5,10 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from qraft.construction.optimization.objectives.specs import (
+    TransactionCost,
+    transaction_cost_value,
+)
 from qraft.construction.policies import PolicyDecision
 from qraft.construction.state import PortfolioState
 from qraft.forecast.forecast_paths import ForecastPaths
@@ -19,6 +23,7 @@ class BacktestPeriod:
     executed_share_trades: NDArray[np.floating]
     state_after: PortfolioState
     solver_status: str | None
+    cost: float = 0.0
     forecasts: ForecastPaths | None = None
     decision_error: str | None = None
 
@@ -87,8 +92,10 @@ class BacktestResult:
 
     @property
     def period_costs(self) -> NDArray[np.floating]:
-        """Trading costs per period (zero for frictionless execution)."""
-        return np.zeros(len(self.periods))
+        """Realised trading cost charged at each rebalance, in NAV units.
+
+        Zero when no ``transaction_cost`` is passed to ``run_backtest``."""
+        return np.array([p.cost for p in self.periods], dtype=float)
 
     @property
     def period_target_weights(self) -> NDArray[np.floating]:
@@ -147,3 +154,36 @@ def execute_frictionless(
     trade_value = target_value - asset_value
     executed = trade_value / prices
     return executed, shares + executed, cash - float(trade_value.sum())
+
+
+def execute_with_costs(
+    decision: PolicyDecision,
+    shares: NDArray[np.floating],
+    cash: float,
+    prices: NDArray[np.floating],
+    asset_order: list[str],
+    transaction_cost: TransactionCost | None,
+    *,
+    sigma: NDArray[np.floating] | None = None,
+) -> tuple[NDArray[np.floating], NDArray[np.floating], float, float]:
+    """Trade to target (as ``execute_frictionless``) then debit realised cost.
+
+    Returns ``(executed_shares, new_shares, new_cash, cost)``. Post-trade
+    ``NAV = NAV_pre - cost``. With ``transaction_cost is None`` this is exactly
+    frictionless. ``sigma`` (forecast per-asset vol, aligned to ``asset_order``)
+    powers the market-impact term; ignored when ``market_impact == 0``.
+    """
+    executed, new_shares, new_cash = execute_frictionless(
+        decision, shares, cash, prices, asset_order
+    )
+    nav = float((shares * prices).sum() + cash)
+    if transaction_cost is None or nav <= 0.0:
+        return executed, new_shares, new_cash, 0.0
+    cost = transaction_cost_value(
+        transaction_cost,
+        weight_trades=(executed * prices) / nav,
+        nav=nav,
+        prices=prices,
+        sigma=sigma,
+    )
+    return executed, new_shares, new_cash - cost, cost

@@ -14,6 +14,7 @@ from qraft.construction.optimization.objectives.specs import (
     ExpectedReturn,
     HoldingCost,
     TransactionCost,
+    transaction_cost_coeffs,
 )
 
 
@@ -513,37 +514,21 @@ class TransactionCostHandler:
         self, spec: TransactionCost, params: dict[str, Any], inputs: dict[str, Any]
     ) -> None:
         moments = inputs["moments"]
-        n = moments.n_assets
-
-        linear_coeff = np.full(n, spec.cost)
-
-        if spec.pershare_cost > 0.0:
-            prices: NDArray[np.floating] | None = inputs.get("prices")
-            if prices is not None and np.all(prices > 0):
-                linear_coeff = linear_coeff + spec.pershare_cost / np.asarray(prices)
-            else:
-                pass
-
-        params["tc_linear"].value = np.maximum(linear_coeff, 0.0)
-
-        if spec.market_impact == 0.0:
-            sigma = np.zeros(n)
-        else:
-            covariances = moments.require_covariances()
-            sigma = np.sqrt(np.maximum(np.diag(covariances[0]), 0.0))
-
-        volume: NDArray[np.floating] | None = inputs.get("volume")
-        if volume is not None and np.all(volume > 0):
-            vol_factor = volume ** (spec.exponent - 1.0)
-            impact_coeff = spec.market_impact * sigma / vol_factor
-        else:
-            impact_coeff = spec.market_impact * sigma
-
-        params["tc_impact"].value = np.maximum(impact_coeff, 0.0)
-
-        params["tc_bias"].value = np.broadcast_to(
-            np.asarray(spec.c_bias, dtype=float), (n)
-        ).copy()
+        sigma = (
+            None
+            if spec.market_impact == 0.0
+            else np.sqrt(np.maximum(np.diag(moments.require_covariances()[0]), 0.0))
+        )
+        linear, impact, bias = transaction_cost_coeffs(
+            spec,
+            n_assets=moments.n_assets,
+            prices=inputs.get("prices"),
+            sigma=sigma,
+            volume=inputs.get("volume"),
+        )
+        params["tc_linear"].value = linear
+        params["tc_impact"].value = impact
+        params["tc_bias"].value = bias
 
 
 @register_objective(HoldingCost)

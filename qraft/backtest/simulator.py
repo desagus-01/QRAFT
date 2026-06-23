@@ -11,13 +11,16 @@ from qraft.backtest.execution import (
     BacktestPeriod,
     BacktestResult,
     BacktestWarning,
-    execute_frictionless,
+    execute_with_costs,
 )
 from qraft.backtest.forecasting import BacktestForecaster  # noqa: F401
 from qraft.backtest.market import MarketData
 from qraft.backtest.schedule import RebalanceSchedule
+from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.objectives.specs import TransactionCost
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
+from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,23 @@ def _make_warning(
     return record
 
 
+def _aligned_sigma(
+    policy_inputs: PolicyInputs | None,
+    asset_order: list[str],
+) -> NDArray[np.floating] | None:
+    """Forecast per-asset sigma aligned to ``asset_order`` for the impact term.
+
+    Uses the horizon-0 covariance diagonal of the decision's PolicyInputs -- the
+    same forecast risk the optimizer's TransactionCost penalty uses. Assets
+    absent from the policy inputs get sigma=0; returns None when no covariance is
+    available (e.g. risk='cvar')."""
+    if policy_inputs is None or policy_inputs.covariances is None:
+        return None
+    diag = np.sqrt(np.maximum(np.diag(policy_inputs.covariances[0]), 0.0))
+    sig = dict(zip(policy_inputs.assets, diag))
+    return np.array([sig.get(a, 0.0) for a in asset_order], dtype=float)
+
+
 def run_backtest(
     market: MarketData,
     policy: PolicyProtocol,
@@ -49,6 +69,7 @@ def run_backtest(
     forecaster: BacktestForecaster | None = None,
     initial_cash: float = 100.0,
     step_size: int = 1,
+    transaction_cost: TransactionCost | None = None,
 ) -> BacktestResult:
     warmup = policy.min_history
 
@@ -83,10 +104,16 @@ def run_backtest(
 
         # fill the decision queued one bar earlier
         if pending is not None and bar in exec_to_decision:
-            d_bar, decision, status, error_msg = pending
+            d_bar, decision, status, error_msg, sigma = pending
             before = PortfolioState(asset_order, prices, shares, cash)
-            executed, shares, cash = execute_frictionless(
-                decision, shares, cash, prices, asset_order
+            executed, shares, cash, cost = execute_with_costs(
+                decision,
+                shares,
+                cash,
+                prices,
+                asset_order,
+                transaction_cost,
+                sigma=sigma,
             )
             periods.append(
                 BacktestPeriod(
@@ -97,6 +124,7 @@ def run_backtest(
                     executed_share_trades=executed,
                     state_after=PortfolioState(asset_order, prices, shares, cash),
                     solver_status=status,
+                    cost=cost,
                     decision_error=error_msg,
                 )
             )
@@ -109,6 +137,7 @@ def run_backtest(
             )
             state = PortfolioState(asset_order, snapshot.prices_t, shares, cash)
             error_msg: str | None = None
+            sigma: NDArray[np.floating] | None = None
             try:
                 policy_inputs = (
                     inputs_source.policy_inputs_at(snapshot, decision_index)
@@ -117,6 +146,7 @@ def run_backtest(
                 )
                 decision = policy.decide(state, policy_inputs)
                 status = getattr(decision.diagnostics, "status", "ok")
+                sigma = _aligned_sigma(policy_inputs, asset_order)
             except (RuntimeError, ValueError) as exc:
                 logger.warning("decision at %s failed (%s); holding.", bar, exc)
                 logger.debug(
@@ -137,7 +167,7 @@ def run_backtest(
                 )
                 status = "solver_error"
                 error_msg = exc_str
-            pending = (bar, decision, status, error_msg)
+            pending = (bar, decision, status, error_msg, sigma)
             decision_index += 1
 
         nav_dates.append(bar)
