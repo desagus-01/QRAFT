@@ -107,14 +107,24 @@ def fit_arma(
 ) -> AutoARMARes | None:
     """Fit an ARIMA(p,0,q) model for a single candidate order and return the result if admissible."""
     ar, ma = order
-    try:
-        with warnings.catch_warnings():
-            warnings.filterwarnings("error", category=ConvergenceWarning)
-            model = ARIMA(asset_array, order=(ar, 0, ma), trend="c")
-            res = model.fit(method="statespace")
-    except (ConvergenceWarning, Exception) as e:
-        logger.warning("ARMA(%d,%d) fit failed: %s: %s", ar, ma, type(e).__name__, e)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", ConvergenceWarning)
+        model = ARIMA(asset_array, order=(ar, 0, ma), trend="c")
+        res = model.fit(
+            method="statespace",
+            method_kwargs={"maxiter": 200, "disp": 0},
+        )
+
+    converged = not any(issubclass(w.category, ConvergenceWarning) for w in caught)
+    if not np.all(np.isfinite(res.params)) or not np.all(np.isfinite(res.resid)):
+        logger.warning(
+            "ARMA(%d,%d) produced non-finite params/resid; discarding", ar, ma
+        )
         return None
+    if not converged:
+        logger.debug(
+            "ARMA(%d,%d) did not fully converge; keeping (params finite)", ar, ma
+        )
 
     params = _build_arma_parameters(
         model.param_names,

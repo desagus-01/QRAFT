@@ -95,13 +95,13 @@ constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(constraint_type="soft", soft_weight=1.0),
     MinCashWeight(limit=0.3, constraint_type="soft", soft_weight=1.0),
-    TurnoverLimit(limit=0.30),
+    TurnoverLimit(limit=0.50),
 ]
 
 policy = ForecastingMPOPolicy(
     policy=MPOPolicy.preset(
         objective_type="cvar_cuts",
-        risk_aversion=0.02,
+        risk_aversion=0.1,
         constraints=constraints,
         min_history=504,
     ),
@@ -115,7 +115,7 @@ policy = ForecastingMPOPolicy(
     #     method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
     # ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
-    recipe_every=6,  # full re-selection every 12 rebalances
+    recipe_every=4,  # full re-selection
     forecast_every=1,  # recondition every rebalance
     min_history=504,
 )

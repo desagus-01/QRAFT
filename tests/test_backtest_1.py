@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -11,9 +12,10 @@ from qraft.backtest.execution import BacktestResult
 from qraft.backtest.market import MarketData, MarketSnapshot, WindowWeighting
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.backtest.simulator import run_backtest
+from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.policies import EqualWeightPolicy, PolicyDecision
 from qraft.construction.state import PortfolioState
-from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
+from qraft.forecast.forecast_paths import AssetUniverse
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -50,31 +52,32 @@ DATES_6 = [
 
 
 class RecordingForecaster:
-    """Records received snapshots; returns flat two-step forecasts."""
+    """Records received snapshots; returns flat PolicyInputs."""
 
     def __init__(self) -> None:
         self.snapshots: list[MarketSnapshot] = []
 
-    def forecast(
-        self, snapshot: MarketSnapshot, universe: AssetUniverse
-    ) -> ForecastPaths:
+    def policy_inputs_at(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
         self.snapshots.append(snapshot)
-        return ForecastPaths(
-            asset_paths={
-                asset: np.array([[snapshot.prices_t[i]], [snapshot.prices_t[i]]])
-                for i, asset in enumerate(universe.assets)
-            },
-            dates=pl.Series("date", [snapshot.t_next]),
-            path_probs=np.array([0.5, 0.5]),
-            initial_prices=dict(zip(universe.assets, snapshot.prices_t)),
-            universe=universe,
+        n = len(snapshot.universe.assets)
+        return PolicyInputs.from_arrays(
+            assets=snapshot.universe.assets,
+            mean=np.ones((1, n)),
+            cash_return=np.array([0.0]),
         )
 
 
 class FailingPolicy:
     name: str = "failing"
+    min_history: int = 0
 
-    def decide(self, state: PortfolioState, forecasts: ForecastPaths) -> PolicyDecision:
+    def decide(
+        self,
+        state: PortfolioState,
+        policy_inputs: PolicyInputs | None = None,
+        *,
+        inputs: dict[str, Any] | None = None,
+    ) -> PolicyDecision:
         raise RuntimeError("intentional failure for testing")
 
 
@@ -114,7 +117,6 @@ def test_1_lagged_execution_and_periods() -> None:
     np.testing.assert_allclose(first.executed_share_trades, [3.1253125, 2.083541667])
     np.testing.assert_allclose(first.state_after.asset_weights, [0.375, 0.375])
     assert float(first.state_after.cash_weight) == pytest.approx(0.25)
-    assert first.forecasts is not None
 
 
 # ---------------------------------------------------------------------------
@@ -156,36 +158,11 @@ def test_2_only_executable_decision_bars() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. Forecast storage can be skipped
+# 3. AllCashPolicy — NAV changes only from cash compounding
 # ---------------------------------------------------------------------------
 
 
-def test_3_can_skip_storing_forecasts() -> None:
-    market = MarketData.from_prices(
-        _price_frame(DATES_4, A=[10.0, 12.0, 12.0, 15.0], B=[20.0, 18.0, 18.0, 18.0]),
-        _universe("A", "B"),
-        cash=_cash_frame(DATES_4, [3.6, 7.2, 7.2, 7.2]),
-    )
-
-    result = run_backtest(
-        market=market,
-        schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
-        policy=EqualWeightPolicy(target_cash_weight=0.25),
-        initial_cash=100.0,
-        store_forecasts=False,
-    )
-
-    assert result.periods
-    assert all(p.forecasts is None for p in result.periods)
-
-
-# ---------------------------------------------------------------------------
-# 4. AllCashPolicy — NAV changes only from cash compounding
-# ---------------------------------------------------------------------------
-
-
-def test_4_all_cash_policy() -> None:
+def test_3_all_cash_policy() -> None:
     market = MarketData.from_prices(
         _price_frame(DATES_4, A=[10.0, 12.0, 12.0, 15.0], B=[20.0, 18.0, 18.0, 18.0]),
         _universe("A", "B"),
@@ -300,11 +277,11 @@ def test_7_solver_fallback_on_policy_failure() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 8. Month-end cadence
+# 7. Month-end cadence
 # ---------------------------------------------------------------------------
 
 
-def test_8_month_end_cadence() -> None:
+def test_7_month_end_cadence() -> None:
     dates = [
         datetime(2024, 1, 2),
         datetime(2024, 1, 3),
@@ -335,11 +312,11 @@ def test_8_month_end_cadence() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 9. Quarter-end cadence
+# 8. Quarter-end cadence
 # ---------------------------------------------------------------------------
 
 
-def test_9_quarter_end_cadence() -> None:
+def test_8_quarter_end_cadence() -> None:
     dates = [
         datetime(2024, 1, 2),
         datetime(2024, 3, 29),
@@ -369,11 +346,11 @@ def test_9_quarter_end_cadence() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 10. Self-financing property — trades are cash-neutral
+# 9. Self-financing property — trades are cash-neutral
 # ---------------------------------------------------------------------------
 
 
-def test_10_self_financing_trades() -> None:
+def test_9_self_financing_trades() -> None:
     market = MarketData.from_prices(
         _price_frame(DATES_4, A=[10.0, 12.0, 12.0, 15.0], B=[20.0, 18.0, 18.0, 18.0]),
         _universe("A", "B"),
@@ -398,11 +375,11 @@ def test_10_self_financing_trades() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 11. Single asset
+# 10. Single asset
 # ---------------------------------------------------------------------------
 
 
-def test_11_single_asset() -> None:
+def test_10_single_asset() -> None:
     dates = DATES_4
     market = MarketData.from_prices(
         _price_frame(dates, A=[10.0, 11.0, 12.0, 13.0]),
@@ -427,11 +404,11 @@ def test_11_single_asset() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 12. Three assets with factors (factors excluded from trading)
+# 11. Three assets with factors (factors excluded from trading)
 # ---------------------------------------------------------------------------
 
 
-def test_12_three_assets() -> None:
+def test_11_three_assets() -> None:
     dates = DATES_4
     market = MarketData.from_prices(
         _price_frame(
@@ -461,11 +438,11 @@ def test_12_three_assets() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 13. MarketData constructed from log prices
+# 12. MarketData constructed from log prices
 # ---------------------------------------------------------------------------
 
 
-def test_13_from_log_prices() -> None:
+def test_12_from_log_prices() -> None:
     dates = DATES_4
     log_prices = pl.DataFrame(
         {
@@ -495,11 +472,11 @@ def test_13_from_log_prices() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 14. NAV correctness manual verification
+# 13. NAV correctness manual verification
 # ---------------------------------------------------------------------------
 
 
-def test_14_nav_correctness() -> None:
+def test_13_nav_correctness() -> None:
     dates = DATES_4
     prices_a = [10.0, 12.0, 12.0, 15.0]
     prices_b = [20.0, 18.0, 18.0, 18.0]
@@ -538,11 +515,11 @@ def test_14_nav_correctness() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 15. Week-end cadence
+# 14. Week-end cadence
 # ---------------------------------------------------------------------------
 
 
-def test_15_week_end_cadence() -> None:
+def test_14_week_end_cadence() -> None:
     dates = [
         datetime(2024, 1, 2),
         datetime(2024, 1, 3),
@@ -572,11 +549,11 @@ def test_15_week_end_cadence() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 16. BacktestResult structure
+# 15. BacktestResult structure
 # ---------------------------------------------------------------------------
 
 
-def test_16_backtest_result_structure() -> None:
+def test_15_backtest_result_structure() -> None:
     market = MarketData.from_prices(
         _price_frame(DATES_4, A=[10.0, 12.0, 12.0, 15.0], B=[20.0, 18.0, 18.0, 18.0]),
         _universe("A", "B"),
@@ -598,24 +575,21 @@ def test_16_backtest_result_structure() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 17. Forecasting integration — forecaster receives correct universe
+# 16. Forecasting integration — forecaster receives correct universe
 # ---------------------------------------------------------------------------
 
 
-def test_17_forecaster_receives_correct_universe() -> None:
+def test_16_forecaster_receives_correct_universe() -> None:
     received_universes: list[AssetUniverse] = []
 
     class CapturingForecaster:
-        def forecast(
-            self, snapshot: MarketSnapshot, universe: AssetUniverse
-        ) -> ForecastPaths:
-            received_universes.append(universe)
-            return ForecastPaths(
-                asset_paths={a: np.array([[1.0], [1.0]]) for a in universe.assets},
-                dates=pl.Series("date", [snapshot.t_next]),
-                path_probs=np.array([0.5, 0.5]),
-                initial_prices=dict(zip(universe.assets, snapshot.prices_t)),
-                universe=universe,
+        def policy_inputs_at(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
+            received_universes.append(snapshot.universe)
+            n = len(snapshot.universe.assets)
+            return PolicyInputs.from_arrays(
+                assets=snapshot.universe.assets,
+                mean=np.ones((1, n)),
+                cash_return=np.array([0.0]),
             )
 
     market = MarketData.from_prices(
@@ -639,11 +613,11 @@ def test_17_forecaster_receives_correct_universe() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 18. WindowWeighting with state_smooth does not break backtest
+# 17. WindowWeighting with state_smooth does not break backtest
 # ---------------------------------------------------------------------------
 
 
-def test_18_state_smooth_weighting() -> None:
+def test_17_state_smooth_weighting() -> None:
     dates = [
         datetime(2024, 1, 1),
         datetime(2024, 1, 2),
@@ -672,27 +646,3 @@ def test_18_state_smooth_weighting() -> None:
     )
 
     assert len(result.nav) == n
-
-
-# ---------------------------------------------------------------------------
-# 19. Default step_size stores forecasts (regression)
-# ---------------------------------------------------------------------------
-
-
-def test_19_forecasts_stored_by_default() -> None:
-    market = MarketData.from_prices(
-        _price_frame(DATES_4, A=[10.0, 12.0, 12.0, 15.0], B=[20.0, 18.0, 18.0, 18.0]),
-        _universe("A", "B"),
-        cash=_cash_frame(DATES_4, [3.6, 7.2, 7.2, 7.2]),
-    )
-
-    result = run_backtest(
-        market=market,
-        schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
-        policy=EqualWeightPolicy(target_cash_weight=0.25),
-        initial_cash=100.0,
-    )
-
-    assert result.periods
-    assert all(p.forecasts is not None for p in result.periods)
