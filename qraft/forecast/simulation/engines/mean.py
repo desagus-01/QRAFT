@@ -158,8 +158,9 @@ def mean_simulation_paths(
     """
     Produce simulated series paths for a mean model given innovations.
 
-    The function supports three mean kinds:
+    The function supports four mean kinds:
       - 'none': returns the innovations directly
+      - 'random_walk': same as 'none' (differences are zero-mean)
       - 'demean': adds a constant mean offset to the innovations
       - 'arma': runs an ARMA recursion using a MeanSimulator
 
@@ -168,7 +169,7 @@ def mean_simulation_paths(
     params : CompiledParams
         Compiled model parameters used to extract mean coefficients.
     mean_kind : str
-        One of {'none', 'demean', 'arma'}.
+        One of {'none', 'random_walk', 'demean', 'arma'}.
     mean_order : tuple[int, int]
         (p, q) AR and MA orders for ARMA simulation.
     state_series_hist : NDArray[np.floating]
@@ -190,7 +191,7 @@ def mean_simulation_paths(
     """
     eps_paths, n_sims, horizon = as_sims_by_horizon(eps_paths)
 
-    if mean_kind == "none":
+    if mean_kind in ("none", "random_walk"):
         return eps_paths.copy()
 
     mu, _, _ = mean_params(params, mean_order)

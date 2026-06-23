@@ -8,6 +8,7 @@ from numpy._typing import NDArray
 
 from qraft.forecast.time_series.models.fitted_types import (
     MeanKind,
+    RandomWalkRes,
     UnivariateRes,
     VolKind,
 )
@@ -41,6 +42,10 @@ class UnivariateModel:
     ):
         if fitting_results.mean_res is None:
             mean_kind: MeanKind = "none"
+            mean_order = (0, 0)
+            mean_params = {}
+        elif isinstance(fitting_results.mean_res, RandomWalkRes):
+            mean_kind: MeanKind = "random_walk"
             mean_order = (0, 0)
             mean_params = {}
         else:
@@ -93,7 +98,7 @@ class UnivariateModel:
         self,
     ) -> tuple[float, NDArray[np.floating], NDArray[np.floating]]:
         # returns (mu, ar(p), ma(q))
-        if self.mean_kind == "none":
+        if self.mean_kind in ("none", "random_walk"):
             return 0.0, np.zeros(0), np.zeros(0)
         if self.mean_kind == "demean":
             mu = (self.mean_params or {}).get("mean", 0.0)

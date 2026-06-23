@@ -15,6 +15,7 @@ from qraft.forecast.time_series.models.fitted_types import (
     AutoGARCHRes,
     DemeanRes,
     MeanModelRes,
+    RandomWalkRes,
     UnivariateRes,
 )
 from qraft.forecast.time_series.models.mean import (
@@ -46,6 +47,9 @@ def _describe_mean_model(res: MeanModelRes | None) -> str:
 
     if isinstance(res, AutoARMARes):
         return f"ARMA{res.model_order}"
+
+    if isinstance(res, RandomWalkRes):
+        return "random_walk"
 
     return type(res).__name__
 
@@ -402,9 +406,18 @@ def run_univariate_pipeline(
             combined_audit.events.extend(vol_audits[asset].events)
             combined_audit.notes.extend(vol_audits[asset].notes)
 
+        mean_res = mean_modelling.get(asset)
+        if mean_res is None:
+            array = data.select(asset).drop_nulls().to_numpy().ravel()
+            diff_vals = np.diff(array)
+            scale = float(np.std(diff_vals, ddof=1)) if diff_vals.size > 0 else 1.0
+            if not np.isfinite(scale) or scale <= 0:
+                scale = 1.0
+            mean_res = RandomWalkRes(residuals=diff_vals, residual_scale=scale)
+
         quality = score_audit(combined_audit, pipeline_config.quality)
         asset_model[asset] = UnivariateRes(
-            mean_res=mean_modelling.get(asset),
+            mean_res=mean_res,
             volatility_res=volatility_modelling.get(asset),
             quality=quality,
         )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
@@ -8,7 +9,10 @@ from numpy._typing import NDArray
 
 from qraft.forecast.time_series.models.model_quality import ModelQuality
 
-MeanKind = Literal["none", "demean", "arma"]
+logger = logging.getLogger(__name__)
+
+
+MeanKind = Literal["none", "demean", "arma", "random_walk"]
 VolKind = Literal["none", "garch"]
 GARCH_DISTRIBUTIONS = Literal["t", "normal", "skewt"]
 
@@ -50,7 +54,16 @@ class DemeanRes(NamedTuple):
     kind: Literal["demean"] = "demean"
 
 
-MeanModelRes = AutoARMARes | DemeanRes
+class RandomWalkRes(NamedTuple):
+    model_order: None = None
+    degrees_of_freedom: int = 0
+    params: dict[str, float] = {}
+    residuals: NDArray[np.floating] = np.array([])
+    residual_scale: float = 1.0
+    kind: Literal["random_walk"] = "random_walk"
+
+
+MeanModelRes = AutoARMARes | DemeanRes | RandomWalkRes
 
 
 @dataclass
@@ -69,36 +82,50 @@ class UnivariateRes:
 
         if self.mean_res is not None:
             scale = float(self.mean_res.residual_scale)
-            return 1.0 if (not np.isfinite(scale) or scale <= 0) else scale
+            result = 1.0 if (not np.isfinite(scale) or scale <= 0) else scale
+            if result <= 0 or not np.isfinite(result):
+                logger.warning("Mean residual_scale=%s clamped to 1.0", scale)
+            return result
 
-        diff = np.diff(non_null_values)
-        if diff.size == 0:
-            return 1.0
-
-        scale = float(np.std(diff, ddof=1))
-        return 1.0 if (not np.isfinite(scale) or scale <= 0) else scale
+        raise TypeError("UnivariateRes has no mean or volatility model")
 
     def invariant(self, non_null_values: NDArray[np.floating]) -> NDArray[np.floating]:
         """
         Return standardized innovations for all asset types.
 
         - GARCH asset: standardized residuals from GARCH fit
-        - mean-only asset: residuals / residual_scale
-        - no-model asset: [nan] + diff(series) / diff_scale
+        - mean-only asset (ARMA / demean): residuals / residual_scale
+        - random walk asset: [nan] + diff(series) / diff_scale  (NaN at position 0
+          aligns length N with the date grid; downstream NaN-dropping handles it)
         """
         if self.volatility_res is not None:
             invariant = np.asarray(self.volatility_res.invariants, dtype=float)
+            n_nan = int(np.isnan(invariant).sum())
+            if n_nan:
+                logger.warning("GARCH invariants already contain %d NaN(s)", n_nan)
+
+        elif isinstance(self.mean_res, RandomWalkRes):
+            diff = np.diff(non_null_values)
+            scale = self.innovation_scale(non_null_values)
+            invariant = np.concatenate([[np.nan], diff / scale])
 
         elif self.mean_res is not None:
             scale = self.innovation_scale(non_null_values)
-            invariant = np.asarray(self.mean_res.residuals, dtype=float) / scale
+            residuals = np.asarray(self.mean_res.residuals, dtype=float)
+            r_nan = int(np.isnan(residuals).sum())
+            r_inf = int(np.isinf(residuals).sum())
+            if r_nan or r_inf:
+                logger.warning(
+                    "Mean residuals have nan=%d, inf=%d, scale=%s", r_nan, r_inf, scale
+                )
+            invariant = residuals / scale
+            if np.isnan(scale) or scale == 0:
+                logger.error(
+                    "Scale is %s — division produces all NaNs for this asset", scale
+                )
 
         else:
-            diff = np.concatenate(
-                [np.array([np.nan], dtype=float), np.diff(non_null_values)]
-            )
-            scale = self.innovation_scale(non_null_values)
-            invariant = diff / scale
+            raise TypeError("UnivariateRes has no mean or volatility model")
 
         if invariant.shape[0] != non_null_values.shape[0]:
             raise ValueError(

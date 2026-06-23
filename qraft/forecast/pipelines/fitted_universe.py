@@ -20,6 +20,7 @@ from qraft.forecast.pipelines.preprocess import run_univariate_preprocess
 from qraft.forecast.simulation.simulate_paths import simulate_asset_paths
 from qraft.forecast.simulation.state import SimulationForecast
 from qraft.forecast.time_series.models.fitted_types import (
+    RandomWalkRes,
     UnivariateRes,
 )
 from qraft.forecast.time_series.models.mean import fit_arma
@@ -218,12 +219,25 @@ def fit_with_orders(
     out: dict[str, UnivariateRes] = {}
     for a in recipe.survivors:
         if a not in need:
-            out[a] = UnivariateRes(mean_res=None, volatility_res=None, quality=None)
+            arr = post_data.select(a).drop_nulls().to_numpy().ravel()
+            diff_vals = np.diff(arr)
+            scale = float(np.std(diff_vals, ddof=1)) if diff_vals.size > 0 else 1.0
+            if not np.isfinite(scale) or scale <= 0:
+                scale = 1.0
+            mean_res = RandomWalkRes(residuals=diff_vals, residual_scale=scale)
+            out[a] = UnivariateRes(mean_res=mean_res, volatility_res=None, quality=None)
             continue
         arr = post_data.select(a).drop_nulls().to_numpy().ravel()
         mean_order = recipe.mean_orders[a]
         if mean_order is not None:
             mean_res = fit_arma(arr, mean_order, cfg.mean)
+            if mean_res is None:
+                logger.warning(
+                    "Asset=%s: ARMA(%d,%d) fit failed; falling back to demean model",
+                    a,
+                    *mean_order,
+                )
+                mean_res = _demean_fallback(arr)
         else:
             mean_res = _demean_fallback(arr)
         vol_order = recipe.vol_orders[a]
@@ -383,14 +397,46 @@ def _build_invariants_panel(
         model = models[asset]
         used_dates = post.filter(pl.col(asset).is_not_null()).select("date")
         values = post.select(asset).drop_nulls().to_numpy().ravel()
+
+        logger.debug(
+            "Asset=%s: n_values=%d, has_vol=%s, has_mean=%s",
+            asset,
+            values.size,
+            model.volatility_res is not None,
+            model.mean_res is not None,
+        )
+
         invariant = model.invariant(values)
+
+        n_nan = int(np.isnan(invariant).sum())
+        n_inf = int(np.isinf(invariant).sum())
+        if n_nan > 0 or n_inf > 0:
+            logger.warning(
+                "Asset=%s: invariant has nan=%d, inf=%d (shape=%s)",
+                asset,
+                n_nan,
+                n_inf,
+                invariant.shape,
+            )
+
         patches.append(used_dates.with_columns(pl.Series(asset, invariant)))
 
     innovations_df = base
     for patch in patches:
         innovations_df = innovations_df.join(patch, on="date", how="left")
+        new_nans = (
+            innovations_df.select(pl.all().is_null().sum()).to_numpy().ravel().sum()
+        )
+        if new_nans > 0:
+            logger.debug(
+                "After left-join: %d new nulls introduced across all columns", new_nans
+            )
 
     logger.info("Invariants shape=%s", innovations_df.shape)
+    logger.debug(
+        "Total nulls in innovations_df: %s",
+        innovations_df.select(pl.all().is_null().sum()).row(0),
+    )
     return ScenarioPanel.from_invariants(
         innovations_df,
         prob,

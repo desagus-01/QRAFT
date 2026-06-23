@@ -29,9 +29,9 @@ from qraft.core import state_smooth_probs
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-# setup_logging(LogConfig(level=logging.WARN))
+setup_logging(LogConfig(level=logging.WARN))
 
-setup_logging(LogConfig(log_file="backtest.log"))
+# setup_logging(LogConfig(log_file="backtest.log"))
 # %%
 # ── Data loading ─────────────────────────────────────────────────────
 data, factors_cols = import_tickers_and_factors(
@@ -75,7 +75,7 @@ posterior_panel = ScenarioPanel.from_log_prices(
 # %%
 
 mkt_dt = MarketData.from_log_prices(
-    data, universe, cash=cash, weighting=WindowWeighting("state_smooth", half_life=126)
+    data, universe, cash=cash, weighting=WindowWeighting("state_smooth", half_life=60)
 )
 
 # %%
@@ -90,8 +90,6 @@ mkt_dt = MarketData.from_log_prices(
 # )
 #
 #
-# # %%
-# forecasts.plot_asset_paths()
 # %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
@@ -111,7 +109,7 @@ policy = ForecastingMPOPolicy(
         cash_path="data/cash.csv",
         expected_returns="forecast",
         risk="both",
-        expectation_tolerance=0.2,
+        expectation_tolerance=0.1,
     ),
     # simulation_config=SimulationForecastConfig(
     #     method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")

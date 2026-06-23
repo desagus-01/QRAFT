@@ -309,7 +309,7 @@ def test_recondition_parity_with_fit() -> None:
         assert type(f_res.mean_res) is type(r_res.mean_res), (
             f"{asset}: mean type mismatch {type(f_res.mean_res)} vs {type(r_res.mean_res)}"
         )
-        if f_res.mean_res is not None and r_res.mean_res is not None:
+        if f_res.mean_res is not None:
             np.testing.assert_allclose(
                 f_res.mean_res.residuals, r_res.mean_res.residuals, atol=1e-12
             )
