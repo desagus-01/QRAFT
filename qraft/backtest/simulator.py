@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from qraft.backtest.costs import CostModel
 from qraft.backtest.execution import (
@@ -14,13 +15,12 @@ from qraft.backtest.execution import (
     BacktestWarning,
     execute_frictionless,
 )
-from qraft.backtest.forecasting import BacktestForecaster  # noqa: F401
+from qraft.backtest.inputs import PolicyInputsProvider
 from qraft.backtest.market import MarketData
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
-from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ def run_backtest(
     policy: PolicyProtocol,
     *,
     schedule: RebalanceSchedule = RebalanceSchedule(),
-    forecaster: BacktestForecaster | None = None,
+    inputs: PolicyInputsProvider | None = None,
     initial_cash: float = 100.0,
     step_size: int = 1,
     costs: CostModel | None = None,
@@ -110,14 +110,6 @@ def run_backtest(
     decision_index = 0
     warnings_log: list[BacktestWarning] = []
 
-    # A bundled policy (e.g. ForecastingMPOPolicy) can produce its own inputs;
-    # otherwise inputs come from an explicit forecaster, else there are none.
-    inputs_source = (
-        forecaster
-        if forecaster is not None
-        else (policy if hasattr(policy, "policy_inputs_at") else None)
-    )
-
     prev: datetime | None = None
     for i, bar in enumerate(bars):
         if prev is not None:
@@ -127,7 +119,7 @@ def run_backtest(
 
         # Holding cost accrues per bar on the book held over (prev, bar].
         holding = 0.0
-        if prev is not None and nav_now > 0.0:
+        if prev is not None and nav_now > 0.0 and costs.holding is not None:
             holding = costs.holding_charge((shares * prices) / nav_now, nav_now)
             cash = _charge(cash, holding, nav_now, "holding cost", bar)
         holding_costs.append(holding)
@@ -136,7 +128,7 @@ def run_backtest(
         if pending is not None and bar in exec_to_decision:
             d_bar, decision, status, error_msg, sigma = pending
             before = PortfolioState(asset_order, prices, shares, cash)
-            nav_pre = float(before.portfolio_value)
+            nav_pre = nav_now
             executed, shares, cash = execute_frictionless(
                 decision, shares, cash, prices, asset_order
             )
@@ -167,8 +159,8 @@ def run_backtest(
             sigma: NDArray[np.floating] | None = None
             try:
                 policy_inputs = (
-                    inputs_source.policy_inputs_at(snapshot, decision_index)
-                    if inputs_source is not None
+                    inputs.for_date(snapshot, decision_index)
+                    if inputs is not None
                     else None
                 )
                 decision = policy.decide(state, policy_inputs)

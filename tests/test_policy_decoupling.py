@@ -5,10 +5,9 @@ import polars as pl
 import pytest
 
 from qraft.construction.market_snapshot import MarketSnapshot
-from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
+from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.optimization.objectives.specs import ExpectedReturn
 from qraft.construction.optimization.problem import MPOProblemBuilder
-from qraft.backtest.forecasting import ForecastingMPOPolicy
 from qraft.construction.policies import MPOPolicy
 from qraft.construction.state import PortfolioState
 from qraft.core.panel import ScenarioPanel
@@ -61,31 +60,6 @@ def test_mpo_policy_optimizes_user_supplied_policy_inputs() -> None:
     )
 
     decision = policy.optimize(_state(), inputs)
-
-    assert decision.asset_order == ["A"]
-    assert decision.diagnostics.is_optimal
-
-
-def test_forecasting_mpo_policy_is_explicit_orchestrator(monkeypatch, tmp_path) -> None:
-    problem = MPOProblemBuilder().add(ExpectedReturn()).build()
-    cash_path = tmp_path / "cash.csv"
-    cash_path.write_text("date,DFF\n2024-01-02,0.0\n")
-    policy = ForecastingMPOPolicy(
-        policy=MPOPolicy(problem=problem),
-        input_config=PolicyInputConfig(cash_path=str(cash_path)),
-        min_history=0,
-    )
-
-    monkeypatch.setattr(
-        "qraft.backtest.forecasting.ForecastingMPOPolicy.policy_inputs_at",
-        lambda self, snapshot, step: PolicyInputs.from_arrays(
-            assets=["A"],
-            mean=np.array([[0.01]]),
-            cash_return=np.array([0.0]),
-        ),
-    )
-
-    decision = policy.decide_at(_snapshot(), _state())
 
     assert decision.asset_order == ["A"]
     assert decision.diagnostics.is_optimal

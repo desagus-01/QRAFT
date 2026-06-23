@@ -1,23 +1,21 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Mapping, Protocol, runtime_checkable
+
+import numpy as np
 
 from qraft.construction.market_snapshot import MarketSnapshot
-from qraft.construction.optimization.objectives.specs import (
-    HoldingCost,
-    TransactionCost,
-)
 from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
-from qraft.core.panel import ScenarioPanel
-from qraft.construction.policies import MPOPolicy, PolicyDecision
-from qraft.construction.state import PortfolioState
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
     PipelineConfig,
     SimulationForecastConfig,
 )
+from qraft.core.panel import ScenarioPanel
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 from qraft.forecast.pipelines.fitted_universe import (
     FittedUniverse,
@@ -29,17 +27,15 @@ from qraft.forecast.pipelines.forecasting import _forecast_from_fit
 logger = logging.getLogger(__name__)
 
 
-class BacktestForecaster:
-    """Owns the forecast cadence and cache for a backtest run.
+@runtime_checkable
+class PolicyInputsProvider(Protocol):
+    """Maps a decision snapshot to the PolicyInputs the policy optimises against."""
 
-    Three cadences, counted in rebalances (decision bars):
-      * ``recipe_every`` (R): rerun full model selection -> ForecastRecipe
-        (order selection, transform decisions, survivor set).
-      * ``forecast_every`` (N <= R): recondition the cached recipe on the
-        latest window and regenerate ForecastPaths -> PolicyInputs.
-      * optimization runs every rebalance in the simulator, reusing the most
-        recently cached PolicyInputs against the live portfolio state.
-    """
+    def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs: ...
+
+
+class ForecastInputsProvider:
+    """Forecast-then-build-moments, with a forecast cadence."""
 
     def __init__(
         self,
@@ -50,6 +46,7 @@ class BacktestForecaster:
         pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
         simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
         seed: int | None = None,
+        dtype: type = np.float64,
     ) -> None:
         if recipe_every < 1 or forecast_every < 1:
             raise ValueError("recipe_every and forecast_every must be >= 1")
@@ -61,13 +58,13 @@ class BacktestForecaster:
         self.pipeline_config = pipeline_config
         self.simulation_config = simulation_config
         self.seed = seed
+        self.dtype = dtype
 
         self._recipe: ForecastRecipe | None = None
         self._cached_inputs: PolicyInputs | None = None
         self._last_universe: tuple[str, ...] | None = None
 
-    def policy_inputs_at(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
-        """Return PolicyInputs for rebalance ``step`` (0-based)."""
+    def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
         universe_key = tuple(snapshot.universe.all_tickers)
         universe_changed = universe_key != self._last_universe
 
@@ -79,7 +76,6 @@ class BacktestForecaster:
             or self._cached_inputs is None
             or step % self.forecast_every == 0
         )
-
         if not reforecast:
             assert self._cached_inputs is not None
             return self._cached_inputs
@@ -107,18 +103,14 @@ class BacktestForecaster:
             logger.info("step %d: reconditioned forecast (cached recipe)", step)
 
         forecasts = self._forecast(panel, universe, fit, data, seed)
-        self._cached_inputs = self._build_inputs(
-            forecasts, history=panel, as_of=snapshot.t
-        )
-        return self._cached_inputs
+        inputs = self._build_inputs(forecasts, history=panel, as_of=snapshot.t)
+        if self.dtype != np.float64:
+            inputs = inputs.astype(self.dtype)
+        self._cached_inputs = inputs
+        return inputs
 
     def _forecast(
-        self,
-        panel,
-        universe: AssetUniverse,
-        fit: FittedUniverse,
-        data,
-        seed: int | None,
+        self, panel, universe: AssetUniverse, fit: FittedUniverse, data, seed
     ) -> ForecastPaths:
         return _forecast_from_fit(
             panel=panel,
@@ -158,67 +150,36 @@ class BacktestForecaster:
         return None if self.seed is None else self.seed + step
 
 
-class ForecastingMPOPolicy:
-    """Batteries-included MPO strategy for a backtest.
+@dataclass
+class DateCache:
+    inner: PolicyInputsProvider
+    _table: dict[datetime, PolicyInputs] = field(default_factory=dict, init=False)
+    _universe: tuple[str, ...] | None = field(default=None, init=False)
 
-    Bundles an :class:`MPOPolicy` optimizer with a :class:`BacktestForecaster`
-    (forecast cadence + recipe cache). It exposes exactly what ``run_backtest``
-    needs — ``policy_inputs_at`` (produce PolicyInputs for a rebalance) and
-    ``decide`` (optimize against them) — so ``run_backtest(market, policy)``
-    works with no separate ``forecaster=`` argument. ``construction`` stays a
-    pure optimizer; forecast-then-optimize orchestration lives here.
-    """
-
-    def __init__(
-        self,
-        policy: MPOPolicy,
-        input_config: PolicyInputConfig,
-        *,
-        recipe_every: int = 12,
-        forecast_every: int = 1,
-        pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
-        simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
-        seed: int | None = None,
-        min_history: int = 0,
-        name: str | None = None,
-    ) -> None:
-        self._policy = policy
-        self._forecaster = BacktestForecaster(
-            input_config,
-            recipe_every=recipe_every,
-            forecast_every=forecast_every,
-            pipeline_config=pipeline_config,
-            simulation_config=simulation_config,
-            seed=seed,
-        )
-        self.name = name or policy.name
-        self.min_history = min_history
-
-    def cost_specs(self) -> tuple[TransactionCost | None, HoldingCost | None]:
-        return self._policy.cost_specs()
-
-    def policy_inputs_at(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
-        return self._forecaster.policy_inputs_at(snapshot, step)
-
-    def decide(
-        self,
-        state: PortfolioState,
-        policy_inputs: PolicyInputs | None = None,
-        *,
-        inputs: dict | None = None,
-    ) -> PolicyDecision:
-        if policy_inputs is None:
+    def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
+        universe = tuple(snapshot.universe.all_tickers)
+        if self._universe is None:
+            self._universe = universe
+        elif universe != self._universe:
             raise ValueError(
-                "ForecastingMPOPolicy.decide needs PolicyInputs (run_backtest "
-                "supplies them via policy_inputs_at); use decide_at() for a "
-                "one-shot decision from a snapshot."
+                "DateCache requires a fixed universe; the asset set changed "
+                "mid-run. Use a fresh provider per universe."
             )
-        return self._policy.optimize(
-            state=state, policy_inputs=policy_inputs, inputs=inputs
-        )
+        cached = self._table.get(snapshot.t)
+        if cached is None:
+            cached = self.inner.for_date(snapshot, step)
+            self._table[snapshot.t] = cached
+        return cached
 
-    def decide_at(
-        self, snapshot: MarketSnapshot, state: PortfolioState, step: int = 0
-    ) -> PolicyDecision:
-        """One-shot forecast + optimize from a snapshot (outside run_backtest)."""
-        return self.decide(state, self.policy_inputs_at(snapshot, step))
+
+@dataclass(frozen=True, slots=True)
+class PrecomputedInputsProvider:
+    """Serve PolicyInputs from a ``{date: PolicyInputs}`` table (BYO moments)."""
+
+    table: Mapping[datetime, PolicyInputs]
+
+    def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
+        inputs = self.table.get(snapshot.t)
+        if inputs is None:
+            raise KeyError(f"No precomputed PolicyInputs for {snapshot.t!r}")
+        return inputs

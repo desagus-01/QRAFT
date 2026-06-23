@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Literal
 
@@ -106,10 +106,6 @@ def incremental_returns_from_forecast_paths(
 class PolicyInputs:
     """
     Optimizer-ready horizon-indexed policy inputs.
-
-    The object is intentionally source-agnostic: values may come from forecast
-    paths, historical estimates, signals, or user-provided arrays. Objective
-    handlers validate only the fields they actually require.
     """
 
     assets: list[str]
@@ -177,7 +173,7 @@ class PolicyInputs:
             if cash.size == 0:
                 raise ValueError("cash_return cannot be empty.")
             if cash.size > 1:
-                horizon_counts.append(int(cash.size))
+                horizon_counts.append(cash.size)
             object.__setattr__(self, "cash_return", cash)
 
         if not horizon_counts:
@@ -235,6 +231,22 @@ class PolicyInputs:
         if self.cash_return is None:
             raise ValueError("This objective requires PolicyInputs.cash_return.")
         return self.cash_return
+
+    def astype(self, dtype: type) -> "PolicyInputs":
+        """Down-cast the memory-heavy arrays (scenario tensor + covariance
+        cubes) to ``dtype``. ``mean``/``cash_return``/``scenario_probs`` stay
+        as-is (small, precision-sensitive). cvxpy upcasts at solve time."""
+
+        def cast(a: NDArray[np.floating] | None) -> NDArray[np.floating] | None:
+            return None if a is None else a.astype(dtype, copy=False)
+
+        return replace(
+            self,
+            covariances=cast(self.covariances),
+            correlations=cast(self.correlations),
+            cov_factor=cast(self.cov_factor),
+            scenario_returns=cast(self.scenario_returns),
+        )
 
     @staticmethod
     def get_cash_return(

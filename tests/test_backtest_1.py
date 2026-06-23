@@ -52,12 +52,12 @@ DATES_6 = [
 
 
 class RecordingForecaster:
-    """Records received snapshots; returns flat PolicyInputs."""
+    """Records received snapshots; returns flat PolicyInputs (a provider)."""
 
     def __init__(self) -> None:
         self.snapshots: list[MarketSnapshot] = []
 
-    def policy_inputs_at(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
+    def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
         self.snapshots.append(snapshot)
         n = len(snapshot.universe.assets)
         return PolicyInputs.from_arrays(
@@ -97,7 +97,7 @@ def test_1_lagged_execution_and_periods() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=forecaster,
+        inputs=forecaster,
         policy=EqualWeightPolicy(target_cash_weight=0.25),
         initial_cash=100.0,
     )
@@ -135,7 +135,7 @@ def test_2_only_executable_decision_bars() -> None:
     run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=forecaster,
+        inputs=forecaster,
         policy=EqualWeightPolicy(target_cash_weight=0.25),
         initial_cash=100.0,
     )
@@ -172,7 +172,7 @@ def test_3_all_cash_policy() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=AllCashPolicy(),
         initial_cash=100.0,
     )
@@ -209,7 +209,7 @@ def test_5_no_trade_policy() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=NoTradePolicy(),
         initial_cash=100.0,
     )
@@ -238,7 +238,7 @@ def test_6_no_cash_data() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.0),
         initial_cash=100.0,
     )
@@ -264,7 +264,7 @@ def test_7_solver_fallback_on_policy_failure() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=FailingPolicy(),
         initial_cash=100.0,
     )
@@ -300,7 +300,7 @@ def test_7_month_end_cadence() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="month_end"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.0),
         initial_cash=100.0,
     )
@@ -334,7 +334,7 @@ def test_8_quarter_end_cadence() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="quarter_end"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.0),
         initial_cash=100.0,
     )
@@ -360,7 +360,7 @@ def test_9_self_financing_trades() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.25),
         initial_cash=100.0,
     )
@@ -390,7 +390,7 @@ def test_10_single_asset() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.0),
         initial_cash=100.0,
     )
@@ -424,7 +424,7 @@ def test_11_three_assets() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.25),
         initial_cash=100.0,
     )
@@ -458,7 +458,7 @@ def test_12_from_log_prices() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.25),
         initial_cash=100.0,
     )
@@ -489,7 +489,7 @@ def test_13_nav_correctness() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.0),
         initial_cash=100.0,
     )
@@ -538,7 +538,7 @@ def test_14_week_end_cadence() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="week_end"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.0),
         initial_cash=100.0,
     )
@@ -563,7 +563,7 @@ def test_15_backtest_result_structure() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.25),
         initial_cash=100.0,
     )
@@ -583,7 +583,7 @@ def test_16_forecaster_receives_correct_universe() -> None:
     received_universes: list[AssetUniverse] = []
 
     class CapturingForecaster:
-        def policy_inputs_at(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
+        def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
             received_universes.append(snapshot.universe)
             n = len(snapshot.universe.assets)
             return PolicyInputs.from_arrays(
@@ -601,7 +601,7 @@ def test_16_forecaster_receives_correct_universe() -> None:
     run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=CapturingForecaster(),
+        inputs=CapturingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.25),
         initial_cash=100.0,
     )
@@ -640,7 +640,7 @@ def test_17_state_smooth_weighting() -> None:
     result = run_backtest(
         market=market,
         schedule=RebalanceSchedule(cadence="every_bar"),
-        forecaster=RecordingForecaster(),
+        inputs=RecordingForecaster(),
         policy=EqualWeightPolicy(target_cash_weight=0.0),
         initial_cash=100.0,
     )

@@ -13,7 +13,7 @@ from qraft import (
     ScenarioPanel,
     setup_logging,
 )
-from qraft.backtest.forecasting import ForecastingMPOPolicy
+from qraft.backtest.inputs import ForecastInputsProvider
 from qraft.backtest.market import MarketData, WindowWeighting
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.backtest.simulator import run_backtest
@@ -100,13 +100,14 @@ constraints: list[PortfolioConstraint] = [
     TurnoverLimit(limit=0.10),
 ]
 
-policy = ForecastingMPOPolicy(
-    policy=MPOPolicy.preset(
-        objective_type="cvar_cuts",
-        risk_aversion=0.02,
-        constraints=constraints,
-        min_history=504,
-    ),
+policy = MPOPolicy.preset(
+    objective_type="cvar_cuts",
+    risk_aversion=0.01,
+    constraints=constraints,
+    min_history=504,
+)
+
+forecast_provider = ForecastInputsProvider(
     input_config=PolicyInputConfig(
         cash_path="data/cash.csv",
         expected_returns="forecast",
@@ -116,13 +117,17 @@ policy = ForecastingMPOPolicy(
         horizon=10, method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
     ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
-    recipe_every=4,  # full re-selection
-    forecast_every=1,  # recondition every rebalance
-    min_history=504,
+    recipe_every=4,
+    forecast_every=1,
 )
 
 
-result = run_backtest(mkt_dt, policy, schedule=RebalanceSchedule("quarter_end"))
+result = run_backtest(
+    mkt_dt,
+    policy,
+    inputs=forecast_provider,
+    schedule=RebalanceSchedule("quarter_end"),
+)
 
 # %%
 
