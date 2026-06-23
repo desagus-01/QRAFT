@@ -105,6 +105,34 @@ def transaction_cost_coeffs(
     return linear, impact, bias
 
 
+def holding_cost_rates(
+    spec: HoldingCost,
+) -> tuple[float, float, float]:
+    """Per-period holding cost rates (short_fees, long_fees, dividends) per bar."""
+    ppy = spec.periods_per_year
+    return spec.short_fees / ppy, spec.long_fees / ppy, spec.dividends / ppy
+
+
+def holding_cost_value(
+    spec: HoldingCost,
+    weights: NDArray[floating],
+    *,
+    nav: float,
+    n_periods: int = 1,
+) -> float:
+    """Realised holding cost in NAV units over ``n_periods`` bars.
+
+    Sign convention: positive = cost to the portfolio (reduces NAV).
+        cost = NAV · ( short_rate · sum(neg(w)) + long_rate · sum(pos(w))
+                       - div_rate · sum(w) ) · n_periods
+    """
+    short_rate, long_rate, div_rate = holding_cost_rates(spec)
+    short_cost = short_rate * float(np.sum(np.maximum(-weights, 0.0)))
+    long_cost = long_rate * float(np.sum(np.maximum(weights, 0.0)))
+    div_income = div_rate * float(np.sum(weights))
+    return nav * (short_cost + long_cost - div_income) * n_periods
+
+
 def transaction_cost_value(
     spec: TransactionCost,
     weight_trades: NDArray[floating],

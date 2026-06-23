@@ -7,17 +7,17 @@ from typing import Any
 
 import numpy as np
 
+from qraft.backtest.costs import CostModel
 from qraft.backtest.execution import (
     BacktestPeriod,
     BacktestResult,
     BacktestWarning,
-    execute_with_costs,
+    execute_frictionless,
 )
 from qraft.backtest.forecasting import BacktestForecaster  # noqa: F401
 from qraft.backtest.market import MarketData
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.construction.optimization.moments import PolicyInputs
-from qraft.construction.optimization.objectives.specs import TransactionCost
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
 from numpy.typing import NDArray
@@ -61,6 +61,24 @@ def _aligned_sigma(
     return np.array([sig.get(a, 0.0) for a in asset_order], dtype=float)
 
 
+_FLOAT_TOL: float = 1e-9
+
+
+def _charge(cash: float, amount: float, nav: float, label: str, bar: datetime) -> float:
+    """Debit a realised cost from cash; absorb float-noise, warn on a real overdraft."""
+    cash -= amount
+    if cash >= 0.0 or cash > -_FLOAT_TOL * max(abs(nav), 1.0):
+        return max(cash, 0.0)
+    logger.warning(
+        "%s at %s drove cash negative (%.6g); add a MinCashWeight buffer "
+        "or allow_borrow.",
+        label,
+        bar,
+        cash,
+    )
+    return cash
+
+
 def run_backtest(
     market: MarketData,
     policy: PolicyProtocol,
@@ -69,8 +87,11 @@ def run_backtest(
     forecaster: BacktestForecaster | None = None,
     initial_cash: float = 100.0,
     step_size: int = 1,
-    transaction_cost: TransactionCost | None = None,
+    costs: CostModel | None = None,
 ) -> BacktestResult:
+    if costs is None:
+        costs = CostModel.from_policy(policy)
+
     warmup = policy.min_history
 
     bars = market.trading_bars
@@ -85,6 +106,7 @@ def run_backtest(
     periods: list[BacktestPeriod] = []
     nav_dates: list[datetime] = []
     nav: list[float] = []
+    holding_costs: list[float] = []
     decision_index = 0
     warnings_log: list[BacktestWarning] = []
 
@@ -101,20 +123,25 @@ def run_backtest(
         if prev is not None:
             cash *= 1.0 + market.realised_cash_return(prev, bar)
         prices = market.prices_at(bar)
+        nav_now = float(shares @ prices + cash)
+
+        # Holding cost accrues per bar on the book held over (prev, bar].
+        holding = 0.0
+        if prev is not None and nav_now > 0.0:
+            holding = costs.holding_charge((shares * prices) / nav_now, nav_now)
+            cash = _charge(cash, holding, nav_now, "holding cost", bar)
+        holding_costs.append(holding)
 
         # fill the decision queued one bar earlier
         if pending is not None and bar in exec_to_decision:
             d_bar, decision, status, error_msg, sigma = pending
             before = PortfolioState(asset_order, prices, shares, cash)
-            executed, shares, cash, cost = execute_with_costs(
-                decision,
-                shares,
-                cash,
-                prices,
-                asset_order,
-                transaction_cost,
-                sigma=sigma,
+            nav_pre = float(before.portfolio_value)
+            executed, shares, cash = execute_frictionless(
+                decision, shares, cash, prices, asset_order
             )
+            trade_cost = costs.trade_charge(executed, prices, nav_pre, sigma=sigma)
+            cash = _charge(cash, trade_cost, nav_pre, "trade cost", bar)
             periods.append(
                 BacktestPeriod(
                     decision_bar=d_bar,
@@ -124,7 +151,7 @@ def run_backtest(
                     executed_share_trades=executed,
                     state_after=PortfolioState(asset_order, prices, shares, cash),
                     solver_status=status,
-                    cost=cost,
+                    cost=trade_cost,
                     decision_error=error_msg,
                 )
             )
@@ -186,4 +213,5 @@ def run_backtest(
         nav=np.array(nav),
         periods=periods,
         warnings_log=warnings_log,
+        holding_costs=np.array(holding_costs, dtype=float),
     )

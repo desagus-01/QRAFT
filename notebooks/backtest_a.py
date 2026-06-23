@@ -1,12 +1,12 @@
 # %%
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
 from qraft import (
     AssetUniverse,
+    CMAConfig,
     LogConfig,
     MPOPolicy,
     PipelineConfig,
@@ -26,6 +26,8 @@ from qraft.construction import (
 )
 from qraft.construction.optimization.moments import PolicyInputConfig
 from qraft.core import state_smooth_probs
+from qraft.core.configs import SimulationForecastConfig
+from qraft.utils.backtest_viz import plot_backtest_dashboard
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
@@ -94,26 +96,25 @@ mkt_dt = MarketData.from_log_prices(
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(constraint_type="soft", soft_weight=1.0),
-    MinCashWeight(limit=0.3, constraint_type="soft", soft_weight=1.0),
-    TurnoverLimit(limit=0.50),
+    MinCashWeight(limit=0.25),
+    TurnoverLimit(limit=0.10),
 ]
 
 policy = ForecastingMPOPolicy(
     policy=MPOPolicy.preset(
         objective_type="cvar_cuts",
-        risk_aversion=0.1,
+        risk_aversion=0.02,
         constraints=constraints,
         min_history=504,
     ),
     input_config=PolicyInputConfig(
         cash_path="data/cash.csv",
-        expected_returns="historical",
+        expected_returns="forecast",
         risk="both",
-        expectation_tolerance=0.1,
     ),
-    # simulation_config=SimulationForecastConfig(
-    #     method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
-    # ),
+    simulation_config=SimulationForecastConfig(
+        horizon=10, method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
+    ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
     recipe_every=4,  # full re-selection
     forecast_every=1,  # recondition every rebalance
@@ -123,23 +124,6 @@ policy = ForecastingMPOPolicy(
 
 result = run_backtest(mkt_dt, policy, schedule=RebalanceSchedule("quarter_end"))
 
-# # %%
-#
-# # Build a Polars DataFrame
-#
-df = pl.DataFrame({"date": result.nav_dates, "nav": result.nav}).sort("date")
-
-plt.figure(figsize=(12, 6))
-plt.plot(df["date"].to_list(), df["nav"].to_list(), marker="o", linewidth=2)
-
-plt.title("NAV Over Time")
-plt.xlabel("Date")
-plt.ylabel("NAV")
-plt.grid(True)
-plt.xticks(rotation=45)
-plt.tight_layout()
-
-plt.show()
 # %%
 
-result.period_target_weights
+plot_backtest_dashboard(result)

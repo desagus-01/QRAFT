@@ -124,6 +124,9 @@ class MPOPolicy:
             min_history=min_history,
         )
 
+    def cost_specs(self) -> tuple[TransactionCost | None, HoldingCost | None]:
+        return self.problem.cost_specs()
+
     def _get_optimizer(self, moments: PolicyInputs) -> MultiPeriodOptimizer:
         key = (tuple(moments.assets), moments.n_horizons, moments.n_scenarios)
         optimizer = self._optimizer_cache.get(key)

@@ -9,7 +9,7 @@ Cadence = Literal["every_bar", "week_end", "month_end", "quarter_end"]
 
 @dataclass(frozen=True, slots=True)
 class RebalanceSchedule:
-    cadence: Cadence = "month_end"
+    cadence: Cadence = "quarter_end"
 
     def _choose_bucket(self) -> str:
         match self.cadence:

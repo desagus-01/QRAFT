@@ -14,6 +14,7 @@ from qraft.construction.optimization.objectives.specs import (
     ExpectedReturn,
     HoldingCost,
     TransactionCost,
+    holding_cost_rates,
     transaction_cost_coeffs,
 )
 
@@ -601,8 +602,7 @@ class HoldingCostHandler:
 
         No ``inputs`` keys are required — all rates come from the spec.
         """
-        ppy = spec.periods_per_year
-
-        params["short_rate"].value = spec.short_fees / ppy
-        params["long_rate"].value = spec.long_fees / ppy
-        params["div_rate"].value = spec.dividends / ppy
+        short_rate, long_rate, div_rate = holding_cost_rates(spec)
+        params["short_rate"].value = short_rate
+        params["long_rate"].value = long_rate
+        params["div_rate"].value = div_rate

@@ -4,6 +4,10 @@ import logging
 from datetime import datetime
 
 from qraft.construction.market_snapshot import MarketSnapshot
+from qraft.construction.optimization.objectives.specs import (
+    HoldingCost,
+    TransactionCost,
+)
 from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
 from qraft.core.panel import ScenarioPanel
 from qraft.construction.policies import MPOPolicy, PolicyDecision
@@ -189,6 +193,9 @@ class ForecastingMPOPolicy:
         )
         self.name = name or policy.name
         self.min_history = min_history
+
+    def cost_specs(self) -> tuple[TransactionCost | None, HoldingCost | None]:
+        return self._policy.cost_specs()
 
     def policy_inputs_at(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
         return self._forecaster.policy_inputs_at(snapshot, step)

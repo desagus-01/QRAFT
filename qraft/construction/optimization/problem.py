@@ -93,6 +93,34 @@ class MPOProblem:
             solver_options=solver_options,
         )
 
+    def cost_specs(self) -> tuple[TransactionCost | None, HoldingCost | None]:
+        """Return (transaction_cost, holding_cost) specs this problem penalises.
+
+        For preset problems the defaults from ``_build_preset_objective`` are
+        resolved so that ``CostModel.from_policy`` returns the specs the
+        optimiser actually uses.
+        """
+        if self.objective is not None:
+            transaction = None
+            holding = None
+            for term in self.objective.terms:
+                if isinstance(term.spec, TransactionCost):
+                    transaction = term.spec
+                elif isinstance(term.spec, HoldingCost):
+                    holding = term.spec
+            return transaction, holding
+        if self._preset is not None:
+            from qraft.construction.optimization.presets import (
+                _default_holding_cost,
+                _default_transaction_cost,
+            )
+
+            return (
+                self._preset.transaction_cost or _default_transaction_cost(),
+                self._preset.holding_cost or _default_holding_cost(),
+            )
+        return None, None
+
     def _resolve_objective(self, horizons: int, n_scenarios: int) -> ObjectiveSpec:
         """
         Return the concrete ``ObjectiveSpec`` for the given problem size.
