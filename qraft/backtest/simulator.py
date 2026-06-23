@@ -117,7 +117,7 @@ def run_backtest(
                 )
                 decision = policy.decide(state, policy_inputs)
                 status = getattr(decision.diagnostics, "status", "ok")
-            except Exception as exc:  # one bad forecast/solve must not abort the run
+            except (RuntimeError, ValueError) as exc:
                 logger.warning("decision at %s failed (%s); holding.", bar, exc)
                 logger.debug(
                     "Traceback for failed decision at %s:\n%s",

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
+from qraft.core.panel import ScenarioPanel
 from qraft.construction.policies import MPOPolicy, PolicyDecision
 from qraft.construction.state import PortfolioState
 from qraft.core.configs import (
@@ -101,7 +103,9 @@ class BacktestForecaster:
             logger.info("step %d: reconditioned forecast (cached recipe)", step)
 
         forecasts = self._forecast(panel, universe, fit, data, seed)
-        self._cached_inputs = self._build_inputs(forecasts)
+        self._cached_inputs = self._build_inputs(
+            forecasts, history=panel, as_of=snapshot.t
+        )
         return self._cached_inputs
 
     def _forecast(
@@ -122,13 +126,20 @@ class BacktestForecaster:
             simulation_config=self.simulation_config,
         )
 
-    def _build_inputs(self, forecasts: ForecastPaths) -> PolicyInputs:
+    def _build_inputs(
+        self,
+        forecasts: ForecastPaths,
+        history: ScenarioPanel | None = None,
+        *,
+        as_of: datetime | None = None,
+    ) -> PolicyInputs:
         cfg = self.input_config
         return PolicyInputs.from_policy_sources(
             forecasts=forecasts,
             cash_path=cfg.cash_path,
             expected_returns=cfg.expected_returns,
             risk=cfg.risk,
+            history=history,
             horizons=cfg.horizons,
             subset=cfg.subset,
             pnl_type=cfg.pnl_type,
@@ -136,6 +147,7 @@ class BacktestForecaster:
             mean_decay=cfg.mean_decay,
             step_size=cfg.step_size,
             periods_per_year=cfg.periods_per_year,
+            as_of=as_of,
         )
 
     def _seed_for(self, step: int) -> int | None:

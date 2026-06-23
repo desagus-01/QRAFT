@@ -112,7 +112,8 @@ def fit_arma(
             warnings.filterwarnings("error", category=ConvergenceWarning)
             model = ARIMA(asset_array, order=(ar, 0, ma), trend="c")
             res = model.fit(method="statespace")
-    except (ConvergenceWarning, Exception):
+    except (ConvergenceWarning, Exception) as e:
+        logger.warning("ARMA(%d,%d) fit failed: %s: %s", ar, ma, type(e).__name__, e)
         return None
 
     params = _build_arma_parameters(

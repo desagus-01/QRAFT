@@ -408,17 +408,6 @@ def _build_invariants_panel(
 
         invariant = model.invariant(values)
 
-        n_nan = int(np.isnan(invariant).sum())
-        n_inf = int(np.isinf(invariant).sum())
-        if n_nan > 0 or n_inf > 0:
-            logger.warning(
-                "Asset=%s: invariant has nan=%d, inf=%d (shape=%s)",
-                asset,
-                n_nan,
-                n_inf,
-                invariant.shape,
-            )
-
         patches.append(used_dates.with_columns(pl.Series(asset, invariant)))
 
     innovations_df = base

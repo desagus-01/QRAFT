@@ -100,14 +100,14 @@ constraints: list[PortfolioConstraint] = [
 
 policy = ForecastingMPOPolicy(
     policy=MPOPolicy.preset(
-        objective_type="mean_covariance",
+        objective_type="cvar_cuts",
         risk_aversion=0.02,
         constraints=constraints,
         min_history=504,
     ),
     input_config=PolicyInputConfig(
         cash_path="data/cash.csv",
-        expected_returns="forecast",
+        expected_returns="historical",
         risk="both",
         expectation_tolerance=0.1,
     ),
@@ -140,3 +140,6 @@ plt.xticks(rotation=45)
 plt.tight_layout()
 
 plt.show()
+# %%
+
+result.period_target_weights
