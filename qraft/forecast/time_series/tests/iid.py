@@ -9,6 +9,7 @@ from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 
 from qraft.core.configs import IIDConfig
 from qraft.core.estimation import (
+    effective_sample_size,
     weighted_covariance,
     weighted_mean,
 )
@@ -151,8 +152,7 @@ def autocorrelation_pair_test(
     denom = np.sqrt(var_t * var_lag)
     corr = 0.0 if np.isclose(denom, 0.0) else float(cov_t_lag / denom)
 
-    # test_statistic = abs(corr) * np.sqrt(effective_sample_size(prob))
-    n = pair_np.shape[0]
+    n = effective_sample_size(prob)
     y0_demean = pair_np[:, 0] - pair_np[:, 0].mean()
     y1_demean = pair_np[:, 1] - pair_np[:, 1].mean()
     gamma = max(float(np.mean(y0_demean**2)) * float(np.mean(y1_demean**2)), 1e-24)

@@ -6,10 +6,10 @@ from qraft.core.configs import CMAConfig
 from qraft.core.probability import sampling
 
 
-def test_cma_config_defaults_to_ml_copula_fit() -> None:
+def test_cma_config_defaults_to_itau_copula_fit() -> None:
     cfg = CMAConfig(target_copula="t")
 
-    assert cfg.copula_fit_method == "ml"
+    assert cfg.copula_fit_method == "itau"
 
 
 def test_sample_copula_does_not_fallback_to_ml_after_failed_method(

@@ -157,12 +157,12 @@ def test_run_iid_complex_passes_configured_iteration_controls(monkeypatch) -> No
 def test_check_white_noise_uses_explicit_seed(monkeypatch) -> None:
     captured: dict[str, int | None] = {}
 
-    def fake_run_iid_simple(data, prob, assets, lags):
+    def fake_run_iid_simple(data, prob, assets, lags, **kwargs):
         return {
             "ellipsoid": {
                 asset: PerAssetTestResult(results={}, rejected=[]) for asset in assets
             },
-            "ks": {
+            "arch": {
                 asset: PerAssetTestResult(results={}, rejected=[]) for asset in assets
             },
         }
@@ -176,8 +176,8 @@ def test_check_white_noise_uses_explicit_seed(monkeypatch) -> None:
             }
         }
 
-    monkeypatch.setattr(white_noise, "_run_iid_simple", fake_run_iid_simple)
-    monkeypatch.setattr(white_noise, "_run_iid_complex", fake_run_iid_complex)
+    monkeypatch.setattr(white_noise, "run_iid_simple", fake_run_iid_simple)
+    monkeypatch.setattr(white_noise, "run_iid_complex", fake_run_iid_complex)
 
     white_noise.check_white_noise(
         data=pl.DataFrame({"x": [1.0, 2.0, 3.0, 4.0]}),

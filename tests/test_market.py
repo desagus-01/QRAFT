@@ -8,7 +8,6 @@ from qraft.backtest.market import (
     MarketData,
     MarketDataConfig,
     MarketSnapshot,
-    RealisedStep,
     WindowWeighting,
 )
 from qraft.core.panel import ScenarioPanel
@@ -60,30 +59,17 @@ def test_market_snapshot_dataclass() -> None:
     snap = MarketSnapshot(
         t=datetime(2024, 1, 2),
         t_next=datetime(2024, 1, 3),
-        assets=["A", "B"],
+        universe=_universe(),
         history=panel,
         prices_t=np.array([11.0, 22.0]),
         cash_rate=0.001,
     )
     assert snap.t == datetime(2024, 1, 2)
     assert snap.t_next == datetime(2024, 1, 3)
-    assert snap.assets == ["A", "B"]
+    assert snap.universe.assets == ["A", "B"]
     assert snap.history is panel
     np.testing.assert_allclose(snap.prices_t, [11.0, 22.0])
     assert snap.cash_rate == 0.001
-
-
-def test_realised_step_dataclass() -> None:
-    step = RealisedStep(
-        t=datetime(2024, 1, 2),
-        t_next=datetime(2024, 1, 3),
-        prices_next=np.array([12.0, 24.0]),
-        cash_return=0.0002,
-    )
-    assert step.t == datetime(2024, 1, 2)
-    assert step.t_next == datetime(2024, 1, 3)
-    np.testing.assert_allclose(step.prices_next, [12.0, 24.0])
-    assert step.cash_return == 0.0002
 
 
 def test_market_data_config_defaults() -> None:
@@ -317,7 +303,7 @@ def test_snapshot_at() -> None:
     assert isinstance(snap, MarketSnapshot)
     assert snap.t == datetime(2024, 1, 2)
     assert snap.t_next == datetime(2024, 1, 3)
-    assert snap.assets == ["A", "B"]
+    assert snap.universe.assets == ["A", "B"]
     assert isinstance(snap.history, ScenarioPanel)
     np.testing.assert_allclose(snap.prices_t, [11.0, 22.0])
     assert snap.cash_rate > 0
@@ -329,16 +315,6 @@ def test_snapshot_at_accepts_string_dates() -> None:
     assert snap.t == datetime(2024, 1, 2)
     assert snap.t_next == datetime(2024, 1, 3)
     np.testing.assert_allclose(snap.prices_t, [11.0, 22.0])
-
-
-def test_realised_step() -> None:
-    md = _market_data()
-    step = md.realised_step(datetime(2024, 1, 2), datetime(2024, 1, 3))
-    assert isinstance(step, RealisedStep)
-    assert step.t == datetime(2024, 1, 2)
-    assert step.t_next == datetime(2024, 1, 3)
-    np.testing.assert_allclose(step.prices_next, [12.0, 24.0])
-    assert step.cash_return > 0
 
 
 # ---------------------------------------------------------------------------

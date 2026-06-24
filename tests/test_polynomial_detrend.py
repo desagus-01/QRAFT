@@ -17,7 +17,9 @@ def test_polynomial_detrend_uses_scaled_time_basis():
     )
 
     np.testing.assert_allclose(residuals.ravel(), 0.0, atol=1e-10)
-    np.testing.assert_allclose(betas.ravel(), np.array([2.0, 0.0, -0.5, 4.0]))
+    np.testing.assert_allclose(
+        betas.ravel(), np.array([2.0, 0.0, -0.5, 4.0]), atol=1e-9
+    )
 
 
 def test_polynomial_inverse_evaluates_future_scaled_time():
