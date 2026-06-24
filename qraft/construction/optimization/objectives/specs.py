@@ -26,7 +26,9 @@ class CVaRCuttingPlane:
     """Cutting-plane approximation of CVaR (supports iterative refinement)."""
 
     alpha: float = 0.05
-    max_cuts: int = 200
+    max_cuts: int = (
+        30  # TODO: Make this dynamic as currently is what takes the most gbs
+    )
     tol: float = 1e-6
 
 

@@ -30,18 +30,21 @@ from qraft.core.configs import SimulationForecastConfig
 from qraft.utils.backtest_viz import plot_backtest_dashboard
 from qraft.utils.tiingo import import_tickers_and_factors
 
+_fault_log = open("/tmp/backtest_fault.log", "w")
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.INFO))
+setup_logging(LogConfig(level=logging.WARN))
 
 # setup_logging(LogConfig(log_file="backtest.log"))
 # %%
+print("kernel ready")
+
 # ── Data loading ─────────────────────────────────────────────────────
 data, factors_cols = import_tickers_and_factors(
     "./data/tiingo_sample.csv",
     "./data/tiingo_factors.csv",
 )
 
-min_price = 15
+min_price = 10
 
 cash = pl.read_csv("data/cash.csv", try_parse_dates=True)
 
@@ -114,13 +117,12 @@ forecast_provider = ForecastInputsProvider(
         risk="both",
     ),
     simulation_config=SimulationForecastConfig(
-        horizon=10, method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
+        horizon=15, method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
     ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
     recipe_every=4,
     forecast_every=1,
 )
-
 
 result = run_backtest(
     mkt_dt,

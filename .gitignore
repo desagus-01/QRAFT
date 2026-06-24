@@ -209,3 +209,7 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local binary/backtest artifacts
+bt.bin
+*.bin

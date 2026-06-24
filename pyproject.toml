@@ -17,6 +17,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "ipykernel>=7.1.0",
     "matplotlib>=3.10.6",
+    "memray>=1.19.3",
     "numpy>=2.3.3",
     "polars>=1.33.1",
     "pre-commit>=4.3.0",
