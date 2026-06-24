@@ -9,16 +9,8 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from qraft.backtest.execution import BacktestResult
-from qraft.core.metrics import (
-    annualised_return,
-    annualised_vol,
-    calmar,
-    drawdown_curve,
-    max_drawdown,
-    returns_from_nav,
-    sharpe,
-    sortino,
-)
+from qraft.backtest.metrics import PerformanceSummary
+from qraft.core.metrics import drawdown_curve, returns_from_nav
 
 
 def _to_dates(dates: Sequence) -> list[float]:
@@ -30,33 +22,11 @@ def summary_stats(
     risk_free_rate: float = 0.0,
     periods_per_year: float = 252,
 ) -> dict[str, float]:
-    nav = np.asarray(result.nav, dtype=float)
-    returns = returns_from_nav(nav)
-    rf_per_period = risk_free_rate / periods_per_year
-
-    stats = {
-        "total_return": float(nav[-1] / nav[0] - 1.0),
-        "annualised_return": annualised_return(nav, periods_per_year),
-        "annualised_vol": annualised_vol(returns, periods_per_year),
-        "sharpe_ratio": sharpe(returns, rf_per_period, periods_per_year),
-        "sortino_ratio": sortino(returns, rf_per_period, periods_per_year),
-        "max_drawdown": max_drawdown(nav),
-        "calmar_ratio": calmar(nav, periods_per_year),
-        "avg_turnover": float(np.mean(result.period_turnovers))
-        if len(result.period_turnovers) > 0
-        else 0.0,
-        "avg_cost": float(np.mean(result.period_costs))
-        if len(result.period_costs) > 0
-        else 0.0,
-        "n_periods": len(result.periods),
-        "n_warnings": len(result.warnings_log),
-    }
-    stats["profit_factor"] = (
-        float(np.sum(returns[returns > 0]) / abs(np.sum(returns[returns < 0])))
-        if np.any(returns < 0)
-        else float("inf")
-    )
-    return stats
+    return PerformanceSummary.from_backtest(
+        result,
+        periods_per_year=periods_per_year,
+        risk_free_rate=risk_free_rate,
+    ).to_dict()
 
 
 def plot_nav(
@@ -100,9 +70,9 @@ def plot_nav(
         text = (
             f"Ann. Return: {s['annualised_return']:.2%}  "
             f"Vol: {s['annualised_vol']:.2%}  "
-            f"Sharpe: {s['sharpe_ratio']:.2f}  "
+            f"Sharpe: {s['sharpe']:.2f}  "
             f"Max DD: {s['max_drawdown']:.2%}  "
-            f"Calmar: {s['calmar_ratio']:.2f}"
+            f"Calmar: {s['calmar']:.2f}"
         )
         ax.text(
             0.01,
@@ -483,7 +453,7 @@ def plot_comparison(
         va="top",
     )
     for i, (lbl, s) in enumerate(zip(labels, stats_list)):
-        line = f"{lbl:<18} {s['annualised_return']:>7.2%} {s['annualised_vol']:>7.2%} {s['sharpe_ratio']:>6.2f} {s['max_drawdown']:>7.2%} {s['calmar_ratio']:>6.2f} {s['avg_turnover']:>6.2%}"
+        line = f"{lbl:<18} {s['annualised_return']:>7.2%} {s['annualised_vol']:>7.2%} {s['sharpe']:>6.2f} {s['max_drawdown']:>7.2%} {s['calmar']:>6.2f} {s['avg_turnover']:>6.2%}"
         ax.text(
             0.05,
             0.90 - i * 0.045,

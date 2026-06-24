@@ -128,7 +128,7 @@ result = run_backtest(
     mkt_dt,
     policy,
     inputs=forecast_provider,
-    schedule=RebalanceSchedule("quarter_end"),
+    schedule=RebalanceSchedule("month_end"),
 )
 
 # %%
