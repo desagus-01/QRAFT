@@ -36,24 +36,11 @@ __all__ = [
     "WeightedTerm",
     "ObjectiveSpec",
     "PreMadeObjectives",
-    "FrontierKind",
-    "MPOFrontierConfig",
-    "FrontierPoint",
-    "FrontierResult",
-    "MPOFrontierRunner",
-    "ex_ante_metrics",
-    "ex_post_terminal_cvar",
+    "forecast_plan_metrics",
+    "forecast_terminal_cvar",
+    "in_model_cvar",
 ]
 
-from qraft.construction.frontier import (  # noqa: F401
-    FrontierKind,
-    FrontierPoint,
-    FrontierResult,
-    MPOFrontierConfig,
-    MPOFrontierRunner,
-    ex_ante_metrics,
-    ex_post_terminal_cvar,
-)
 from qraft.construction.optimization.constraints import (  # noqa: F401
     ConstraintType,
     FullyInvested,
@@ -71,6 +58,11 @@ from qraft.construction.optimization.moments import (  # noqa: F401
     PolicyInputConfig,
     PolicyInputs,
     RiskSource,
+)
+from qraft.construction.optimization.diagnostics import (  # noqa: F401
+    forecast_plan_metrics,
+    forecast_terminal_cvar,
+    in_model_cvar,
 )
 from qraft.construction.optimization.objectives.specs import (  # noqa: F401
     CashReturn,

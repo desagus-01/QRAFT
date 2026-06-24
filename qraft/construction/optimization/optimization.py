@@ -530,8 +530,8 @@ class MultiPeriodOptimizer:
     ) -> MPOResult | MPOFailure:
         """Single reuse-friendly entry point: dispatch cutting-plane vs direct.
 
-        Hold one compiled optimizer and call this many times (frontier gamma
-        sweep, walk-forward dates). The compiled cp.Problem, its DPP
+        Hold one compiled optimizer and call this many times across repeated
+        solves. The compiled cp.Problem, its DPP
         canonicalization, and warm starts are then reused.
         """
         if self.uses_cutting_plane:

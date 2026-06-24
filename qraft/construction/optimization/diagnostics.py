@@ -21,8 +21,8 @@ def _cash_return_by_horizon(moments: PolicyInputs) -> np.ndarray:
     return cash_return
 
 
-def ex_ante_metrics(result: MPOResult, moments: PolicyInputs) -> dict[str, float]:
-    """Analytic ex-ante metrics for the optimized multi-horizon plan."""
+def forecast_plan_metrics(result: MPOResult, moments: PolicyInputs) -> dict[str, float]:
+    """Analytic forecast metrics for the optimized multi-horizon plan."""
     mean = moments.require_mean()
     covariances = moments.require_covariances()
     if result.planned_weights.shape != mean.shape:
@@ -46,17 +46,12 @@ def ex_ante_metrics(result: MPOResult, moments: PolicyInputs) -> dict[str, float
     }
 
 
-def ex_post_terminal_cvar(
+def forecast_terminal_cvar(
     result: MPOResult,
     moments: PolicyInputs,
     alpha: float,
 ) -> float:
-    """
-    Forecast-scenario CVaR of buy-and-hold terminal PnL for the first target.
-
-    This is an ex-post tail diagnostic over the forecast paths. It does not
-    project dynamic rebalancing through later planned weights.
-    """
+    """Forecast-scenario CVaR of buy-and-hold terminal PnL for the first target."""
     cash_return = _cash_return_by_horizon(moments)
     scenario_returns, scenario_probs = moments.require_scenarios()
     terminal_risky_gross = np.prod(1.0 + scenario_returns, axis=1)
@@ -80,9 +75,7 @@ def in_model_cvar(
     moments: PolicyInputs,
     alpha: float,
 ) -> float:
-    """
-    Per-horizon CVaR summed over the plan, evaluated as optimized.
-    """
+    """Per-horizon CVaR summed over the optimized plan."""
     scenario_returns, scenario_probs = moments.require_scenarios()
     total = 0.0
     for h in range(moments.n_horizons):
@@ -93,4 +86,4 @@ def in_model_cvar(
             alpha=alpha,
             distribution_type="loss",
         )
-    return total
+    return float(total)
