@@ -18,8 +18,8 @@ __all__ = [
     "minimum_torsion_matrix",
 ]
 
+from qraft.core.metrics import cvar, var  # noqa: F401
 from qraft.risk.risk_report import PortfolioRisk, RiskMetrics  # noqa: F401
-from qraft.risk.measures import var, cvar  # noqa: F401
 from qraft.risk.risk_attribution import (  # noqa: F401
     PortfolioRiskAttribution,
     RiskContributions,

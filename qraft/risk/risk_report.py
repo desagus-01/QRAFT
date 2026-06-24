@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+from qraft.core.metrics import cvar, var
 from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.risk.feature_selection import Criterion
-from qraft.risk.measures import cvar, var
 from qraft.risk.performance_attribution import (
     portfolio_factor_attribution,
 )

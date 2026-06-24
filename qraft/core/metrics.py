@@ -104,3 +104,61 @@ def cvar(
         result = np.nanmean(tail_values, axis=axis)
 
     return -result if distribution_type == "pnl" else result
+
+
+def returns_from_nav(nav: NDArray[np.floating]) -> NDArray[np.floating]:
+    """Simple per-bar returns from a NAV path."""
+    return np.diff(nav) / nav[:-1]
+
+
+def drawdown_curve(nav: NDArray[np.floating]) -> NDArray[np.floating]:
+    peak = np.maximum.accumulate(nav)
+    return nav / peak - 1.0
+
+
+def max_drawdown(nav: NDArray[np.floating]) -> float:
+    return float(np.min(drawdown_curve(nav)))
+
+
+def annualised_return(nav: NDArray[np.floating], periods_per_year: float) -> float:
+    total_return = nav[-1] / nav[0]
+    n_years = (len(nav) - 1) / periods_per_year
+    return float(total_return ** (1.0 / n_years) - 1.0) if n_years > 0 else 0.0
+
+
+def annualised_vol(
+    returns: NDArray[np.floating],
+    periods_per_year: float,
+) -> float:
+    return float(np.nanstd(returns, ddof=1) * np.sqrt(periods_per_year))
+
+
+def sharpe(
+    returns: NDArray[np.floating],
+    rf_per_period: float,
+    periods_per_year: float,
+) -> float:
+    excess = returns - rf_per_period
+    std = np.std(excess, ddof=1)
+    if std == 0:
+        return 0.0
+    return float(np.mean(excess) / std * np.sqrt(periods_per_year))
+
+
+def sortino(
+    returns: NDArray[np.floating],
+    rf_per_period: float,
+    periods_per_year: float,
+) -> float:
+    excess = returns - rf_per_period
+    downside = np.minimum(excess, 0.0)
+    downside_dev = np.sqrt(np.mean(np.square(downside)))
+    if downside_dev == 0:
+        return 0.0
+    return float(np.mean(excess) / downside_dev * np.sqrt(periods_per_year))
+
+
+def calmar(nav: NDArray[np.floating], periods_per_year: float) -> float:
+    ann_ret = annualised_return(nav, periods_per_year)
+    mdd = abs(max_drawdown(nav))
+    return ann_ret / mdd if mdd > 0 else 0.0

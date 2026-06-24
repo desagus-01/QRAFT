@@ -9,43 +9,20 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from qraft.backtest.execution import BacktestResult
+from qraft.core.metrics import (
+    annualised_return,
+    annualised_vol,
+    calmar,
+    drawdown_curve,
+    max_drawdown,
+    returns_from_nav,
+    sharpe,
+    sortino,
+)
 
 
 def _to_dates(dates: Sequence) -> list[float]:
     return mdates.date2num(list(dates))
-
-
-def _drawdown(nav: np.ndarray) -> np.ndarray:
-    peak = np.maximum.accumulate(nav)
-    return nav / peak - 1.0
-
-
-def _annualised_return(nav: np.ndarray, periods_per_year: float) -> float:
-    total_return = nav[-1] / nav[0]
-    n_years = (len(nav) - 1) / periods_per_year
-    return float(total_return ** (1.0 / n_years) - 1.0) if n_years > 0 else 0.0
-
-
-def _annualised_vol(returns: np.ndarray, periods_per_year: float) -> float:
-    return float(np.nanstd(returns, ddof=1) * np.sqrt(periods_per_year))
-
-
-def _sharpe_ratio(nav: np.ndarray, rfr: float, periods_per_year: float) -> float:
-    returns = np.diff(nav) / nav[:-1]
-    excess = returns - rfr / periods_per_year
-    if np.std(excess, ddof=1) == 0:
-        return 0.0
-    return float(np.mean(excess) / np.std(excess, ddof=1) * np.sqrt(periods_per_year))
-
-
-def _max_drawdown(nav: np.ndarray) -> float:
-    return float(np.min(_drawdown(nav)))
-
-
-def _calmar_ratio(nav: np.ndarray, periods_per_year: float) -> float:
-    ann_ret = _annualised_return(nav, periods_per_year)
-    mdd = abs(_max_drawdown(nav))
-    return ann_ret / mdd if mdd > 0 else 0.0
 
 
 def summary_stats(
@@ -54,16 +31,17 @@ def summary_stats(
     periods_per_year: float = 252,
 ) -> dict[str, float]:
     nav = np.asarray(result.nav, dtype=float)
-    returns = np.diff(nav) / nav[:-1]
-    dd = _drawdown(nav)
+    returns = returns_from_nav(nav)
+    rf_per_period = risk_free_rate / periods_per_year
 
     stats = {
         "total_return": float(nav[-1] / nav[0] - 1.0),
-        "annualised_return": _annualised_return(nav, periods_per_year),
-        "annualised_vol": _annualised_vol(returns, periods_per_year),
-        "sharpe_ratio": _sharpe_ratio(nav, risk_free_rate, periods_per_year),
-        "max_drawdown": float(np.min(dd)),
-        "calmar_ratio": _calmar_ratio(nav, periods_per_year),
+        "annualised_return": annualised_return(nav, periods_per_year),
+        "annualised_vol": annualised_vol(returns, periods_per_year),
+        "sharpe_ratio": sharpe(returns, rf_per_period, periods_per_year),
+        "sortino_ratio": sortino(returns, rf_per_period, periods_per_year),
+        "max_drawdown": max_drawdown(nav),
+        "calmar_ratio": calmar(nav, periods_per_year),
         "avg_turnover": float(np.mean(result.period_turnovers))
         if len(result.period_turnovers) > 0
         else 0.0,
@@ -154,7 +132,7 @@ def plot_drawdown(
     title: str | None = None,
 ) -> Figure:
     nav = np.asarray(result.nav, dtype=float)
-    dd = _drawdown(nav)
+    dd = drawdown_curve(nav)
     dates = _to_dates(result.nav_dates)
 
     fig, ax = plt.subplots(figsize=figsize)
@@ -306,7 +284,7 @@ def plot_rolling_metrics(
 ) -> Figure:
     nav = np.asarray(result.nav, dtype=float)
     dates = _to_dates(result.nav_dates)
-    returns = np.diff(nav) / nav[:-1]
+    returns = returns_from_nav(nav)
 
     rolling_mean = np.full(len(nav), np.nan)
     rolling_std = np.full(len(nav), np.nan)
@@ -439,7 +417,7 @@ def plot_comparison(
     ax = axes[0, 1]
     for r, lbl in zip(results, labels):
         nav = np.asarray(r.nav, dtype=float)
-        dd = _drawdown(nav)
+        dd = drawdown_curve(nav)
         dates = _to_dates(r.nav_dates)
         ax.plot(dates, dd, label=lbl, linewidth=1.2)
     ax.set_title("Drawdown")
@@ -533,8 +511,8 @@ def plot_backtest_dashboard(
 
     nav = np.asarray(result.nav, dtype=float)
     dates_nav = _to_dates(result.nav_dates)
-    dd = _drawdown(nav)
-    returns = np.diff(nav) / nav[:-1]
+    dd = drawdown_curve(nav)
+    returns = returns_from_nav(nav)
 
     ax = axes[0, 0]
     ax.plot(dates_nav, nav, linewidth=1.5, color="steelblue")

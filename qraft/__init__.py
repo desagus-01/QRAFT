@@ -55,7 +55,7 @@ from qraft.core.scenarios.transforms import CMA, Views
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 from qraft.forecast.pipelines.forecasting import run_forecast
 from qraft.helper import profile
-from qraft.risk.measures import cvar, var
+from qraft.core.metrics import cvar, var
 from qraft.risk.risk_report import PortfolioRisk
 from qraft.utils.log import setup_logging
 from qraft.utils.log_config import LogConfig

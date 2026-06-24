@@ -10,10 +10,10 @@ from numpy.typing import NDArray
 from polars import DataFrame
 
 from qraft.core.estimation import weighted_covariance
+from qraft.core.metrics import var
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.risk.dimensionality_reduction import minimum_torsion_matrix
-from qraft.risk.measures import var
 from qraft.risk.performance_attribution import PortfolioPerformanceAttribution
 from qraft.utils.visuals import plot_effective_bets
 
