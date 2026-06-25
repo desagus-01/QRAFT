@@ -4,7 +4,7 @@ from typing import Literal
 
 import polars as pl
 
-Cadence = Literal["every_bar", "week_end", "month_end", "quarter_end"]
+Cadence = Literal["every_bar", "week_end", "month_end", "quarter_end", "year_end"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +19,8 @@ class RebalanceSchedule:
                 return "1w"
             case "quarter_end":
                 return "1q"
+            case "year_end":
+                return "1y"
             case "every_bar":
                 raise ValueError("doesn't count")
 

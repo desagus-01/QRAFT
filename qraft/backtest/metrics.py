@@ -46,7 +46,7 @@ class PerformanceSummary:
             if p.solver_status == "solver_error" or p.decision_error is not None
         )
         return cls(
-            total_return=float(nav[-1] / nav[0] - 1.0),
+            total_return=float(nav[-1] / nav[0] - 1.0) if nav.size else 0.0,
             annualised_return=metrics.annualised_return(nav, periods_per_year),
             annualised_vol=metrics.annualised_vol(rets, periods_per_year),
             sharpe=metrics.sharpe(
@@ -59,7 +59,9 @@ class PerformanceSummary:
             calmar=metrics.calmar(nav, periods_per_year),
             cvar=float(
                 metrics.cvar(rets, prob=None, alpha=0.05, distribution_type="pnl")
-            ),
+            )
+            if rets.size <= 2
+            else 0.0,
             hit_rate=float(np.mean(rets > 0)) if rets.size else 0.0,
             avg_turnover=float(np.mean(result.period_turnovers))
             if len(result.period_turnovers)

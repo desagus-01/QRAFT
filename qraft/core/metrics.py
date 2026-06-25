@@ -61,6 +61,9 @@ def cvar(
     distribution_type: Literal["pnl", "loss"] = "loss",
 ) -> NDArray[np.floating]:
     axis = normalize_axis_index(axis, distribution.ndim)
+    if distribution.shape[axis] == 0:
+        out_shape = distribution.shape[:axis] + distribution.shape[axis + 1 :]
+        return np.full(out_shape, np.nan, dtype=float)
 
     cutoff = tail_cutoff(
         distribution=distribution,
@@ -121,6 +124,8 @@ def max_drawdown(nav: NDArray[np.floating]) -> float:
 
 
 def annualised_return(nav: NDArray[np.floating], periods_per_year: float) -> float:
+    if len(nav) < 2:
+        return 0.0
     total_return = nav[-1] / nav[0]
     n_years = (len(nav) - 1) / periods_per_year
     return float(total_return ** (1.0 / n_years) - 1.0) if n_years > 0 else 0.0
@@ -130,6 +135,8 @@ def annualised_vol(
     returns: NDArray[np.floating],
     periods_per_year: float,
 ) -> float:
+    if returns.size < 2:
+        return 0.0
     return float(np.nanstd(returns, ddof=1) * np.sqrt(periods_per_year))
 
 
@@ -138,6 +145,8 @@ def sharpe(
     rf_per_period: float,
     periods_per_year: float,
 ) -> float:
+    if returns.size < 2:
+        return 0.0
     excess = returns - rf_per_period
     std = np.std(excess, ddof=1)
     if std == 0:
@@ -150,6 +159,8 @@ def sortino(
     rf_per_period: float,
     periods_per_year: float,
 ) -> float:
+    if returns.size < 1:
+        return 0.0
     excess = returns - rf_per_period
     downside = np.minimum(excess, 0.0)
     downside_dev = np.sqrt(np.mean(np.square(downside)))

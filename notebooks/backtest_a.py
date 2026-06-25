@@ -44,7 +44,7 @@ data, factors_cols = import_tickers_and_factors(
     "./data/tiingo_factors.csv",
 )
 
-min_price = 10
+min_price = 15
 
 cash = pl.read_csv("data/cash.csv", try_parse_dates=True)
 
@@ -62,7 +62,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:90])
+tradable_assets = list(data.columns[10:20])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -128,7 +128,7 @@ result = run_backtest(
     mkt_dt,
     policy,
     inputs=forecast_provider,
-    schedule=RebalanceSchedule("month_end"),
+    schedule=RebalanceSchedule("year_end"),
 )
 
 # %%
