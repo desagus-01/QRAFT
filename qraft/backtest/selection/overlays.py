@@ -68,8 +68,16 @@ def apply_objective_hyperparameters(
             values["holding_cost_weight"],
             name="holding_cost_weight",
         )
-    if "alpha" in values and any(isinstance(term.spec, _ALPHA_SPECS) for term in terms):
-        return replace(objective, terms=terms)
+    if "alpha" in values:
+        terms = _replace_unique_spec_field(
+            terms,
+            _ALPHA_SPECS,
+            field="alpha",
+            value=values["alpha"],
+            name="alpha",
+        )
+
+    return replace(objective, terms=terms)
 
 
 def _replace_unique_weight(

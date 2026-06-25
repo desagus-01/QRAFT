@@ -4,7 +4,7 @@ from qraft.backtest.selection import (
     PolicyParams,
     apply_hyperparameters,
     expand_candidates,
-    iter_param_grid,
+    param_grid,
 )
 from qraft.construction.optimization.objectives.specs import (
     CashReturn,
@@ -17,9 +17,9 @@ from qraft.construction.optimization.problem import MPOProblem
 from qraft.construction.policies import EqualWeightPolicy, MPOPolicy
 
 
-def test_iter_param_grid_returns_cartesian_product_in_grid_order():
+def test_param_grid_returns_cartesian_product_in_grid_order():
     params = tuple(
-        iter_param_grid(
+        param_grid(
             {
                 "risk_aversion": [1.0, 2.0],
                 "transaction_cost_weight": [0.5, 1.0],
@@ -35,12 +35,12 @@ def test_iter_param_grid_returns_cartesian_product_in_grid_order():
     ]
 
 
-def test_iter_param_grid_empty_grid_returns_one_empty_param_set():
-    assert tuple(iter_param_grid({})) == (PolicyParams.of(),)
+def test_param_grid_empty_grid_returns_one_empty_param_set():
+    assert tuple(param_grid({})) == (PolicyParams.of(),)
 
 
-def test_iter_param_grid_empty_values_return_no_param_sets():
-    assert tuple(iter_param_grid({"risk_aversion": []})) == ()
+def test_param_grid_empty_values_return_no_param_sets():
+    assert tuple(param_grid({"risk_aversion": []})) == ()
 
 
 def test_apply_hyperparameters_overlays_preset_mpo_policy():
@@ -50,10 +50,8 @@ def test_apply_hyperparameters_overlays_preset_mpo_policy():
 
     assert isinstance(variant, MPOPolicy)
     assert variant is not policy
-    assert policy.problem._preset is not None
-    assert variant.problem._preset is not None
-    assert policy.problem._preset.risk_aversion == 1.0
-    assert variant.problem._preset.risk_aversion == 2.0
+    assert policy.problem.objective.terms[2].weight == 1.0
+    assert variant.problem.objective.terms[2].weight == 2.0
     assert variant.name == "base[risk_aversion=2]"
 
 
@@ -101,13 +99,12 @@ def test_expand_candidates_returns_policy_candidates_with_provenance():
         {"risk_aversion": 1.0},
         {"risk_aversion": 2.0},
     ]
-    assert [c.policy.problem._preset.risk_aversion for c in candidates] == [
+    assert [c.policy.problem.objective.terms[2].weight for c in candidates] == [
         0.5,
         1.0,
         2.0,
     ]
-    assert policy.problem._preset is not None
-    assert policy.problem._preset.risk_aversion == 1.0
+    assert policy.problem.objective.terms[2].weight == 1.0
 
 
 def test_non_mpo_policy_with_empty_params_returns_original_policy():

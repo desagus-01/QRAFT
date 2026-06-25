@@ -31,20 +31,17 @@ def test_updates_preset_problem_hyperparameters_without_mutating_original():
         problem,
         PolicyParams.of(
             risk_aversion=2.0,
-            alpha=0.01,
             transaction_cost_weight=0.75,
             holding_cost_weight=0.25,
         ),
     )
 
-    assert problem._preset is not None
-    assert updated._preset is not None
-    assert problem._preset.risk_aversion == 1.0
-    assert problem._preset.alpha == 0.05
-    assert updated._preset.risk_aversion == 2.0
-    assert updated._preset.alpha == 0.01
-    assert updated._preset.transaction_cost_weight == 0.75
-    assert updated._preset.holding_cost_weight == 0.25
+    assert problem.objective.terms[2].weight == 1.0
+    assert problem.objective.terms[3].weight == 0.5
+    assert problem.objective.terms[4].weight == 1.0
+    assert updated.objective.terms[2].weight == 2.0
+    assert updated.objective.terms[3].weight == 0.75
+    assert updated.objective.terms[4].weight == 0.25
     assert updated.constraints == (constraint,)
     assert updated.allow_borrow is True
     assert updated.max_iter == 123
@@ -107,7 +104,7 @@ def test_explicit_problem_preserves_non_objective_settings():
 def test_unsupported_preset_parameter_fails():
     problem = MPOProblem.preset("mean_covariance", risk_aversion=1.0)
 
-    with pytest.raises(ValueError, match="Unsupported preset hyperparameter"):
+    with pytest.raises(ValueError, match="Unsupported objective hyperparameter"):
         apply_problem_hyperparameters(problem, PolicyParams.of(max_weight=0.1))
 
 
