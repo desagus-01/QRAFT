@@ -1,3 +1,4 @@
+from copy import replace
 from typing import Literal
 
 from qraft.construction.optimization.objectives.specs import (
@@ -12,6 +13,7 @@ from qraft.construction.optimization.objectives.specs import (
     WeightedTerm,
 )
 
+_CVAR_CUTS_SCALE_LIMIT = 1_000
 PreMadeObjectives = Literal["mean_covariance", "cvar_auto", "cvar_classic", "cvar_cuts"]
 
 
@@ -102,57 +104,75 @@ def _cvar_cuts_objectives(
     )
 
 
-def _select_cvar_solver(
-    horizons: int, n_scenarios: int, problem_limit: int = 1_000
-) -> PreMadeObjectives:
-    problem_scale = horizons * n_scenarios
-    return "cvar_cuts" if problem_scale >= problem_limit else "cvar_classic"
+def cvar_scale_requires_cuts(
+    horizons: int, n_scenarios: int, limit: int = _CVAR_CUTS_SCALE_LIMIT
+) -> bool:
+    """True when the problem is large enough to prefer the cutting-plane CVaR."""
+    return horizons * n_scenarios >= limit
 
 
-def _build_preset_objective(
+def build_preset_objective(
     objective_type: PreMadeObjectives,
     risk_aversion: float,
     *,
     alpha: float | None = 0.05,
-    horizons: int,
-    n_scenarios: int,
     transaction_cost: TransactionCost | None = None,
     transaction_cost_weight: float = 1.0,
     holding_cost: HoldingCost | None = None,
     holding_cost_weight: float = 1.0,
-) -> ObjectiveSpec:
-    resolved_objective_type: PreMadeObjectives = (
-        _select_cvar_solver(horizons=horizons, n_scenarios=n_scenarios)
-        if objective_type == "cvar_auto"
-        else objective_type
-    )
+) -> tuple[ObjectiveSpec, bool]:
+    """Build a preset objective eagerly.
 
-    if resolved_objective_type == "mean_covariance":
-        return _mean_covariance_objectives(
-            risk_aversion=risk_aversion,
-            transaction_cost=transaction_cost,
-            transaction_cost_weight=transaction_cost_weight,
-            holding_cost=holding_cost,
-            holding_cost_weight=holding_cost_weight,
+    Returns ``(objective, cvar_auto)``. ``cvar_auto`` flags that the CVaR
+    formulation should be re-selected from the problem size at compile time
+    (see :func:`resolve_cvar_auto`); for every other preset it is ``False`` and
+    the returned objective is final.
+    """
+    if objective_type == "mean_covariance":
+        return (
+            _mean_covariance_objectives(
+                risk_aversion=risk_aversion,
+                transaction_cost=transaction_cost,
+                transaction_cost_weight=transaction_cost_weight,
+                holding_cost=holding_cost,
+                holding_cost_weight=holding_cost_weight,
+            ),
+            False,
         )
-    if resolved_objective_type == "cvar_classic" and alpha is not None:
-        return _cvar_classical_objectives(
-            cvar_aversion=risk_aversion,
-            alpha=alpha,
-            transaction_cost=transaction_cost,
-            transaction_cost_weight=transaction_cost_weight,
-            holding_cost=holding_cost,
-            holding_cost_weight=holding_cost_weight,
+    if objective_type not in ("cvar_classic", "cvar_cuts", "cvar_auto"):
+        raise ValueError(
+            f"Your {objective_type} is not valid, please choose a suitable one."
         )
-    if resolved_objective_type == "cvar_cuts" and alpha is not None:
-        return _cvar_cuts_objectives(
-            cvar_aversion=risk_aversion,
-            alpha=alpha,
-            transaction_cost=transaction_cost,
-            transaction_cost_weight=transaction_cost_weight,
-            holding_cost=holding_cost,
-            holding_cost_weight=holding_cost_weight,
-        )
-    raise ValueError(
-        f"Your {objective_type} is not valid, please choose a suitable one."
+    if alpha is None:
+        raise ValueError(f"{objective_type} requires a CVaR alpha; got alpha=None.")
+
+    use_cuts = objective_type in ("cvar_cuts", "cvar_auto")
+    builder = _cvar_cuts_objectives if use_cuts else _cvar_classical_objectives
+    objective = builder(
+        cvar_aversion=risk_aversion,
+        alpha=alpha,
+        transaction_cost=transaction_cost,
+        transaction_cost_weight=transaction_cost_weight,
+        holding_cost=holding_cost,
+        holding_cost_weight=holding_cost_weight,
     )
+    return objective, objective_type == "cvar_auto"
+
+
+def resolve_cvar_auto(
+    objective: ObjectiveSpec, horizons: int, n_scenarios: int
+) -> ObjectiveSpec:
+    """Pick the CVaR formulation for a ``cvar_auto`` objective from problem size.
+
+    Large problems keep the cutting-plane term; small ones are downgraded to the
+    classic Rockafellar-Uryasev LP. Non-CVaR terms are left untouched.
+    """
+    if cvar_scale_requires_cuts(horizons, n_scenarios):
+        return objective
+    terms = tuple(
+        replace(term, spec=CVaRRisk(alpha=term.spec.alpha))
+        if isinstance(term.spec, CVaRCuttingPlane)
+        else term
+        for term in objective.terms
+    )
+    return replace(objective, terms=terms)

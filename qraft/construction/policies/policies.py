@@ -148,8 +148,8 @@ class MPOPolicy:
     ) -> PolicyDecision:
         if not isinstance(policy_inputs, PolicyInputs):
             raise ValueError(
-                "MPOPolicy requires explicit PolicyInputs. Use optimize() with "
-                "pre-built PolicyInputs or wrap it in ForecastingMPOPolicy."
+                "MPOPolicy requires explicit PolicyInputs. Call decide() (or "
+                "optimize()) with pre-built PolicyInputs."
             )
         return self.optimize(state=state, policy_inputs=policy_inputs, inputs=inputs)
 

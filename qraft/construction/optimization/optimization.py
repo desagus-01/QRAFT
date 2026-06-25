@@ -22,10 +22,6 @@ from qraft.construction.optimization.objectives.specs import (
     CVaRCuttingPlane,
     ObjectiveSpec,
 )
-from qraft.construction.optimization.presets import (
-    PreMadeObjectives,
-    _build_preset_objective,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -181,36 +177,6 @@ class MPOResult:
         """
         return dict(zip(self.assets, self.target_weights.tolist()))
 
-    def target_weights_renormalized(
-        self, small_holding_limit: float = 0.01
-    ) -> dict[str, float]:
-        """
-        Risky-only weights, where very small holdings are dropped and renormalized to sum to 1.
-        """
-        risky_sum = float(np.sum(self.target_weights))
-        normalized = self.target_weights / risky_sum
-        filtered = {
-            asset: w
-            for asset, w in zip(self.assets, normalized.tolist())
-            if w > small_holding_limit
-        }
-
-        total = sum(filtered.values())
-        return {asset: w / total for asset, w in filtered.items()}
-
-    def target_weights_by_asset_with_cash(
-        self,
-        cash_key: str = "CASH",
-    ) -> dict[str, float]:
-        """
-        Target weights keyed by asset, including explicit cash.
-
-        The resulting dictionary should sum to 1 up to solver tolerance.
-        """
-        out = self.target_weights_by_asset
-        out[cash_key] = self.target_cash
-        return out
-
     @property
     def first_trade(self) -> NDArray[np.floating]:
         return self.planned_trades[0]
@@ -220,10 +186,6 @@ class MPOResult:
         return float(self.planned_cash_trades[0])
 
     @property
-    def first_trade_by_asset(self) -> dict[str, float]:
-        return dict(zip(self.assets, self.first_trade.tolist()))
-
-    @property
     def turnover(self) -> float:
         """
         Cash-aware one-way turnover of the first trade:
@@ -231,26 +193,6 @@ class MPOResult:
             0.5 * (||risky_trade||_1 + |cash_trade|).
         """
         return 0.5 * float(np.abs(self.first_trade).sum() + abs(self.first_cash_trade))
-
-    def weights_at_horizon(self, horizon: int) -> NDArray[np.floating]:
-        self._check_horizon(horizon)
-        return self.planned_weights[horizon]
-
-    def trades_at_horizon(self, horizon: int) -> NDArray[np.floating]:
-        self._check_horizon(horizon)
-        return self.planned_trades[horizon]
-
-    def cash_at_horizon(self, horizon: int) -> float:
-        self._check_horizon(horizon)
-        return float(self.planned_cash[horizon])
-
-    def cash_trade_at_horizon(self, horizon: int) -> float:
-        self._check_horizon(horizon)
-        return float(self.planned_cash_trades[horizon])
-
-    def _check_horizon(self, horizon: int) -> None:
-        if not 0 <= horizon < self.n_horizons:
-            raise ValueError(f"horizon must be in 0..{self.n_horizons - 1}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,38 +245,6 @@ class MultiPeriodOptimizer:
             )
 
         self._build_problem()
-
-    @classmethod
-    def from_pre_built(
-        cls,
-        objective_type: PreMadeObjectives,
-        horizons: int,
-        n_assets: int,
-        n_scenarios: int,
-        risk_aversion: float,
-        cvar_alpha: float | None = 0.05,
-        constraints: Sequence[PortfolioConstraint] | None = None,
-        allow_borrow: bool = False,
-    ) -> "MultiPeriodOptimizer":
-        """
-        Compile and return a :class:`MultiPeriodOptimizer` from a named
-        pre-built objective recipe — **without solving it**.
-        """
-        objective = _build_preset_objective(
-            objective_type=objective_type,
-            risk_aversion=risk_aversion,
-            alpha=cvar_alpha,
-            horizons=horizons,
-            n_scenarios=n_scenarios,
-        )
-        return cls(
-            objective=objective,
-            horizons=horizons,
-            n_assets=n_assets,
-            constraints=constraints,
-            n_scenarios=n_scenarios,
-            allow_borrow=allow_borrow,
-        )
 
     @property
     def uses_cutting_plane(self) -> bool:

@@ -1,12 +1,7 @@
-import logging
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
-import numpy as np
-from numpy.typing import NDArray
-
 from qraft.construction.optimization.constraints import PortfolioConstraint
-from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     ObjectiveSpec,
@@ -14,52 +9,24 @@ from qraft.construction.optimization.objectives.specs import (
     WeightedTerm,
 )
 from qraft.construction.optimization.optimization import (
-    MPOFailure,
-    MPOResult,
     MultiPeriodOptimizer,
 )
 from qraft.construction.optimization.presets import (
     PreMadeObjectives,
-    _build_preset_objective,
+    build_preset_objective,
+    resolve_cvar_auto,
 )
-
-logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class _PresetSpec:
-    """
-    Stores the parameters needed to build a preset ``ObjectiveSpec`` at
-    compile time
-    """
-
-    objective_type: PreMadeObjectives
-    risk_aversion: float
-    alpha: float | None
-    transaction_cost: TransactionCost | None
-    transaction_cost_weight: float
-    holding_cost: HoldingCost | None
-    holding_cost_weight: float
 
 
 @dataclass(frozen=True, slots=True)
 class MPOProblem:
-    objective: ObjectiveSpec | None = None
-    _preset: _PresetSpec | None = field(default=None, repr=False)
+    objective: ObjectiveSpec
+    cvar_auto: bool = False
 
     constraints: tuple[PortfolioConstraint, ...] = ()
     allow_borrow: bool = False
     max_iter: int = 200
     solver_options: Mapping[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        has_objective = self.objective is not None
-        has_preset = self._preset is not None
-        if has_objective == has_preset:  # both set, or neither set
-            raise ValueError(
-                "Exactly one of `objective` or `_preset` must be provided. "
-                "Use MPOProblem.preset() or MPOProblemBuilder.build()."
-            )
 
     @classmethod
     def preset(
@@ -77,16 +44,19 @@ class MPOProblem:
         holding_cost_weight: float = 1.0,
         **solver_options: Any,
     ) -> "MPOProblem":
+        objective, cvar_auto = build_preset_objective(
+            objective_type,
+            risk_aversion,
+            alpha=alpha,
+            transaction_cost=transaction_cost,
+            transaction_cost_weight=transaction_cost_weight,
+            holding_cost=holding_cost,
+            holding_cost_weight=holding_cost_weight,
+        )
+
         return cls(
-            _preset=_PresetSpec(
-                objective_type=objective_type,
-                risk_aversion=risk_aversion,
-                alpha=alpha,
-                transaction_cost=transaction_cost,
-                transaction_cost_weight=transaction_cost_weight,
-                holding_cost=holding_cost,
-                holding_cost_weight=holding_cost_weight,
-            ),
+            objective=objective,
+            cvar_auto=cvar_auto,
             constraints=tuple(constraints),
             allow_borrow=allow_borrow,
             max_iter=max_iter,
@@ -100,47 +70,14 @@ class MPOProblem:
         resolved so that ``CostModel.from_policy`` returns the specs the
         optimiser actually uses.
         """
-        if self.objective is not None:
-            transaction = None
-            holding = None
-            for term in self.objective.terms:
-                if isinstance(term.spec, TransactionCost):
-                    transaction = term.spec
-                elif isinstance(term.spec, HoldingCost):
-                    holding = term.spec
-            return transaction, holding
-        if self._preset is not None:
-            from qraft.construction.optimization.presets import (
-                _default_holding_cost,
-                _default_transaction_cost,
-            )
-
-            return (
-                self._preset.transaction_cost or _default_transaction_cost(),
-                self._preset.holding_cost or _default_holding_cost(),
-            )
-        return None, None
-
-    def _resolve_objective(self, horizons: int, n_scenarios: int) -> ObjectiveSpec:
-        """
-        Return the concrete ``ObjectiveSpec`` for the given problem size.
-        """
-        if self.objective is not None:
-            return self.objective
-
-        assert self._preset is not None  # enforced by __post_init__
-        p = self._preset
-        return _build_preset_objective(
-            objective_type=p.objective_type,
-            risk_aversion=p.risk_aversion,
-            alpha=p.alpha,
-            horizons=horizons,
-            n_scenarios=n_scenarios,
-            transaction_cost=p.transaction_cost,
-            transaction_cost_weight=p.transaction_cost_weight,
-            holding_cost=p.holding_cost,
-            holding_cost_weight=p.holding_cost_weight,
-        )
+        transaction: TransactionCost | None = None
+        holding: HoldingCost | None = None
+        for term in self.objective.terms:
+            if isinstance(term.spec, TransactionCost):
+                transaction = term.spec
+            elif isinstance(term.spec, HoldingCost):
+                holding = term.spec
+        return transaction, holding
 
     def compile(
         self,
@@ -152,7 +89,11 @@ class MPOProblem:
         Allocate CVXPY variables and return a compiled
         :class:`MultiPeriodOptimizer` ready to be solved.
         """
-        objective = self._resolve_objective(horizons=horizons, n_scenarios=n_scenarios)
+        objective = (
+            resolve_cvar_auto(self.objective, horizons, n_scenarios)
+            if self.cvar_auto
+            else self.objective
+        )
         return MultiPeriodOptimizer(
             objective=objective,
             horizons=horizons,
@@ -160,68 +101,6 @@ class MPOProblem:
             n_scenarios=n_scenarios,
             constraints=self.constraints,
             allow_borrow=self.allow_borrow,
-        )
-
-    def solve(
-        self,
-        *,
-        moments: PolicyInputs,
-        current_weights: NDArray[np.floating],
-        current_cash: float | None = None,
-        inputs: dict[str, Any] | None = None,
-        raise_on_failure: bool = True,
-        **solver_options: Any,
-    ) -> MPOResult | MPOFailure:
-        """
-        Compile and solve the problem for the given moments and portfolio state.
-
-        All size parameters (``horizons``, ``n_assets``, ``n_scenarios``) are
-        derived directly from ``moments`` — callers do not need to pass them
-        separately.
-
-        Parameters
-        ----------
-        moments:
-            Policy inputs produced by :class:`PolicyInputs`.  Determines
-            the problem size and supplies all data parameters to the solver.
-        current_weights:
-            Current risky-asset weights, shape ``(n_assets,)``.
-        current_cash:
-            Current cash weight.  If ``None``, inferred as
-            ``1 - sum(current_weights)``.
-        inputs:
-            Optional extra inputs forwarded to objective handlers (e.g.
-            ``{"prices": ..., "volume": ...}`` for the transaction-cost term).
-        raise_on_failure:
-            If ``True``, non-optimal solves raise. If ``False``, return an
-            :class:`MPOFailure` value.
-        **solver_options:
-            Forwarded verbatim to the underlying CVXPY solver, merged with
-            any options stored on the problem.
-        """
-        optimizer = self.compile(
-            horizons=moments.n_horizons,
-            n_assets=moments.n_assets,
-            n_scenarios=moments.n_scenarios,
-        )
-        options = {**self.solver_options, **solver_options}
-
-        logger.debug(
-            "Dispatching MPO solve: horizons=%d n_assets=%d n_scenarios=%d cutting_plane=%s",
-            moments.n_horizons,
-            moments.n_assets,
-            moments.n_scenarios,
-            optimizer.uses_cutting_plane,
-        )
-
-        return optimizer.solve_auto(
-            moments=moments,
-            current_weights=current_weights,
-            current_cash=current_cash,
-            inputs=inputs,
-            max_iter=self.max_iter,
-            raise_on_failure=raise_on_failure,
-            **options,
         )
 
 

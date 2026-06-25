@@ -29,15 +29,11 @@ def apply_problem_hyperparameters(
     problem: MPOProblem,
     params: PolicyParams,
 ) -> MPOProblem:
-    """Apply hyperparameter overrides to preset or explicit MPO problems."""
-    if problem._preset is not None:
-        return _apply_preset_hyperparameters(problem, params)
-    if problem.objective is not None:
-        return replace(
-            problem,
-            objective=apply_objective_hyperparameters(problem.objective, params),
-        )
-    raise ValueError("MPOProblem must define either a preset or an objective")
+    """Apply hyperparameter overrides to an MPO problem's objective."""
+    return replace(
+        problem,
+        objective=apply_objective_hyperparameters(problem.objective, params),
+    )
 
 
 def apply_objective_hyperparameters(
@@ -72,29 +68,8 @@ def apply_objective_hyperparameters(
             values["holding_cost_weight"],
             name="holding_cost_weight",
         )
-    if "alpha" in values:
-        terms = _replace_unique_spec_field(
-            terms,
-            _ALPHA_SPECS,
-            field="alpha",
-            value=values["alpha"],
-            name="alpha",
-        )
-
-    return replace(objective, terms=terms)
-
-
-def _apply_preset_hyperparameters(
-    problem: MPOProblem,
-    params: PolicyParams,
-) -> MPOProblem:
-    values = params.as_dict()
-    unknown = set(values) - _OBJECTIVE_PARAMS
-    if unknown:
-        raise ValueError(f"Unsupported preset hyperparameter(s): {sorted(unknown)}")
-
-    assert problem._preset is not None
-    return replace(problem, _preset=replace(problem._preset, **values))
+    if "alpha" in values and any(isinstance(term.spec, _ALPHA_SPECS) for term in terms):
+        return replace(objective, terms=terms)
 
 
 def _replace_unique_weight(
