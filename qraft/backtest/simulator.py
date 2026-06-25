@@ -218,6 +218,34 @@ def decision_points(
     return decision_points
 
 
+def precompute_inputs(
+    market: MarketData,
+    schedule: RebalanceSchedule,
+    provider: PolicyInputsProvider,
+    warmup: int,
+    step_size: int = 1,
+) -> dict[datetime, PolicyInputs]:
+    """Run the forecast->PolicyInputs pipeline once and freeze it by date.
+
+    Drives ``provider`` over the exact decision snapshots (and indices) that
+    ``run_backtest`` will request, so the captured moments match a live run
+    bar-for-bar. Wrap the result in ``PrecomputedInputsProvider`` and reuse it
+    read-only across every candidate policy.
+
+    Moments depend only on the input layer (forecasts/history/cash), never on
+    policy-layer hyperparameters (risk aversion, turnover, min-cash, cost
+    weights) -- so one table serves the whole policy-layer grid. The table is
+    valid only for candidates sharing this ``provider``, ``warmup``,
+    ``step_size`` and ``schedule``; any input-layer change needs its own table.
+    """
+    table = {
+        point.decision_bar: provider.for_date(point.snapshot, point.index)
+        for point in decision_points(market, schedule, warmup, step_size=step_size)
+    }
+    logger.info("precompute_inputs: cached %d decision date(s)", len(table))
+    return table
+
+
 def run_backtest(
     market: MarketData,
     policy: PolicyProtocol,

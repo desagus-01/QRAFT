@@ -121,7 +121,6 @@ forecast_provider = ForecastInputsProvider(
     ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
     recipe_every=4,
-    forecast_every=1,
 )
 
 result = run_backtest(
