@@ -1,32 +1,43 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from qraft.backtest.execution import BacktestResult
 from qraft.backtest.metrics import PerformanceSummary
+from qraft.construction.policies import PolicyProtocol
 
 
 @dataclass(frozen=True, slots=True)
 class PolicyParams:
-    """
-    Hyperparameter class for backtesting
-    """
+    """Immutable candidate hyperparameter values."""
 
-    values: tuple[tuple[str, float], ...]
+    values: tuple[tuple[str, Any], ...]
 
     @classmethod
-    def of(cls, **kwargs: float):
+    def of(cls, **kwargs: Any) -> "PolicyParams":
         return cls(tuple(sorted(kwargs.items())))
 
-    def as_dict(self) -> dict[str, float]:
+    def as_dict(self) -> dict[str, Any]:
         return dict(self.values)
 
-    @property
-    def risk_aversion(self) -> float:
-        return self.as_dict()["risk_aversion"]
+    def __bool__(self) -> bool:
+        return bool(self.values)
 
     def __str__(self) -> str:
-        return ", ".join(f"{k}={v:g}" for k, v in self.values)
+        return ", ".join(_format_param(k, v) for k, v in self.values)
+
+
+def _format_param(key: str, value: Any) -> str:
+    if isinstance(value, float):
+        return f"{key}={value:g}"
+    return f"{key}={value}"
+
+
+@dataclass(frozen=True, slots=True)
+class PolicyCandidate:
+    params: PolicyParams
+    policy: PolicyProtocol
 
 
 @dataclass(frozen=True, slots=True)
