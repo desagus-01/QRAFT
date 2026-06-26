@@ -21,7 +21,7 @@ def apply_hyperparameters(
     if isinstance(policy, MPOPolicy):
         problem = apply_problem_hyperparameters(policy.problem, normalized)
         name = policy.name if not normalized else f"{policy.name}[{normalized}]"
-        return replace(policy, problem=problem, name=name)
+        return replace(policy, problem=problem, name=name, _optimizer_cache={})
 
     if normalized:
         raise TypeError(

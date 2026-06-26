@@ -6,16 +6,17 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
-    CMAConfig,
     LogConfig,
     MPOPolicy,
     PipelineConfig,
+    profile,
     setup_logging,
 )
 from qraft.backtest.inputs import ForecastInputsProvider
 from qraft.backtest.market import MarketData, WindowWeighting
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.backtest.selection import run_selection_window
+from qraft.backtest.selection.select import select_candidate
 from qraft.construction import (
     FullyInvested,
     LongOnly,
@@ -80,6 +81,7 @@ base_policy = MPOPolicy.preset(
 
 grid = {
     "risk_aversion": [0.005, 0.01, 0.02, 0.1, 0.2],
+    # "risk_aversion": [0.005, 0.01]
     # "transaction_cost_weight": [0.5, 1.0],
 }
 
@@ -91,50 +93,25 @@ forecast_provider = ForecastInputsProvider(
     ),
     simulation_config=SimulationForecastConfig(
         horizon=15,
-        method="cma",
+        method="bootstrap",
         n_sims=10_000,
-        cma_config=CMAConfig(target_copula="t"),
+        # cma_config=CMAConfig(target_copula="t"),
     ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
     recipe_every=4,
 )
 
 # %%
-# Efficient path: this unites candidate expansion, one shared precompute pass,
-# and evaluation of every candidate.
-results = run_selection_window(
-    market,
-    base_policy,
-    grid,
-    forecast_provider,
-    schedule=RebalanceSchedule("quarter_end"),
-)
 
-# %%
-# Inspect candidate scores. Failures stay in the result list instead of aborting the sweep.
-rows = []
-for result in results:
-    params = result.params.as_dict()
-    if result.failure is not None:
-        rows.append({**params, "status": "failed", "reason": result.failure.reason})
-        continue
-
-    assert result.summary is not None
-    rows.append(
-        {
-            **params,
-            "status": "ok",
-            "sharpe": result.summary.sharpe,
-            "annualised_return": result.summary.annualised_return,
-            "max_drawdown": result.summary.max_drawdown,
-            "held_fraction": result.summary.held_fraction,
-            "n_solver_failures": result.summary.n_solver_failures,
-        }
+with profile():
+    results = run_selection_window(
+        market,
+        base_policy,
+        grid,
+        forecast_provider,
+        schedule=RebalanceSchedule("year_end"),
     )
 
-scores = pl.DataFrame(rows).sort("sharpe", descending=True)
-scores
-
 # %%
-best = next(result for result in results if result.failure is None)
-best.params, best.summary
+candidate = select_candidate(results)
+candidate.plot()

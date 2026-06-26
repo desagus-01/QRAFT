@@ -3,9 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import polars as pl
+
 from qraft.backtest.execution import BacktestResult
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.construction.policies import PolicyProtocol
+from qraft.utils.backtest_viz import plot_nav
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,3 +62,29 @@ class SelectionReport:
     candidates: tuple[CandidateResult, ...]
     selected_params: PolicyParams | None
     rule: str
+
+    @property
+    def selected(self) -> CandidateResult | None:
+        if self.selected_params is None:
+            return None
+        for c in self.candidates:
+            if c.params == self.selected_params:
+                return c
+        return None
+
+    def metrics_df(self) -> pl.DataFrame:
+        rows = []
+        for c in self.candidates:
+            if c.summary is None:
+                continue
+            row = c.summary.to_dict()
+            row["params"] = str(c.params)
+            row["selected"] = c.params == self.selected_params
+            rows.append(row)
+        return pl.DataFrame(rows)
+
+    def plot(self) -> None:
+        results = [c.backtest for c in self.candidates if c.backtest is not None]
+        labels = [str(c.params) for c in self.candidates if c.backtest is not None]
+        fig = plot_nav(results, labels=labels)
+        fig.show()

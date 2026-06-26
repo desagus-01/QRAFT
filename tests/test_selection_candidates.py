@@ -88,6 +88,17 @@ def test_apply_hyperparameters_preserves_base_name_for_empty_params():
     assert variant.name == "base"
 
 
+def test_apply_hyperparameters_does_not_share_optimizer_cache():
+    policy = MPOPolicy.preset("mean_covariance", risk_aversion=1.0, name="base")
+    policy._optimizer_cache[(("AAA",), 1, 2)] = object()  # type: ignore[assignment]
+
+    variant = apply_hyperparameters(policy, PolicyParams.of(risk_aversion=2.0))
+
+    assert isinstance(variant, MPOPolicy)
+    assert variant._optimizer_cache == {}
+    assert variant._optimizer_cache is not policy._optimizer_cache
+
+
 def test_expand_candidates_returns_policy_candidates_with_provenance():
     policy = MPOPolicy.preset("mean_covariance", risk_aversion=1.0, name="base")
 
