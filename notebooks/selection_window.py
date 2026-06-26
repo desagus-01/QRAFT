@@ -14,8 +14,7 @@ from qraft import (
 from qraft.backtest.inputs import ForecastInputsProvider
 from qraft.backtest.market import MarketData, WindowWeighting
 from qraft.backtest.schedule import RebalanceSchedule
-from qraft.backtest.selection import run_selection_window
-from qraft.backtest.selection.select import select_candidate
+from qraft.backtest.selection.walkforward import run_walk_forward
 from qraft.construction import (
     FullyInvested,
     LongOnly,
@@ -51,7 +50,7 @@ cols_to_keep = [
 ]
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:90])
+tradable_assets = list(data.columns[10:20])
 universe = AssetUniverse(assets=tradable_assets, factors=list(factors_cols))
 data = data.select("date", *universe.all_tickers)
 
@@ -80,10 +79,10 @@ base_policy = MPOPolicy.preset(
 
 risk_aversion_values = [0, *np.logspace(-2, 2, 9)]
 risk_aversion_values = [2, 3, 4, 8]
+risk_aversion_values = [2, 3]
 
 grid = {
     "risk_aversion": risk_aversion_values
-    # "risk_aversion": [0.005, 0.01]
     # "transaction_cost_weight": [0.5, 1.0],
 }
 
@@ -94,25 +93,27 @@ forecast_provider = ForecastInputsProvider(
     ),
     policy=base_policy,
     simulation_config=SimulationForecastConfig(
-        horizon=15,
+        horizon=10,
         method="bootstrap",
         n_sims=10_000,
         # cma_config=CMAConfig(target_copula="t"),
     ),
-    pipeline_config=PipelineConfig(exclude_non_invariants=True),
-    recipe_every=4,
+    pipeline_config=PipelineConfig(exclude_non_invariants=False),
+    recipe_every=2,
 )
 
 # %%
 
-results = run_selection_window(
+results = run_walk_forward(
     market,
     base_policy,
     grid,
     forecast_provider,
     schedule=RebalanceSchedule("quarter_end"),
+    train_size=5,
+    test_size=2,
 )
 
+
 # %%
-candidate = select_candidate(results)
-candidate.selected.summary
+results.plot()

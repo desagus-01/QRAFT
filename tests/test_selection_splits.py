@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import numpy as np
 import pytest
 
-from qraft.backtest.selection.splits import walk_forward
+from qraft.backtest.metrics import PerformanceSummary
+from qraft.backtest.selection import Fold, FoldResult, WalkForwardReport, walk_forward
+from qraft.backtest.selection.results import (
+    CandidateResult,
+    PolicyParams,
+    SelectionReport,
+)
 
 DATES = [datetime(2024, 1, 1 + i) for i in range(10)]
 
@@ -44,3 +51,48 @@ def test_walk_forward_too_short_returns_empty() -> None:
 def test_walk_forward_validates() -> None:
     with pytest.raises(ValueError):
         walk_forward(DATES, train_size=0, test_size=2)
+
+
+def test_walk_forward_report_helpers() -> None:
+    params = PolicyParams.of(risk_aversion=2)
+    summary = PerformanceSummary(
+        total_return=0.10,
+        annualised_return=0.20,
+        annualised_vol=0.15,
+        sharpe=1.30,
+        sortino=1.50,
+        max_drawdown=-0.05,
+        calmar=4.0,
+        cvar=-0.02,
+        hit_rate=0.55,
+        avg_turnover=0.10,
+        total_cost=0.01,
+        n_periods=2,
+        n_warnings=0,
+        n_solver_failures=0,
+        held_fraction=0.0,
+    )
+    selection = SelectionReport(
+        candidates=(CandidateResult(params=params, summary=summary),),
+        selected_params=params,
+        rule="max_sharpe",
+    )
+    report = WalkForwardReport(
+        folds=(
+            FoldResult(
+                fold=Fold(train=(DATES[0], DATES[2]), test=(DATES[3], DATES[4])),
+                selection=selection,
+                oos_summary=summary,
+            ),
+        ),
+        oos_summary=summary,
+        oos_nav_dates=[DATES[3], DATES[4]],
+        oos_nav=np.array([100.0, 110.0]),
+    )
+
+    folds_df = report.folds_df()
+    assert folds_df["selected_params"].to_list() == ["risk_aversion=2"]
+    assert folds_df["train_sharpe"].to_list() == [1.30]
+    assert folds_df["test_total_return"].to_list() == [0.10]
+    assert report.summary_df()["sharpe"].to_list() == [1.30]
+    assert report.selected_params_df()["risk_aversion"].to_list() == [2]
