@@ -8,7 +8,12 @@ from typing import Mapping, Protocol, runtime_checkable
 import numpy as np
 
 from qraft.construction.market_snapshot import MarketSnapshot
-from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
+from qraft.construction.optimization.moments import (
+    PolicyInputConfig,
+    PolicyInputs,
+    RequiredPolicyInputs,
+    RiskSource,
+)
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
@@ -34,6 +39,11 @@ class PolicyInputsProvider(Protocol):
     def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs: ...
 
 
+@runtime_checkable
+class PolicyInputRequirements(Protocol):
+    def required_inputs(self) -> RequiredPolicyInputs: ...
+
+
 class ForecastInputsProvider:
     """Forecast-then-build-moments, with a forecast cadence."""
 
@@ -41,6 +51,7 @@ class ForecastInputsProvider:
         self,
         input_config: PolicyInputConfig,
         *,
+        policy: PolicyInputRequirements | None = None,
         recipe_every: int = 12,
         forecast_every: int = 1,
         pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
@@ -53,6 +64,7 @@ class ForecastInputsProvider:
         if forecast_every > recipe_every:
             raise ValueError("forecast_every (N) must be <= recipe_every (R)")
         self.input_config = input_config
+        self.policy = policy
         self.recipe_every = recipe_every
         self.forecast_every = forecast_every
         self.pipeline_config = pipeline_config
@@ -130,11 +142,12 @@ class ForecastInputsProvider:
         as_of: datetime | None = None,
     ) -> PolicyInputs:
         cfg = self.input_config
+        risk = self._risk_source()
         return PolicyInputs.from_policy_sources(
             forecasts=forecasts,
             cash_path=cfg.cash_path,
             expected_returns=cfg.expected_returns,
-            risk=cfg.risk,
+            risk=risk,
             history=history,
             horizons=cfg.horizons,
             subset=cfg.subset,
@@ -145,6 +158,32 @@ class ForecastInputsProvider:
             periods_per_year=cfg.periods_per_year,
             as_of=as_of,
         )
+
+    def _risk_source(self) -> RiskSource:
+        if self.input_config.risk is not None:
+            self._validate_explicit_risk(self.input_config.risk)
+            return self.input_config.risk
+        if self.policy is None:
+            return "both"
+        return self.policy.required_inputs().risk_source
+
+    def _validate_explicit_risk(self, risk: RiskSource) -> None:
+        if self.policy is None:
+            return
+        required = self.policy.required_inputs()
+        has_covariance = risk in {"covariance", "both"}
+        has_scenarios = risk in {"cvar", "both"}
+        missing: list[str] = []
+        if required.covariances and not has_covariance:
+            missing.append("covariances")
+        if required.scenarios and not has_scenarios:
+            missing.append("scenario_returns")
+        if missing:
+            raise ValueError(
+                f"input_config.risk={risk!r} does not satisfy policy requirements: "
+                f"missing {', '.join(missing)}. Omit risk to infer it from the "
+                "policy, or use risk='both'."
+            )
 
     def _seed_for(self, step: int) -> int | None:
         return None if self.seed is None else self.seed + step

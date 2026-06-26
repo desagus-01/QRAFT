@@ -3,11 +3,15 @@ from typing import Any, Mapping, Sequence
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
 from qraft.construction.optimization.objectives.specs import (
+    CVaRCuttingPlane,
+    CVaRRisk,
+    CovarianceRisk,
     HoldingCost,
     ObjectiveSpec,
     TransactionCost,
     WeightedTerm,
 )
+from qraft.construction.optimization.moments import RequiredPolicyInputs
 from qraft.construction.optimization.optimization import (
     MultiPeriodOptimizer,
 )
@@ -78,6 +82,20 @@ class MPOProblem:
             elif isinstance(term.spec, HoldingCost):
                 holding = term.spec
         return transaction, holding
+
+    def required_inputs(self) -> RequiredPolicyInputs:
+        required = RequiredPolicyInputs()
+        for term in self.objective.terms:
+            if isinstance(term.spec, CovarianceRisk):
+                required = required.merge(RequiredPolicyInputs(covariances=True))
+            elif isinstance(term.spec, (CVaRRisk, CVaRCuttingPlane)):
+                required = required.merge(RequiredPolicyInputs(scenarios=True))
+            elif (
+                isinstance(term.spec, TransactionCost)
+                and term.spec.market_impact != 0.0
+            ):
+                required = required.merge(RequiredPolicyInputs(covariances=True))
+        return required
 
     def compile(
         self,

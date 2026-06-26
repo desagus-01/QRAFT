@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
 from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.moments import RequiredPolicyInputs
 from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     TransactionCost,
@@ -126,6 +127,9 @@ class MPOPolicy:
 
     def cost_specs(self) -> tuple[TransactionCost | None, HoldingCost | None]:
         return self.problem.cost_specs()
+
+    def required_inputs(self) -> RequiredPolicyInputs:
+        return self.problem.required_inputs()
 
     def _get_optimizer(self, moments: PolicyInputs) -> MultiPeriodOptimizer:
         key = (tuple(moments.assets), moments.n_horizons, moments.n_scenarios)

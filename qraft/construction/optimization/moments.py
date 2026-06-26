@@ -22,6 +22,28 @@ ExpectedReturnSource = Literal["historical", "forecast"]
 RiskSource = Literal["covariance", "cvar", "both"]
 
 
+@dataclass(frozen=True, slots=True)
+class RequiredPolicyInputs:
+    covariances: bool = False
+    scenarios: bool = False
+
+    @property
+    def risk_source(self) -> RiskSource:
+        if self.covariances and self.scenarios:
+            return "both"
+        if self.covariances:
+            return "covariance"
+        if self.scenarios:
+            return "cvar"
+        return "both"
+
+    def merge(self, other: "RequiredPolicyInputs") -> "RequiredPolicyInputs":
+        return RequiredPolicyInputs(
+            covariances=self.covariances or other.covariances,
+            scenarios=self.scenarios or other.scenarios,
+        )
+
+
 def psd_sqrt_factor(covariance: NDArray[np.floating]) -> NDArray[np.floating]:
     """Return F with ``F @ F.T ≈ covariance`` (negative eigenvalues clamped)."""
     cov = 0.5 * (covariance + covariance.T)
@@ -610,7 +632,7 @@ class PolicyInputs:
 class PolicyInputConfig:
     cash_path: str
     expected_returns: ExpectedReturnSource = "forecast"
-    risk: RiskSource = "both"
+    risk: RiskSource | None = None
     horizons: int | None = None
     subset: AssetSubset = "tradable"
     pnl_type: PnL_OPTIONS = "relative"

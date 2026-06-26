@@ -60,7 +60,7 @@ class PerformanceSummary:
             cvar=float(
                 metrics.cvar(rets, prob=None, alpha=0.05, distribution_type="pnl")
             )
-            if rets.size <= 2
+            if rets.size >= 2
             else 0.0,
             hit_rate=float(np.mean(rets > 0)) if rets.size else 0.0,
             avg_turnover=float(np.mean(result.period_turnovers))

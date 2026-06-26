@@ -515,11 +515,17 @@ class TransactionCostHandler:
         self, spec: TransactionCost, params: dict[str, Any], inputs: dict[str, Any]
     ) -> None:
         moments = inputs["moments"]
-        sigma = (
-            None
-            if spec.market_impact == 0.0
-            else np.sqrt(np.maximum(np.diag(moments.require_covariances()[0]), 0.0))
-        )
+        sigma = None
+        if spec.market_impact != 0.0:
+            try:
+                covariances = moments.require_covariances()
+            except ValueError as exc:
+                raise ValueError(
+                    "TransactionCost.market_impact requires PolicyInputs.covariances. "
+                    "Use input_config risk='both'/'covariance', or set "
+                    "transaction_cost=TransactionCost(..., market_impact=0.0)."
+                ) from exc
+            sigma = np.sqrt(np.maximum(np.diag(covariances[0]), 0.0))
         linear, impact, bias = transaction_cost_coeffs(
             spec,
             n_assets=moments.n_assets,

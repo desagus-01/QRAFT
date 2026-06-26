@@ -9,7 +9,6 @@ from qraft import (
     LogConfig,
     MPOPolicy,
     PipelineConfig,
-    profile,
     setup_logging,
 )
 from qraft.backtest.inputs import ForecastInputsProvider
@@ -52,7 +51,7 @@ cols_to_keep = [
 ]
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:90])
 universe = AssetUniverse(assets=tradable_assets, factors=list(factors_cols))
 data = data.select("date", *universe.all_tickers)
 
@@ -79,8 +78,11 @@ base_policy = MPOPolicy.preset(
     min_history=504,
 )
 
+risk_aversion_values = [0, *np.logspace(-2, 2, 9)]
+risk_aversion_values = [2, 3, 4, 6, 8]
+
 grid = {
-    "risk_aversion": [0.005, 0.01, 0.02, 0.1, 0.2],
+    "risk_aversion": risk_aversion_values
     # "risk_aversion": [0.005, 0.01]
     # "transaction_cost_weight": [0.5, 1.0],
 }
@@ -89,29 +91,28 @@ forecast_provider = ForecastInputsProvider(
     input_config=PolicyInputConfig(
         cash_path="data/cash.csv",
         expected_returns="forecast",
-        risk="both",
     ),
+    policy=base_policy,
     simulation_config=SimulationForecastConfig(
         horizon=15,
         method="bootstrap",
-        n_sims=10_000,
+        n_sims=20_000,
         # cma_config=CMAConfig(target_copula="t"),
     ),
-    pipeline_config=PipelineConfig(exclude_non_invariants=False),
+    pipeline_config=PipelineConfig(exclude_non_invariants=True),
     recipe_every=4,
 )
 
 # %%
 
-with profile():
-    results = run_selection_window(
-        market,
-        base_policy,
-        grid,
-        forecast_provider,
-        schedule=RebalanceSchedule("year_end"),
-    )
+results = run_selection_window(
+    market,
+    base_policy,
+    grid,
+    forecast_provider,
+    schedule=RebalanceSchedule("quarter_end"),
+)
 
 # %%
 candidate = select_candidate(results)
-candidate.plot()
+candidate.selected.summary
