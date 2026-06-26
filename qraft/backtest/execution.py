@@ -39,6 +39,33 @@ class BacktestResult:
         default_factory=lambda: np.array([], dtype=float)
     )
 
+    def window(self, start: datetime, end: datetime) -> "BacktestResult":
+        """Return a sub-result over the inclusive date range ``[start, end]``."""
+        keep = [start <= d <= end for d in self.nav_dates]
+        mask = np.asarray(keep, dtype=bool)
+        nav_dates = [d for d, k in zip(self.nav_dates, keep) if k]
+        nav = self.nav[mask] if self.nav.size == mask.size else self.nav[:0]
+        holding = (
+            self.holding_costs[mask]
+            if self.holding_costs.size == mask.size
+            else self.holding_costs[:0]
+        )
+        periods = [p for p in self.periods if start <= p.execution_bar <= end]
+        warnings = [
+            w
+            for w in self.warnings_log
+            if isinstance(w.get("bar"), datetime) and start <= w["bar"] <= end
+        ]
+        return BacktestResult(
+            policy_name=self.policy_name,
+            asset_order=self.asset_order,
+            nav_dates=nav_dates,
+            nav=nav,
+            periods=periods,
+            warnings_log=warnings,
+            holding_costs=holding,
+        )
+
     @property
     def period_decision_bars(self) -> list[datetime]:
         return [p.decision_bar for p in self.periods]

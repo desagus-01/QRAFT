@@ -79,7 +79,7 @@ base_policy = MPOPolicy.preset(
 )
 
 risk_aversion_values = [0, *np.logspace(-2, 2, 9)]
-risk_aversion_values = [2, 3, 4, 6, 8]
+risk_aversion_values = [2, 3, 4, 8]
 
 grid = {
     "risk_aversion": risk_aversion_values
@@ -96,7 +96,7 @@ forecast_provider = ForecastInputsProvider(
     simulation_config=SimulationForecastConfig(
         horizon=15,
         method="bootstrap",
-        n_sims=20_000,
+        n_sims=10_000,
         # cma_config=CMAConfig(target_copula="t"),
     ),
     pipeline_config=PipelineConfig(exclude_non_invariants=True),
