@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from qraft.backtest.schedule import RebalanceSchedule
+
 GarchDist = Literal["t", "normal", "skewt"]
 IC = Literal["bic", "aic"]
 
@@ -109,6 +111,14 @@ DEFAULT_PIPELINE_CONFIG: PipelineConfig = PipelineConfig()
 
 
 SamplingMethod = Literal["bootstrap", "historical", "cma"]
+SelectionMetric = Literal[
+    "sharpe",
+    "sortino",
+    "calmar",
+    "total_return",
+    "annualised_return",
+    "cvar",
+]
 
 
 @dataclass(frozen=True)
@@ -134,3 +144,48 @@ class SimulationForecastConfig:
 
 
 DEFAULT_SIMULATION_CONFIG: SimulationForecastConfig = SimulationForecastConfig()
+
+
+@dataclass(frozen=True, slots=True)
+class WalkForwardConfig:
+    """Controls for walk-forward selection experiments."""
+
+    train_size: int | None = None
+    test_size: int | None = None
+    step: int | None = None
+    embargo: int = 0
+    anchored: bool = False
+    schedule: RebalanceSchedule = field(default_factory=RebalanceSchedule)
+    step_size: int = 1
+    initial_cash: float = 100.0
+    periods_per_year: float = 252.0
+    risk_free_rate: float = 0.0
+    metric: SelectionMetric = "sharpe"
+    max_held_fraction: float = 0.5
+    pbo_blocks: int = 10
+
+    def __post_init__(self) -> None:
+        if self.train_size is None or self.test_size is None:
+            raise ValueError("train_size and test_size are required")
+        if self.train_size < 1 or self.test_size < 1:
+            raise ValueError("train_size and test_size must be >= 1")
+        if self.step is not None and self.step < 1:
+            raise ValueError("step must be >= 1")
+        if self.embargo < 0:
+            raise ValueError("embargo must be >= 0")
+        if self.step_size < 1:
+            raise ValueError("step_size must be >= 1")
+        if self.initial_cash <= 0:
+            raise ValueError("initial_cash must be > 0")
+        if self.periods_per_year <= 0:
+            raise ValueError("periods_per_year must be > 0")
+        if not 0 <= self.max_held_fraction <= 1:
+            raise ValueError("max_held_fraction must be between 0 and 1")
+        if self.pbo_blocks < 2:
+            raise ValueError("pbo_blocks must be >= 2")
+
+
+DEFAULT_WALK_FORWARD_CONFIG: WalkForwardConfig = WalkForwardConfig(
+    train_size=1,
+    test_size=1,
+)

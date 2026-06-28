@@ -18,9 +18,10 @@ from qraft.backtest.selection.walkforward import (  # noqa: F401
     Fold,
     FoldResult,
     WalkForwardReport,
-    run_walk_forward,
     walk_forward,
+    walk_forward_folds,
 )
+from qraft.core.configs import WalkForwardConfig  # noqa: F401
 
 __all__ = [
     "PolicyParams",
@@ -31,11 +32,12 @@ __all__ = [
     "Fold",
     "FoldResult",
     "WalkForwardReport",
+    "WalkForwardConfig",
     "apply_hyperparameters",
     "param_grid",
     "expand_candidates",
     "evaluate_candidates",
     "run_selection_window",
     "walk_forward",
-    "run_walk_forward",
+    "walk_forward_folds",
 ]

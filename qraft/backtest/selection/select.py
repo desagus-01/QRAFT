@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Literal
+from typing import Callable, Literal
 
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.results import CandidateResult, SelectionReport
@@ -19,6 +19,8 @@ _METRIC = Literal[
 ]
 
 _LOWER_IS_BETTER: frozenset[_METRIC] = frozenset({"cvar", "annualised_vol"})
+
+Scorer = Callable[[PerformanceSummary], float]
 
 
 def _score(summary: PerformanceSummary, metric: _METRIC) -> float:
@@ -41,27 +43,29 @@ def _conservatism(result: CandidateResult) -> float:
     return float(result.params.as_dict().get("risk_aversion", 0.0))
 
 
+def _objective(result: CandidateResult, metric: _METRIC, score: Scorer | None) -> float:
+    """Score one eligible candidate: the custom scorer if given, else the metric."""
+    summary = result.summary
+    assert summary is not None
+    return score(summary) if score is not None else _score(summary, metric)
+
+
 def select_candidate(
     results: Sequence[CandidateResult],
     *,
     metric: _METRIC = "sharpe",
     max_held_fraction: float = 0.5,
+    score: Scorer | None = None,
 ) -> SelectionReport:
-    """Pick the best eligible candidate by a realised metric.
-
-    Failures and degenerate candidates (``held_fraction`` above the threshold)
-    are excluded; ties break toward the more conservative candidate. Returns a
-    report with ``selected_params=None`` when nothing is eligible.
-    """
     eligible = [r for r in results if _eligible(r, max_held_fraction)]
     selected = None
     if eligible:
-        best = max(
+        selected = max(
             eligible,
-            key=lambda r: (_score(r.summary, metric), _conservatism(r)),
-        )
-        selected = best.params
-    rule = f"max[{metric}] | exclude failed & held_fraction>{max_held_fraction:g}"
+            key=lambda r: (_objective(r, metric, score), _conservatism(r)),
+        ).params
+    objective = "custom" if score is not None else f"max[{metric}]"
+    rule = f"{objective} | exclude failed & held_fraction>{max_held_fraction:g}"
     return SelectionReport(
         candidates=tuple(results), selected_params=selected, rule=rule
     )
