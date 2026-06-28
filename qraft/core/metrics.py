@@ -140,10 +140,9 @@ def annualised_vol(
     return float(np.nanstd(returns, ddof=1) * np.sqrt(periods_per_year))
 
 
-def sharpe(
+def per_period_sharpe(
     returns: NDArray[np.floating],
-    rf_per_period: float,
-    periods_per_year: float,
+    rf_per_period: float = 0.0,
 ) -> float:
     if returns.size < 2:
         return 0.0
@@ -151,7 +150,15 @@ def sharpe(
     std = np.std(excess, ddof=1)
     if std == 0:
         return 0.0
-    return float(np.mean(excess) / std * np.sqrt(periods_per_year))
+    return float(np.mean(excess) / std)
+
+
+def sharpe(
+    returns: NDArray[np.floating],
+    rf_per_period: float,
+    periods_per_year: float,
+) -> float:
+    return per_period_sharpe(returns, rf_per_period) * np.sqrt(periods_per_year)
 
 
 def sortino(

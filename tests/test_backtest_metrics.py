@@ -26,9 +26,16 @@ def _result(nav: list[float], periods: list[object] | None = None) -> BacktestRe
 def test_core_metrics_known_sharpe_fixture() -> None:
     returns = np.array([0.01, 0.02, -0.01, 0.03], dtype=float)
 
-    expected = returns.mean() / returns.std(ddof=1) * np.sqrt(252.0)
+    per_period = returns.mean() / returns.std(ddof=1)
+    expected = per_period * np.sqrt(252.0)
 
+    assert metrics.per_period_sharpe(returns) == pytest.approx(per_period)
     assert metrics.sharpe(returns, 0.0, 252.0) == pytest.approx(expected)
+
+
+def test_core_metrics_per_period_sharpe_handles_degenerate_series() -> None:
+    assert metrics.per_period_sharpe(np.array([0.01], dtype=float)) == 0.0
+    assert metrics.per_period_sharpe(np.array([0.01, 0.01], dtype=float)) == 0.0
 
 
 def test_performance_summary_uses_active_window_slice() -> None:

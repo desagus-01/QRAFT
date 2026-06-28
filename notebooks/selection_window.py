@@ -27,7 +27,7 @@ from qraft.core.configs import SimulationForecastConfig
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.WARN))
+setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # Data setup mirrors backtest_a.py, but keeps the universe small so a grid run is tractable.
@@ -50,7 +50,7 @@ cols_to_keep = [
 ]
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:90])
 universe = AssetUniverse(assets=tradable_assets, factors=list(factors_cols))
 data = data.select("date", *universe.all_tickers)
 
@@ -79,7 +79,7 @@ base_policy = MPOPolicy.preset(
 
 risk_aversion_values = [0, *np.logspace(-2, 2, 9)]
 risk_aversion_values = [2, 3, 4, 8]
-risk_aversion_values = [2, 3]
+# risk_aversion_values = [2, 3]
 
 grid = {
     "risk_aversion": risk_aversion_values
