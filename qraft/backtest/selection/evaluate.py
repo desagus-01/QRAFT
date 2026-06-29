@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from typing import Any
 
 from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvider
@@ -16,6 +17,7 @@ from qraft.backtest.selection.results import (
 )
 from qraft.backtest.simulator import precompute_inputs, run_backtest
 from qraft.construction.policies import PolicyProtocol
+from qraft.core.configs import BacktestConfig
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +102,36 @@ def run_selection_window(
         periods_per_year=periods_per_year,
         risk_free_rate=risk_free_rate,
     )
+
+
+def evaluate_candidate_grid(
+    market: MarketData,
+    base_policy: PolicyProtocol,
+    grid: Mapping[str, Sequence[Any]],
+    provider: PolicyInputsProvider,
+    backtest_config: BacktestConfig,
+    risk_free_rate: float,
+) -> tuple[tuple[CandidateResult, ...], list[datetime]]:
+    """Expand a candidate grid, precompute shared inputs, and evaluate once."""
+    candidates = expand_candidates(base_policy, grid)
+    warmup = _shared_warmup(candidates)
+    table = precompute_inputs(
+        market,
+        backtest_config.schedule,
+        provider,
+        warmup,
+    )
+    shared = PrecomputedInputsProvider(table)
+    candidate_results = evaluate_candidates(
+        candidates,
+        market,
+        shared,
+        schedule=backtest_config.schedule,
+        initial_cash=backtest_config.initial_cash,
+        periods_per_year=backtest_config.periods_per_year,
+        risk_free_rate=risk_free_rate,
+    )
+    return candidate_results, sorted(table)
 
 
 def _shared_warmup(candidates: Sequence[PolicyCandidate]) -> int:

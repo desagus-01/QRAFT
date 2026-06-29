@@ -8,6 +8,7 @@ import pytest
 from qraft.backtest.execution import BacktestResult
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection import (
+    CombinatorialCVConfig,
     Fold,
     FoldResult,
     WalkForwardConfig,
@@ -64,6 +65,15 @@ def test_walk_forward_validates() -> None:
 def test_walk_forward_config_validates() -> None:
     with pytest.raises(ValueError, match="train_size and test_size"):
         WalkForwardConfig(train_size=0, test_size=2)
+
+
+def test_combinatorial_cv_config_defaults_are_conservative() -> None:
+    config = CombinatorialCVConfig()
+
+    assert config.n_groups == 10
+    assert config.n_test_groups == 3
+    assert config.purge == 1
+    assert config.embargo == 1
 
 
 def test_walk_forward_folds_accepts_config_values() -> None:

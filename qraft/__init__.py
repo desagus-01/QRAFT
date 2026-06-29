@@ -11,7 +11,9 @@ __all__ = [
     "SimulationForecastConfig",
     "ForecastProviderConfig",
     "BacktestConfig",
+    "CVConfig",
     "WalkForwardConfig",
+    "CombinatorialCVConfig",
     "MPOPolicy",
     "EqualWeightPolicy",
     "PolicyProtocol",
@@ -56,6 +58,8 @@ from qraft.construction.state import PortfolioState
 from qraft.core.configs import (
     BacktestConfig,
     CMAConfig,
+    CombinatorialCVConfig,
+    CVConfig,
     ForecastProviderConfig,
     PipelineConfig,
     SimulationForecastConfig,
