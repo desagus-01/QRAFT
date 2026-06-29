@@ -147,18 +147,50 @@ DEFAULT_SIMULATION_CONFIG: SimulationForecastConfig = SimulationForecastConfig()
 
 
 @dataclass(frozen=True, slots=True)
+class ForecastProviderConfig:
+    """Controls how often forecast inputs are refreshed during a backtest."""
+
+    refit_every: int = 12
+    forecast_every: int = 1
+    seed: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.refit_every < 1 or self.forecast_every < 1:
+            raise ValueError("refit_every and forecast_every must be >= 1")
+        if self.forecast_every > self.refit_every:
+            raise ValueError("forecast_every must be <= refit_every")
+
+
+DEFAULT_FORECAST_PROVIDER_CONFIG: ForecastProviderConfig = ForecastProviderConfig()
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestConfig:
+    """Execution and scoring settings shared by backtest entry points."""
+
+    schedule: RebalanceSchedule = field(default_factory=RebalanceSchedule)
+    initial_cash: float = 100.0
+    periods_per_year: float = 252.0
+
+    def __post_init__(self) -> None:
+        if self.initial_cash <= 0:
+            raise ValueError("initial_cash must be > 0")
+        if self.periods_per_year <= 0:
+            raise ValueError("periods_per_year must be > 0")
+
+
+DEFAULT_BACKTEST_CONFIG: BacktestConfig = BacktestConfig()
+
+
+@dataclass(frozen=True, slots=True)
 class WalkForwardConfig:
     """Controls for walk-forward selection experiments."""
 
-    train_size: int | None = None
-    test_size: int | None = None
-    step: int | None = None
+    train_size: int = 5
+    test_size: int = 2
+    fold_step: int | None = None
     embargo: int = 0
     anchored: bool = False
-    schedule: RebalanceSchedule = field(default_factory=RebalanceSchedule)
-    step_size: int = 1
-    initial_cash: float = 100.0
-    periods_per_year: float = 252.0
     risk_free_rate: float = 0.0
     metric: SelectionMetric = "sharpe"
     max_held_fraction: float = 0.5
@@ -169,16 +201,10 @@ class WalkForwardConfig:
             raise ValueError("train_size and test_size are required")
         if self.train_size < 1 or self.test_size < 1:
             raise ValueError("train_size and test_size must be >= 1")
-        if self.step is not None and self.step < 1:
-            raise ValueError("step must be >= 1")
+        if self.fold_step is not None and self.fold_step < 1:
+            raise ValueError("fold_step must be >= 1")
         if self.embargo < 0:
             raise ValueError("embargo must be >= 0")
-        if self.step_size < 1:
-            raise ValueError("step_size must be >= 1")
-        if self.initial_cash <= 0:
-            raise ValueError("initial_cash must be > 0")
-        if self.periods_per_year <= 0:
-            raise ValueError("periods_per_year must be > 0")
         if not 0 <= self.max_held_fraction <= 1:
             raise ValueError("max_held_fraction must be between 0 and 1")
         if self.pbo_blocks < 2:

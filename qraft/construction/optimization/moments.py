@@ -490,7 +490,7 @@ class PolicyInputs:
         expected_returns: ExpectedReturnSource = "forecast",
         risk: RiskSource = "both",
         history: ScenarioPanel | None = None,
-        horizons: int | None = None,
+        max_horizons: int | None = None,
         subset: AssetSubset = "tradable",
         pnl_type: PnL_OPTIONS = "relative",
         expectation_tolerance: float | None = 1.0,
@@ -517,7 +517,7 @@ class PolicyInputs:
 
         pnl_by_asset = incremental_returns_from_forecast_paths(
             forecast_paths=forecasts,
-            horizons=horizons,
+            horizons=max_horizons,
             subset=subset,
             pnl_type=pnl_type,
         )
@@ -633,7 +633,7 @@ class PolicyInputConfig:
     cash_path: str
     expected_returns: ExpectedReturnSource = "forecast"
     risk: RiskSource | None = None
-    horizons: int | None = None
+    max_horizons: int | None = None
     subset: AssetSubset = "tradable"
     pnl_type: PnL_OPTIONS = "relative"
     expectation_tolerance: float | None = 1.0

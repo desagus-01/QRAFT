@@ -8,6 +8,10 @@ __all__ = [
     "run_forecast",
     "LogConfig",
     "PipelineConfig",
+    "SimulationForecastConfig",
+    "ForecastProviderConfig",
+    "BacktestConfig",
+    "WalkForwardConfig",
     "MPOPolicy",
     "EqualWeightPolicy",
     "PolicyProtocol",
@@ -49,7 +53,14 @@ from qraft.construction.policies import (
     run_policy,
 )
 from qraft.construction.state import PortfolioState
-from qraft.core.configs import CMAConfig, PipelineConfig
+from qraft.core.configs import (
+    BacktestConfig,
+    CMAConfig,
+    ForecastProviderConfig,
+    PipelineConfig,
+    SimulationForecastConfig,
+    WalkForwardConfig,
+)
 from qraft.core.panel import ScenarioPanel
 from qraft.core.scenarios.transforms import CMA, Views
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths

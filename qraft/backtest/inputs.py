@@ -15,8 +15,10 @@ from qraft.construction.optimization.moments import (
     RiskSource,
 )
 from qraft.core.configs import (
+    DEFAULT_FORECAST_PROVIDER_CONFIG,
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
+    ForecastProviderConfig,
     PipelineConfig,
     SimulationForecastConfig,
 )
@@ -52,24 +54,16 @@ class ForecastInputsProvider:
         input_config: PolicyInputConfig,
         *,
         policy: PolicyInputRequirements | None = None,
-        recipe_every: int = 12,
-        forecast_every: int = 1,
+        provider_config: ForecastProviderConfig = DEFAULT_FORECAST_PROVIDER_CONFIG,
         pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
         simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
-        seed: int | None = None,
         dtype: type = np.float64,
     ) -> None:
-        if recipe_every < 1 or forecast_every < 1:
-            raise ValueError("recipe_every and forecast_every must be >= 1")
-        if forecast_every > recipe_every:
-            raise ValueError("forecast_every (N) must be <= recipe_every (R)")
         self.input_config = input_config
         self.policy = policy
-        self.recipe_every = recipe_every
-        self.forecast_every = forecast_every
+        self.provider_config = provider_config
         self.pipeline_config = pipeline_config
         self.simulation_config = simulation_config
-        self.seed = seed
         self.dtype = dtype
 
         self._recipe: ForecastRecipe | None = None
@@ -81,12 +75,14 @@ class ForecastInputsProvider:
         universe_changed = universe_key != self._last_universe
 
         rebuild_recipe = (
-            self._recipe is None or universe_changed or step % self.recipe_every == 0
+            self._recipe is None
+            or universe_changed
+            or step % self.provider_config.refit_every == 0
         )
         reforecast = (
             rebuild_recipe
             or self._cached_inputs is None
-            or step % self.forecast_every == 0
+            or step % self.provider_config.forecast_every == 0
         )
         if not reforecast:
             assert self._cached_inputs is not None
@@ -149,7 +145,7 @@ class ForecastInputsProvider:
             expected_returns=cfg.expected_returns,
             risk=risk,
             history=history,
-            horizons=cfg.horizons,
+            max_horizons=cfg.max_horizons,
             subset=cfg.subset,
             pnl_type=cfg.pnl_type,
             expectation_tolerance=cfg.expectation_tolerance,
@@ -186,7 +182,8 @@ class ForecastInputsProvider:
             )
 
     def _seed_for(self, step: int) -> int | None:
-        return None if self.seed is None else self.seed + step
+        seed = self.provider_config.seed
+        return None if seed is None else seed + step
 
 
 @dataclass

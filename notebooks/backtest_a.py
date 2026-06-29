@@ -26,7 +26,7 @@ from qraft.construction import (
 )
 from qraft.construction.optimization.moments import PolicyInputConfig
 from qraft.core import state_smooth_probs
-from qraft.core.configs import SimulationForecastConfig
+from qraft.core.configs import ForecastProviderConfig, SimulationForecastConfig
 from qraft.utils.backtest_viz import plot_backtest_dashboard
 from qraft.utils.tiingo import import_tickers_and_factors
 
@@ -120,7 +120,7 @@ forecast_provider = ForecastInputsProvider(
         horizon=15, method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
     ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
-    recipe_every=4,
+    provider_config=ForecastProviderConfig(refit_every=4),
 )
 
 result = run_backtest(

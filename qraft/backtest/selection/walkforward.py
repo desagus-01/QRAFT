@@ -29,7 +29,7 @@ from qraft.backtest.selection.significance import (
 from qraft.backtest.simulator import precompute_inputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.core import metrics
-from qraft.core.configs import WalkForwardConfig
+from qraft.core.configs import BacktestConfig, WalkForwardConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -416,7 +416,8 @@ def walk_forward(
     grid: Mapping[str, Sequence[Any]],
     provider: PolicyInputsProvider,
     *,
-    config: WalkForwardConfig,
+    walk_config: WalkForwardConfig,
+    backtest_config: BacktestConfig = BacktestConfig(),
     score: Scorer | None = None,
 ) -> WalkForwardReport:
     """Walk-forward gamma-selection: run candidates once, then per fold select on
@@ -431,29 +432,32 @@ def walk_forward(
         base_policy,
         grid,
         provider,
-        config,
+        backtest_config,
+        walk_config.risk_free_rate,
     )
 
     folds = walk_forward_folds(
         dates,
-        train_size=config.train_size,
-        test_size=config.test_size,
-        step=config.step,
-        embargo=config.embargo,
-        anchored=config.anchored,
+        train_size=walk_config.train_size,
+        test_size=walk_config.test_size,
+        step=walk_config.fold_step,
+        embargo=walk_config.embargo,
+        anchored=walk_config.anchored,
     )
-    fold_results, oos_returns, oos_dates = _run_folds(full, folds, config, score)
+    fold_results, oos_returns, oos_dates = _run_folds(
+        full, folds, walk_config, backtest_config, score
+    )
 
     nav, nav_dates, summary = _stitch(
         oos_returns,
         oos_dates,
         folds,
-        config.initial_cash,
-        config.periods_per_year,
-        config.risk_free_rate,
+        backtest_config.initial_cash,
+        backtest_config.periods_per_year,
+        walk_config.risk_free_rate,
     )
     n_trials, dsr, pbo_value = _compute_walk_forward_diagnostics(
-        full, oos_returns, config
+        full, oos_returns, walk_config, backtest_config
     )
 
     return WalkForwardReport(
@@ -472,27 +476,26 @@ def _evaluate_full_candidates(
     base_policy: PolicyProtocol,
     grid: Mapping[str, Sequence[Any]],
     provider: PolicyInputsProvider,
-    config: WalkForwardConfig,
+    backtest_config: BacktestConfig,
+    risk_free_rate: float,
 ) -> tuple[Sequence[CandidateResult], list[datetime]]:
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
     table = precompute_inputs(
         market,
-        config.schedule,
+        backtest_config.schedule,
         provider,
         warmup,
-        step_size=config.step_size,
     )
     shared = PrecomputedInputsProvider(table)
     full = evaluate_candidates(
         candidates,
         market,
         shared,
-        schedule=config.schedule,
-        step_size=config.step_size,
-        initial_cash=config.initial_cash,
-        periods_per_year=config.periods_per_year,
-        risk_free_rate=config.risk_free_rate,
+        schedule=backtest_config.schedule,
+        initial_cash=backtest_config.initial_cash,
+        periods_per_year=backtest_config.periods_per_year,
+        risk_free_rate=risk_free_rate,
     )
     return full, sorted(table)
 
@@ -500,22 +503,23 @@ def _evaluate_full_candidates(
 def _select_fold_candidate(
     full: Sequence[CandidateResult],
     fold: Fold,
-    config: WalkForwardConfig,
+    walk_config: WalkForwardConfig,
+    backtest_config: BacktestConfig,
     score: Scorer | None,
 ) -> SelectionReport:
     train_scores = [
         _windowed_result(
             cr,
             fold.train,
-            config.periods_per_year,
-            config.risk_free_rate,
+            backtest_config.periods_per_year,
+            walk_config.risk_free_rate,
         )
         for cr in full
     ]
     return select_candidate(
         train_scores,
-        metric=config.metric,
-        max_held_fraction=config.max_held_fraction,
+        metric=walk_config.metric,
+        max_held_fraction=walk_config.max_held_fraction,
         score=score,
     )
 
@@ -524,7 +528,8 @@ def _score_oos_fold(
     full: Sequence[CandidateResult],
     fold: Fold,
     selection: SelectionReport,
-    config: WalkForwardConfig,
+    walk_config: WalkForwardConfig,
+    backtest_config: BacktestConfig,
 ) -> tuple[PerformanceSummary | None, NDArray[np.floating] | None, list[datetime]]:
     if selection.selected_params is None:
         return None, None, []
@@ -534,8 +539,8 @@ def _score_oos_fold(
     oos_summary = PerformanceSummary.from_backtest(
         test_result,
         active_only=False,
-        periods_per_year=config.periods_per_year,
-        risk_free_rate=config.risk_free_rate,
+        periods_per_year=backtest_config.periods_per_year,
+        risk_free_rate=walk_config.risk_free_rate,
     )
     rets = metrics.returns_from_nav(test_result.nav)
     if not rets.size:
@@ -546,15 +551,20 @@ def _score_oos_fold(
 def _run_folds(
     full: Sequence[CandidateResult],
     folds: Sequence[Fold],
-    config: WalkForwardConfig,
+    walk_config: WalkForwardConfig,
+    backtest_config: BacktestConfig,
     score: Scorer | None,
 ) -> tuple[list[FoldResult], list[NDArray[np.floating]], list[datetime]]:
     fold_results: list[FoldResult] = []
     oos_returns: list[NDArray[np.floating]] = []
     oos_dates: list[datetime] = []
     for fold in folds:
-        selection = _select_fold_candidate(full, fold, config, score)
-        oos_summary, rets, dates = _score_oos_fold(full, fold, selection, config)
+        selection = _select_fold_candidate(
+            full, fold, walk_config, backtest_config, score
+        )
+        oos_summary, rets, dates = _score_oos_fold(
+            full, fold, selection, walk_config, backtest_config
+        )
         if rets is not None:
             oos_returns.append(rets)
             oos_dates.extend(dates)
@@ -565,10 +575,11 @@ def _run_folds(
 def _compute_walk_forward_diagnostics(
     full: Sequence[CandidateResult],
     oos_returns: Sequence[NDArray[np.floating]],
-    config: WalkForwardConfig,
+    walk_config: WalkForwardConfig,
+    backtest_config: BacktestConfig,
 ) -> tuple[int, float | None, float | None]:
     trial_sharpes = [
-        cr.summary.sharpe / math.sqrt(config.periods_per_year)
+        cr.summary.sharpe / math.sqrt(backtest_config.periods_per_year)
         for cr in full
         if cr.summary is not None
     ]
@@ -577,7 +588,7 @@ def _compute_walk_forward_diagnostics(
     pbo_value: float | None = None
     if oos_returns and n_trials >= 2:
         dsr = compute_deflated_sharpe(np.concatenate(oos_returns), trial_sharpes)
-        perf = _block_returns(full, config.pbo_blocks)
+        perf = _block_returns(full, walk_config.pbo_blocks)
         if perf is not None:
             pbo_value = compute_pbo(perf)
     return n_trials, dsr, pbo_value

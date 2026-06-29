@@ -24,7 +24,12 @@ from qraft.construction import (
     TurnoverLimit,
 )
 from qraft.construction.optimization.moments import PolicyInputConfig
-from qraft.core.configs import SimulationForecastConfig, WalkForwardConfig
+from qraft.core.configs import (
+    BacktestConfig,
+    ForecastProviderConfig,
+    SimulationForecastConfig,
+    WalkForwardConfig,
+)
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
@@ -80,7 +85,7 @@ base_policy = MPOPolicy.preset(
 
 risk_aversion_values = [0, *np.logspace(-2, 2, 9)]
 risk_aversion_values = [2, 3, 4, 8]
-risk_aversion_values = [2, 3]
+# risk_aversion_values = [2, 3]
 
 grid = {
     "risk_aversion": risk_aversion_values
@@ -94,13 +99,13 @@ forecast_provider = ForecastInputsProvider(
     ),
     policy=base_policy,
     simulation_config=SimulationForecastConfig(
-        horizon=10,
+        horizon=15,
         method="cma",
         n_sims=10_000,
         cma_config=CMAConfig(target_copula="t"),
     ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
-    recipe_every=2,
+    provider_config=ForecastProviderConfig(refit_every=2),
 )
 
 # %%
@@ -110,11 +115,11 @@ results = walk_forward(
     base_policy,
     grid,
     forecast_provider,
-    config=WalkForwardConfig(
-        schedule=RebalanceSchedule("quarter_end"),
-        train_size=5,
+    walk_config=WalkForwardConfig(
+        train_size=15,
         test_size=2,
     ),
+    backtest_config=BacktestConfig(schedule=RebalanceSchedule("quarter_end")),
 )
 
 
