@@ -67,7 +67,8 @@ from qraft.core.configs import (
 )
 from qraft.core.panel import ScenarioPanel
 from qraft.core.scenarios.transforms import CMA, Views
-from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
+from qraft.core.universe import AssetUniverse
+from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.pipelines.forecasting import run_forecast
 from qraft.helper import profile
 from qraft.core.metrics import cvar, var

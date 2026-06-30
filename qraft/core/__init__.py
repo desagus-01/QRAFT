@@ -1,5 +1,7 @@
 __all__ = [
     "ScenarioPanel",
+    "AssetUniverse",
+    "ForecastSnapshot",
     "ProbVector",
     "Views",
     "CMA",
@@ -26,6 +28,8 @@ __all__ = [
 ]
 
 from qraft.core.panel import ScenarioPanel  # noqa: F401
+from qraft.core.snapshot import ForecastSnapshot  # noqa: F401
+from qraft.core.universe import AssetUniverse  # noqa: F401
 from qraft.core.probability.prob_vector import ProbVector  # noqa: F401
 from qraft.core.scenarios.transforms import Views, CMA, apply_scenario_transforms  # noqa: F401
 from qraft.core.scenarios.copula_marginal import CMAConfig  # noqa: F401

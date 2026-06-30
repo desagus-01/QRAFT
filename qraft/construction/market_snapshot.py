@@ -5,7 +5,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from qraft.core.panel import ScenarioPanel
-from qraft.forecast.forecast_paths import AssetUniverse
+from qraft.core.snapshot import ForecastSnapshot
+from qraft.core.universe import AssetUniverse
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,3 +19,12 @@ class MarketSnapshot:
     history: ScenarioPanel
     prices_t: NDArray[np.floating]
     cash_rate: float
+
+
+def forecast_snapshot_from_market(snapshot: MarketSnapshot) -> ForecastSnapshot:
+    return ForecastSnapshot(
+        as_of=snapshot.t,
+        universe=snapshot.universe,
+        history=snapshot.history,
+        cash_rate=snapshot.cash_rate,
+    )
