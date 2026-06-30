@@ -6,14 +6,12 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
-    CMAConfig,
     LogConfig,
     PipelineConfig,
-    SimulationForecastConfig,
     setup_logging,
 )
 from qraft.backtest.market import MarketData, WindowWeighting
-from qraft.forecast.run import build_forecast_recipe_history, simulate_forecast_paths
+from qraft.forecast.run import build_forecast_recipe_history
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
@@ -62,17 +60,3 @@ recipe_history = build_forecast_recipe_history(
     seed=3,
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
 )
-
-run = simulate_forecast_paths(
-    market,
-    recipe_history,
-    min_history=250,
-    forecast_cadence="quarter_end",
-    simulation_config=SimulationForecastConfig(
-        horizon=15,
-        method="cma",
-        n_sims=10_000,
-        cma_config=CMAConfig(target_copula="t"),
-    ),
-)
-# %%
