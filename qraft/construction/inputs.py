@@ -63,6 +63,24 @@ def build_policy_input_table(
     return table
 
 
+def build_policy_input_table_from_forecast_run(
+    snapshots: Iterable[MarketSnapshot],
+    forecast_run: ForecastRun,
+    *,
+    input_config: PolicyInputConfig,
+    risk_source,
+    dtype: type = np.float64,
+) -> dict[datetime, PolicyInputs]:
+    """Build ``{date: PolicyInputs}`` from a pre-simulated forecast run."""
+    return build_policy_input_table(
+        snapshots,
+        forecast_run,
+        input_config=input_config,
+        risk_source=risk_source,
+        dtype=dtype,
+    )
+
+
 def forecast_policy_input_table(
     snapshots: Iterable[MarketSnapshot],
     *,

@@ -10,7 +10,7 @@ import pytest
 from qraft.backtest.baselines import AllCashPolicy, NoTradePolicy
 from qraft.backtest.execution import BacktestResult
 from qraft.backtest.market import MarketData, MarketSnapshot, WindowWeighting
-from qraft.backtest.schedule import RebalanceSchedule
+from qraft.core.schedule import RebalanceSchedule
 from qraft.backtest.simulator import run_backtest
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.optimization.optimization import MPOFailure, OptimizationFailure

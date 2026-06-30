@@ -117,7 +117,7 @@ def test_forecast_package_does_not_import_backtest_or_construction():
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
-                if node.module == "qraft.backtest.schedule":
+                if node.module == "qraft.core.schedule":
                     continue
                 assert not node.module.startswith("qraft.backtest")
                 assert not node.module.startswith("qraft.construction")

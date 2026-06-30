@@ -56,15 +56,17 @@ from qraft.construction.policies import (
     run_policy,
 )
 from qraft.construction.state import PortfolioState
-from qraft.core.configs import (
+from qraft.backtest.configs import (
     BacktestConfig,
-    CMAConfig,
     CombinatorialCVConfig,
     CVConfig,
+    WalkForwardConfig,
+)
+from qraft.core.configs import (
+    CMAConfig,
     ForecastProviderConfig,
     PipelineConfig,
     SimulationForecastConfig,
-    WalkForwardConfig,
 )
 from qraft.core.panel import ScenarioPanel
 from qraft.core.scenarios.transforms import CMA, Views

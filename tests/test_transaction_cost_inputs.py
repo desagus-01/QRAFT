@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from qraft.backtest.inputs import ForecastInputsProvider
+from qraft.backtest.inputs import policy_risk_source
 from qraft.construction.optimization.moments import PolicyInputConfig
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.optimization.objectives.specs import TransactionCost
@@ -57,12 +57,9 @@ def test_forecast_provider_infers_both_for_cvar_with_market_impact() -> None:
         risk_aversion=0.01,
         transaction_cost=TransactionCost(cost=0.0005, market_impact=0.3),
     )
-    provider = ForecastInputsProvider(
-        PolicyInputConfig(cash_path="data/cash.csv"),
-        policy=policy,
-    )
+    input_config = PolicyInputConfig(cash_path="data/cash.csv")
 
-    assert provider._risk_source() == "both"
+    assert policy_risk_source(input_config, policy) == "both"
 
 
 def test_forecast_provider_infers_cvar_for_cvar_without_market_impact() -> None:
@@ -71,12 +68,9 @@ def test_forecast_provider_infers_cvar_for_cvar_without_market_impact() -> None:
         risk_aversion=0.01,
         transaction_cost=TransactionCost(cost=0.0005, market_impact=0.0),
     )
-    provider = ForecastInputsProvider(
-        PolicyInputConfig(cash_path="data/cash.csv"),
-        policy=policy,
-    )
+    input_config = PolicyInputConfig(cash_path="data/cash.csv")
 
-    assert provider._risk_source() == "cvar"
+    assert policy_risk_source(input_config, policy) == "cvar"
 
 
 def test_forecast_provider_rejects_explicit_risk_missing_policy_requirements() -> None:
@@ -85,10 +79,7 @@ def test_forecast_provider_rejects_explicit_risk_missing_policy_requirements() -
         risk_aversion=0.01,
         transaction_cost=TransactionCost(cost=0.0005, market_impact=0.3),
     )
-    provider = ForecastInputsProvider(
-        PolicyInputConfig(cash_path="data/cash.csv", risk="cvar"),
-        policy=policy,
-    )
+    input_config = PolicyInputConfig(cash_path="data/cash.csv", risk="cvar")
 
     with pytest.raises(ValueError, match="missing covariances"):
-        provider._risk_source()
+        policy_risk_source(input_config, policy)

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Literal, Mapping
 
-from qraft.backtest.schedule import Cadence, RebalanceSchedule
+from qraft.core.schedule import Cadence, RebalanceSchedule
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,

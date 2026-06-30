@@ -11,7 +11,7 @@ from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.splits import DateRange
 from qraft.core import metrics
-from qraft.core.configs import BacktestConfig
+from qraft.backtest.configs import BacktestConfig
 
 
 def returns_for_range(

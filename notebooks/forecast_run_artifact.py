@@ -76,4 +76,3 @@ run = simulate_forecast_paths(
     ),
 )
 # %%
-len(run.recipe_history.periods)

@@ -45,7 +45,7 @@ from qraft.backtest.selection.walkforward import (  # noqa: F401
     WalkForwardReport,
     walk_forward,
 )
-from qraft.core.configs import (  # noqa: F401
+from qraft.backtest.configs import (  # noqa: F401
     BacktestConfig,
     CombinatorialCVConfig,
     CVConfig,

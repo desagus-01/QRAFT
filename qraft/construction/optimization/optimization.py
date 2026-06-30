@@ -407,6 +407,11 @@ class MultiPeriodOptimizer:
         status = cast(SolverStatus, self.problem.status)
         if status == "optimal":
             return None
+        elif status == "optimal-innacurate":
+            logger.warning(
+                "Optimizer has return optimal-innacurate, this will pass but not ideal."
+            )
+            return None
 
         message = f"Optimization failed: {status}"
         if raise_on_failure:

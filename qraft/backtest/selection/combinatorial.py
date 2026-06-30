@@ -29,7 +29,10 @@ from qraft.backtest.selection.scoring import (
 from qraft.backtest.selection.select import Scorer, select_candidate
 from qraft.backtest.selection.splits import combinatorial_purged_folds
 from qraft.construction.policies import PolicyProtocol
-from qraft.core.configs import BacktestConfig, CombinatorialCVConfig
+from qraft.backtest.configs import BacktestConfig, CombinatorialCVConfig
+from qraft.construction.optimization.moments import PolicyInputConfig
+from qraft.core.configs import DEFAULT_SIMULATION_CONFIG, SimulationForecastConfig
+from qraft.forecast.run import ForecastRecipeHistory
 from qraft.utils.backtest_viz import plot_combinatorial_report
 
 
@@ -139,8 +142,11 @@ def combinatorial_purged(
     market: MarketData,
     base_policy: PolicyProtocol,
     grid: Mapping[str, Sequence[Any]],
-    provider: PolicyInputsProvider,
     *,
+    provider: PolicyInputsProvider | None = None,
+    recipe_history: ForecastRecipeHistory | None = None,
+    input_config: PolicyInputConfig | None = None,
+    simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
     cv_config: CombinatorialCVConfig,
     backtest_config: BacktestConfig = BacktestConfig(),
     score: Scorer | None = None,
@@ -155,9 +161,12 @@ def combinatorial_purged(
         market,
         base_policy,
         grid,
-        provider,
         backtest_config,
         cv_config.cv_config.risk_free_rate,
+        provider=provider,
+        recipe_history=recipe_history,
+        input_config=input_config,
+        simulation_config=simulation_config,
     )
     folds = combinatorial_purged_folds(
         dates,

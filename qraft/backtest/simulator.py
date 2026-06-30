@@ -14,13 +14,30 @@ from qraft.backtest.execution import (
     BacktestWarning,
     execute_frictionless,
 )
-from qraft.backtest.inputs import ForecastInputsProvider, PolicyInputsProvider
+from qraft.backtest.inputs import (
+    PolicyInputRequirements,
+    PolicyInputsProvider,
+    policy_risk_source,
+)
 from qraft.backtest.market import MarketData
-from qraft.backtest.schedule import RebalanceSchedule
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.core.schedule import RebalanceSchedule
+from qraft.construction.inputs import (
+    build_policy_input_table_from_forecast_run,
+    forecast_policy_input_table,
+)
+from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
 from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
+from qraft.core.configs import (
+    DEFAULT_FORECAST_PROVIDER_CONFIG,
+    DEFAULT_PIPELINE_CONFIG,
+    DEFAULT_SIMULATION_CONFIG,
+    ForecastProviderConfig,
+    PipelineConfig,
+    SimulationForecastConfig,
+)
+from qraft.forecast.run import ForecastRecipeHistory, simulate_forecast_paths
 from qraft.core.snapshot import MarketSnapshot
 
 logger = logging.getLogger(__name__)
@@ -248,14 +265,74 @@ def precompute_inputs(
     ``step_size`` and ``schedule``; any input-layer change needs its own table.
     """
     points = decision_points(market, schedule, warmup, step_size=step_size)
-    if isinstance(provider, ForecastInputsProvider):
-        table = provider.build(point.snapshot for point in points)
-    else:
-        table = {
-            point.decision_bar: provider.for_date(point.snapshot, point.index)
-            for point in points
-        }
+    table = {
+        point.decision_bar: provider.for_date(point.snapshot, point.index)
+        for point in points
+    }
     logger.info("precompute_inputs: cached %d decision date(s)", len(table))
+    return table
+
+
+def precompute_forecast_inputs(
+    market: MarketData,
+    schedule: RebalanceSchedule,
+    input_config: PolicyInputConfig,
+    warmup: int,
+    *,
+    policy: PolicyInputRequirements | None = None,
+    provider_config: ForecastProviderConfig = DEFAULT_FORECAST_PROVIDER_CONFIG,
+    pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
+    simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
+    dtype: type = np.float64,
+    step_size: int = 1,
+) -> dict[datetime, PolicyInputs]:
+    """Forecast once for the decision schedule, then freeze inputs by date."""
+    points = decision_points(market, schedule, warmup, step_size=step_size)
+    table = forecast_policy_input_table(
+        (point.snapshot for point in points),
+        input_config=input_config,
+        risk_source=policy_risk_source(input_config, policy),
+        provider_config=provider_config,
+        pipeline_config=pipeline_config,
+        simulation_config=simulation_config,
+        dtype=dtype,
+    )
+    logger.info("precompute_forecast_inputs: cached %d decision date(s)", len(table))
+    return table
+
+
+def precompute_inputs_from_recipe_history(
+    market: MarketData,
+    schedule: RebalanceSchedule,
+    input_config: PolicyInputConfig,
+    recipe_history: ForecastRecipeHistory,
+    warmup: int,
+    *,
+    policy: PolicyInputRequirements | None = None,
+    simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
+    dtype: type = np.float64,
+    step_size: int = 1,
+) -> dict[datetime, PolicyInputs]:
+    """Simulate forecasts from fixed recipes, then freeze policy inputs by date."""
+    points = decision_points(market, schedule, warmup, step_size=step_size)
+    run = simulate_forecast_paths(
+        market,
+        recipe_history,
+        min_history=warmup,
+        forecast_cadence=schedule.cadence,
+        simulation_config=simulation_config,
+    )
+    table = build_policy_input_table_from_forecast_run(
+        (point.snapshot for point in points),
+        run,
+        input_config=input_config,
+        risk_source=policy_risk_source(input_config, policy),
+        dtype=dtype,
+    )
+    logger.info(
+        "precompute_inputs_from_recipe_history: cached %d decision date(s)",
+        len(table),
+    )
     return table
 
 

@@ -13,10 +13,10 @@ from qraft import (
     ScenarioPanel,
     setup_logging,
 )
-from qraft.backtest.inputs import ForecastInputsProvider
+from qraft.backtest.inputs import PrecomputedInputsProvider
 from qraft.backtest.market import MarketData, WindowWeighting
-from qraft.backtest.schedule import RebalanceSchedule
-from qraft.backtest.simulator import run_backtest
+from qraft.core.schedule import RebalanceSchedule
+from qraft.backtest.simulator import precompute_forecast_inputs, run_backtest
 from qraft.construction import (
     FullyInvested,
     LongOnly,
@@ -110,12 +110,17 @@ policy = MPOPolicy.preset(
     min_history=504,
 )
 
-forecast_provider = ForecastInputsProvider(
-    input_config=PolicyInputConfig(
-        cash_path="data/cash.csv",
-        expected_returns="forecast",
-        risk="both",
-    ),
+input_config = PolicyInputConfig(
+    cash_path="data/cash.csv",
+    expected_returns="forecast",
+    risk="both",
+)
+schedule = RebalanceSchedule("year_end")
+input_table = precompute_forecast_inputs(
+    mkt_dt,
+    schedule,
+    input_config,
+    warmup=policy.min_history,
     simulation_config=SimulationForecastConfig(
         horizon=15, method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
     ),
@@ -126,8 +131,8 @@ forecast_provider = ForecastInputsProvider(
 result = run_backtest(
     mkt_dt,
     policy,
-    inputs=forecast_provider,
-    schedule=RebalanceSchedule("year_end"),
+    inputs=PrecomputedInputsProvider(input_table),
+    schedule=schedule,
 )
 
 # %%

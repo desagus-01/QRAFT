@@ -13,9 +13,8 @@ from qraft import (
     profile,
     setup_logging,
 )
-from qraft.backtest.inputs import ForecastInputsProvider
+from qraft.backtest.configs import BacktestConfig, CombinatorialCVConfig, CVConfig
 from qraft.backtest.market import MarketData, WindowWeighting
-from qraft.backtest.schedule import RebalanceSchedule
 from qraft.backtest.selection import combinatorial_purged
 from qraft.construction import (
     FullyInvested,
@@ -25,13 +24,9 @@ from qraft.construction import (
     TurnoverLimit,
 )
 from qraft.construction.optimization.moments import PolicyInputConfig
-from qraft.core.configs import (
-    BacktestConfig,
-    CombinatorialCVConfig,
-    CVConfig,
-    ForecastProviderConfig,
-    SimulationForecastConfig,
-)
+from qraft.core.configs import SimulationForecastConfig
+from qraft.core.schedule import RebalanceSchedule
+from qraft.forecast.run import build_forecast_recipe_history
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
@@ -58,7 +53,7 @@ cols_to_keep = [
 ]
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:90])
+tradable_assets = list(data.columns[10:20])
 universe = AssetUniverse(assets=tradable_assets, factors=list(factors_cols))
 data = data.select("date", *universe.all_tickers)
 
@@ -94,20 +89,15 @@ grid = {
     # "transaction_cost_weight": [0.5, 1.0],
 }
 
-forecast_provider = ForecastInputsProvider(
-    input_config=PolicyInputConfig(
-        cash_path="data/cash.csv",
-        expected_returns="forecast",
-    ),
-    policy=base_policy,
-    simulation_config=SimulationForecastConfig(
-        horizon=10,
-        method="cma",
-        n_sims=10_000,
-        cma_config=CMAConfig(target_copula="t"),
-    ),
+input_config = PolicyInputConfig(
+    cash_path="data/cash.csv",
+    expected_returns="forecast",
+)
+recipe_history = build_forecast_recipe_history(
+    market,
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
-    provider_config=ForecastProviderConfig(refit_every=5),
+    min_history=base_policy.min_history,
+    refit_every=350,
 )
 
 # %%
@@ -116,7 +106,14 @@ with profile():
         market,
         base_policy,
         grid,
-        forecast_provider,
+        recipe_history=recipe_history,
+        input_config=input_config,
+        simulation_config=SimulationForecastConfig(
+            horizon=10,
+            method="cma",
+            n_sims=10_000,
+            cma_config=CMAConfig(target_copula="t"),
+        ),
         cv_config=CombinatorialCVConfig(
             cv_config=CVConfig(),
         ),
