@@ -48,6 +48,7 @@ def _garch_result(
     model: ARCHModelResult,
     *,
     model_order: tuple[int, int, int],
+    distribution: GARCH_DISTRIBUTIONS,
     admissible: bool,
     persistence: float,
     fallback_reason: str | None = None,
@@ -55,6 +56,7 @@ def _garch_result(
     params = _descale_garch_params(model.params.to_dict())  # type: ignore[attr-defined]
     return AutoGARCHRes(
         model_order=model_order,
+        distribution=distribution,
         degrees_of_freedom=len(model.params),
         criteria="bic",
         criteria_res=model.bic,
@@ -155,6 +157,7 @@ def fit_garch(
     return _garch_result(
         proposed_model,
         model_order=order,
+        distribution=distribution,
         persistence=persistence,
         admissible=True,
     )
@@ -204,6 +207,7 @@ def auto_garch(
     base_res = _garch_result(
         base_model,
         model_order=(1, 0, 1),
+        distribution="t",
         persistence=base_persistence,
         admissible=base_admissible,
         fallback_reason=None

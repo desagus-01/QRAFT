@@ -45,7 +45,7 @@ data, factors_cols = import_tickers_and_factors(
 )
 cash = pl.read_csv("data/cash.csv", try_parse_dates=True)
 
-min_price = 15
+min_price = 10
 cols_to_keep = [
     col
     for col in data.columns
@@ -58,7 +58,7 @@ cols_to_keep = [
 ]
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:90])
 universe = AssetUniverse(assets=tradable_assets, factors=list(factors_cols))
 data = data.select("date", *universe.all_tickers)
 
@@ -75,7 +75,7 @@ constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(constraint_type="soft", soft_weight=1.0),
     MinCashWeight(limit=0.25),
-    TurnoverLimit(limit=0.15, constraint_type="soft", soft_weight=1.0),
+    TurnoverLimit(limit=0.15, constraint_type="soft", soft_weight=2.0),
 ]
 
 base_policy = MPOPolicy.preset(
@@ -87,7 +87,7 @@ base_policy = MPOPolicy.preset(
 
 risk_aversion_values = [0, *np.logspace(-2, 2, 9)]
 risk_aversion_values = [1, 5, 10, 15]
-risk_aversion_values = [1, 5]
+# risk_aversion_values = [1, 5]
 
 grid = {
     "risk_aversion": risk_aversion_values

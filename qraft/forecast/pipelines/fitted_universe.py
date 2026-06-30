@@ -20,9 +20,11 @@ from qraft.forecast.pipelines.preprocess import run_univariate_preprocess
 from qraft.forecast.simulation.simulate_paths import simulate_asset_paths
 from qraft.forecast.simulation.state import SimulationForecast
 from qraft.forecast.time_series.models.fitted_types import (
+    GARCH_DISTRIBUTIONS,
     RandomWalkRes,
     UnivariateRes,
 )
+from qraft.forecast.time_series.models.model_quality import ModelQuality
 from qraft.forecast.time_series.models.mean import fit_arma
 from qraft.forecast.time_series.models.volatility import fit_garch
 from qraft.forecast.time_series.preprocessing.apply import (
@@ -50,6 +52,11 @@ class ForecastRecipe:
     needs_modelling: list[str]
     mean_orders: dict[str, tuple[int, int] | None]
     vol_orders: dict[str, tuple[int, int, int] | None]
+    mean_fallback_identity: dict[str, str | None]
+    vol_distributions: dict[str, GARCH_DISTRIBUTIONS | None]
+    quality: dict[str, ModelQuality | None]
+    admissible: dict[str, bool | None]
+    fallback_reason: dict[str, str | None]
     survivors: list[str]
 
 
@@ -195,6 +202,23 @@ class FittedUniverse:
                 a: getattr(m.volatility_res, "model_order", None)
                 for a, m in self.models.items()
             },
+            mean_fallback_identity={
+                a: m.mean_res.kind if m.mean_res is not None else None
+                for a, m in self.models.items()
+            },
+            vol_distributions={
+                a: getattr(m.volatility_res, "distribution", None)
+                for a, m in self.models.items()
+            },
+            quality={a: m.quality for a, m in self.models.items()},
+            admissible={
+                a: getattr(m.volatility_res, "admissible", None)
+                for a, m in self.models.items()
+            },
+            fallback_reason={
+                a: getattr(m.volatility_res, "fallback_reason", None)
+                for a, m in self.models.items()
+            },
             survivors=list(self.assets),
         )
 
@@ -242,10 +266,19 @@ def fit_with_orders(
             mean_res = _demean_fallback(arr)
         vol_order = recipe.vol_orders[a]
         if vol_order is not None and mean_res is not None:
-            vol_res = fit_garch(mean_res.residuals, vol_order, "t", cfg.volatility)
+            distribution = recipe.vol_distributions[a]
+            if distribution is None:
+                raise ValueError(f"Asset={a} recipe is missing GARCH distribution")
+            vol_res = fit_garch(
+                mean_res.residuals, vol_order, distribution, cfg.volatility
+            )
         else:
             vol_res = None
-        out[a] = UnivariateRes(mean_res=mean_res, volatility_res=vol_res, quality=None)
+        out[a] = UnivariateRes(
+            mean_res=mean_res,
+            volatility_res=vol_res,
+            quality=recipe.quality.get(a),
+        )
     return out
 
 

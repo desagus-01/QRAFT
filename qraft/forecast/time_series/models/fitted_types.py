@@ -19,6 +19,7 @@ GARCH_DISTRIBUTIONS = Literal["t", "normal", "skewt"]
 
 class AutoGARCHRes(NamedTuple):
     model_order: tuple[int, int, int]
+    distribution: GARCH_DISTRIBUTIONS
     degrees_of_freedom: int
     criteria: Literal["aic", "bic"]
     criteria_res: float

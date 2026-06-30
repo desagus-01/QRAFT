@@ -22,6 +22,7 @@ from qraft.forecast.time_series.models.fitted_types import (
     DemeanRes,
     UnivariateRes,
 )
+from qraft.forecast.time_series.models.model_quality import ModelQuality
 from qraft.forecast.time_series.preprocessing.types import (
     TransformDecision,
     UnivariatePreprocess,
@@ -84,6 +85,11 @@ def test_fit_with_orders_demean_fallback() -> None:
         needs_modelling=["A"],
         mean_orders={"A": None},
         vol_orders={"A": None},
+        mean_fallback_identity={"A": "demean"},
+        vol_distributions={"A": None},
+        quality={"A": None},
+        admissible={"A": None},
+        fallback_reason={"A": None},
         survivors=["A"],
     )
     cfg = PipelineConfig()
@@ -117,6 +123,11 @@ def test_fit_with_orders_arma() -> None:
         needs_modelling=["A"],
         mean_orders={"A": (1, 0)},
         vol_orders={"A": None},
+        mean_fallback_identity={"A": "arma"},
+        vol_distributions={"A": None},
+        quality={"A": None},
+        admissible={"A": None},
+        fallback_reason={"A": None},
         survivors=["A"],
     )
     cfg = PipelineConfig()
@@ -148,6 +159,11 @@ def test_fit_with_orders_arma_and_garch(tmp_path: pytest.TempPathFactory) -> Non
         needs_modelling=["A"],
         mean_orders={"A": (1, 0)},
         vol_orders={"A": (1, 0, 1)},
+        mean_fallback_identity={"A": "arma"},
+        vol_distributions={"A": "t"},
+        quality={"A": None},
+        admissible={"A": None},
+        fallback_reason={"A": None},
         survivors=["A"],
     )
     cfg = PipelineConfig()
@@ -176,6 +192,11 @@ def test_fit_with_orders_multiple_assets() -> None:
         needs_modelling=["A", "B"],
         mean_orders={"A": None, "B": None},
         vol_orders={"A": None, "B": None},
+        mean_fallback_identity={"A": "demean", "B": "demean"},
+        vol_distributions={"A": None, "B": None},
+        quality={"A": None, "B": None},
+        admissible={"A": None, "B": None},
+        fallback_reason={"A": None, "B": None},
         survivors=["A", "B"],
     )
     cfg = PipelineConfig()
@@ -210,6 +231,11 @@ def test_recondition_returns_fitted_universe() -> None:
         needs_modelling=["A"],
         mean_orders={"A": None},
         vol_orders={"A": None},
+        mean_fallback_identity={"A": "demean"},
+        vol_distributions={"A": None},
+        quality={"A": None},
+        admissible={"A": None},
+        fallback_reason={"A": None},
         survivors=["A"],
     )
     cfg = PipelineConfig()
@@ -250,6 +276,11 @@ def test_recondition_recipe_round_trip() -> None:
         needs_modelling=["A"],
         mean_orders={"A": None},
         vol_orders={"A": None},
+        mean_fallback_identity={"A": "demean"},
+        vol_distributions={"A": None},
+        quality={"A": None},
+        admissible={"A": None},
+        fallback_reason={"A": None},
         survivors=["A"],
     )
 
@@ -261,6 +292,35 @@ def test_recondition_recipe_round_trip() -> None:
     assert round_tripped.deseason == recipe.deseason
     assert round_tripped.mean_orders == recipe.mean_orders
     assert round_tripped.vol_orders == recipe.vol_orders
+    assert round_tripped.vol_distributions == recipe.vol_distributions
+    assert round_tripped.quality == recipe.quality
+
+
+def test_fit_with_orders_preserves_recipe_quality() -> None:
+    rng = np.random.default_rng(42)
+    y = rng.normal(0.2, 1.0, 30)
+    quality = ModelQuality(
+        score=80.0, grade="B", reason_codes=("MEAN_FALLBACK_DEMEAN",)
+    )
+
+    data = _post_data({"A": y})
+    recipe = ForecastRecipe(
+        detrend={},
+        deseason={},
+        needs_modelling=["A"],
+        mean_orders={"A": None},
+        vol_orders={"A": None},
+        mean_fallback_identity={"A": "demean"},
+        vol_distributions={"A": None},
+        quality={"A": quality},
+        admissible={"A": None},
+        fallback_reason={"A": "forced_demean"},
+        survivors=["A"],
+    )
+
+    result = fit_with_orders(data, recipe, PipelineConfig())
+
+    assert result["A"].quality == quality
 
 
 # ---------------------------------------------------------------------------
@@ -312,6 +372,16 @@ def test_recondition_parity_with_fit() -> None:
         if f_res.mean_res is not None:
             np.testing.assert_allclose(
                 f_res.mean_res.residuals, r_res.mean_res.residuals, atol=1e-12
+            )
+        if f_res.volatility_res is not None:
+            assert r_res.volatility_res is not None
+            assert (
+                f_res.volatility_res.distribution == r_res.volatility_res.distribution
+            )
+            np.testing.assert_allclose(
+                f_res.volatility_res.invariants,
+                r_res.volatility_res.invariants,
+                atol=1e-12,
             )
 
     np.testing.assert_array_equal(
