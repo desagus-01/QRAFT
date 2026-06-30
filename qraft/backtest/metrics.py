@@ -6,6 +6,7 @@ import numpy as np
 
 from qraft.backtest.execution import BacktestResult
 from qraft.core import metrics
+from qraft.core.cadence import infer_periods_per_year
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,7 +32,7 @@ class PerformanceSummary:
         cls,
         result: BacktestResult,
         *,
-        periods_per_year: float = 252.0,
+        periods_per_year: float | None = None,
         risk_free_rate: float = 0.0,
         active_only: bool = True,
     ) -> PerformanceSummary:
@@ -40,6 +41,13 @@ class PerformanceSummary:
             start = result.nav_dates.index(result.periods[0].execution_bar)
             nav = nav[start:]
         rets = metrics.returns_from_nav(nav)
+        resolved_periods_per_year = periods_per_year or result.periods_per_year
+        if resolved_periods_per_year is None and len(result.nav_dates) >= 2:
+            resolved_periods_per_year = infer_periods_per_year(result.nav_dates)
+        if resolved_periods_per_year is None:
+            raise ValueError(
+                "periods_per_year is required when result does not carry it."
+            )
         failures = sum(
             1
             for p in result.periods
@@ -47,16 +55,20 @@ class PerformanceSummary:
         )
         return cls(
             total_return=float(nav[-1] / nav[0] - 1.0) if nav.size else 0.0,
-            annualised_return=metrics.annualised_return(nav, periods_per_year),
-            annualised_vol=metrics.annualised_vol(rets, periods_per_year),
+            annualised_return=metrics.annualised_return(nav, resolved_periods_per_year),
+            annualised_vol=metrics.annualised_vol(rets, resolved_periods_per_year),
             sharpe=metrics.sharpe(
-                rets, risk_free_rate / periods_per_year, periods_per_year
+                rets,
+                risk_free_rate / resolved_periods_per_year,
+                resolved_periods_per_year,
             ),
             sortino=metrics.sortino(
-                rets, risk_free_rate / periods_per_year, periods_per_year
+                rets,
+                risk_free_rate / resolved_periods_per_year,
+                resolved_periods_per_year,
             ),
             max_drawdown=metrics.max_drawdown(nav),
-            calmar=metrics.calmar(nav, periods_per_year),
+            calmar=metrics.calmar(nav, resolved_periods_per_year),
             cvar=float(
                 metrics.cvar(rets, prob=None, alpha=0.05, distribution_type="pnl")
             )

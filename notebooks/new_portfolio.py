@@ -130,7 +130,6 @@ policy_inputs = PolicyInputs.from_policy_sources(
     expected_returns="forecast",
     history=posterior_panel,
     risk="both",
-    expectation_tolerance=0.2,
 )
 
 policy_inputs.mean_frame

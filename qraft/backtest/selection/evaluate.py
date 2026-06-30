@@ -30,7 +30,7 @@ def evaluate_candidates(
     schedule: RebalanceSchedule = RebalanceSchedule(),
     step_size: int = 1,
     initial_cash: float = 100.0,
-    periods_per_year: float = 252.0,
+    periods_per_year: float | None = None,
     risk_free_rate: float = 0.0,
 ) -> tuple[CandidateResult, ...]:
     """Backtest each candidate against a SHARED inputs provider and score it.
@@ -84,7 +84,7 @@ def run_selection_window(
     schedule: RebalanceSchedule = RebalanceSchedule(),
     step_size: int = 1,
     initial_cash: float = 100.0,
-    periods_per_year: float = 252.0,
+    periods_per_year: float | None = None,
     risk_free_rate: float = 0.0,
 ) -> tuple[CandidateResult, ...]:
     """Expand candidates, precompute moments ONCE, then evaluate them all."""

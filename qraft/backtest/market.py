@@ -7,6 +7,7 @@ import polars as pl
 from numpy.typing import NDArray
 
 from qraft.construction.market_snapshot import MarketSnapshot
+from qraft.core.cadence import resolve_periods_per_year
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.distributions import state_smooth_probs, uniform_probs
 from qraft.core.probability.prob_vector import ProbVector
@@ -21,7 +22,7 @@ DateLike = datetime | str
 @dataclass(frozen=True, slots=True)
 class MarketDataConfig:
     cash_column: str = "DFF"
-    periods_per_year: int = 252
+    periods_per_year: float | None = None
     cash_day_count: int = 360  # ACT/360 fed-funds accrual
 
 
@@ -97,12 +98,19 @@ class MarketData:
         cash_sorted = (
             cls._normalize_date_column(cash).sort("date") if cash is not None else None
         )
+        resolved_config = MarketDataConfig(
+            cash_column=config.cash_column,
+            periods_per_year=resolve_periods_per_year(
+                frame.get_column("date").to_list(), config.periods_per_year
+            ),
+            cash_day_count=config.cash_day_count,
+        )
         return cls(
             frame=frame,
             price_kind=price_kind,
             universe=universe,
             cash=cash_sorted,
-            config=config,
+            config=resolved_config,
             weighting=weighting,
         )
 

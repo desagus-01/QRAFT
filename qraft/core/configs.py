@@ -169,12 +169,12 @@ class BacktestConfig:
 
     schedule: RebalanceSchedule = field(default_factory=RebalanceSchedule)
     initial_cash: float = 100.0
-    periods_per_year: float = 252.0
+    periods_per_year: float | None = None
 
     def __post_init__(self) -> None:
         if self.initial_cash <= 0:
             raise ValueError("initial_cash must be > 0")
-        if self.periods_per_year <= 0:
+        if self.periods_per_year is not None and self.periods_per_year <= 0:
             raise ValueError("periods_per_year must be > 0")
 
 

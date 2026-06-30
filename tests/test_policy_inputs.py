@@ -100,6 +100,8 @@ def test_policy_inputs_from_policy_sources_covariance_risk_only(tmp_path) -> Non
         expected_returns="forecast",
         risk="covariance",
         expectation_tolerance=None,
+        periods_per_year=252,
+        as_of=datetime(2024, 1, 3),
     )
 
     assert inputs.scenario_returns is None

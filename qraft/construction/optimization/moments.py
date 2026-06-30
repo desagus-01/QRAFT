@@ -23,6 +23,14 @@ RiskSource = Literal["covariance", "cvar", "both"]
 
 
 @dataclass(frozen=True, slots=True)
+class DroppedAsset:
+    asset: str
+    horizons: tuple[int, ...]
+    values: tuple[float, ...]
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class RequiredPolicyInputs:
     covariances: bool = False
     scenarios: bool = False
@@ -138,6 +146,7 @@ class PolicyInputs:
     scenario_probs: ProbVector | None = None
     cash_return: NDArray[np.floating] | None = None
     cov_factor: NDArray[np.floating] | None = None
+    dropped_assets: tuple[DroppedAsset, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.assets:
@@ -274,22 +283,21 @@ class PolicyInputs:
     def get_cash_return(
         path: str,
         step_size: int,
-        periods_per_year: int = 252,
+        periods_per_year: float,
         *,
-        as_of: datetime | None = None,
+        as_of: datetime,
     ) -> NDArray[np.floating]:
         cash_return = pl.read_csv(path, try_parse_dates=True)
-        if as_of is not None:
-            cash_return = cash_return.filter(pl.col("date") <= as_of)
-            if cash_return.height == 0:
-                raise ValueError(f"No cash rate available on or before {as_of!r}.")
+        cash_return = cash_return.filter(pl.col("date") <= as_of)
+        if cash_return.height == 0:
+            raise ValueError(f"No cash rate available on or before {as_of!r}.")
         annual_rate = (
             cash_return.filter(pl.col("date") == pl.col("date").max())
             .drop("date")
             .to_numpy()
             .ravel()
         ) / 100
-        # Convert: (1 + r_annual)^(step/252) - 1
+        # Convert annual cash yield to this panel's per-step cadence.
         return (1.0 + annual_rate) ** (step_size / periods_per_year) - 1.0
 
     @property
@@ -382,6 +390,7 @@ class PolicyInputs:
         NDArray[np.floating] | None,
         NDArray[np.floating] | None,
         NDArray[np.floating] | None,
+        tuple[DroppedAsset, ...],
     ]:
         if expectation_tolerance is None:
             return (
@@ -391,6 +400,7 @@ class PolicyInputs:
                 correlations,
                 scenario_returns,
                 cov_factor,
+                (),
             )
 
         if expectation_tolerance < 0:
@@ -411,10 +421,12 @@ class PolicyInputs:
                 correlations,
                 scenario_returns,
                 cov_factor,
+                (),
             )
 
         keep_idx = np.where(~drop_mask)[0]
         drop_idx = np.where(drop_mask)[0]
+        dropped_assets: list[DroppedAsset] = []
 
         if len(keep_idx) == 0:
             raise ValueError(
@@ -427,6 +439,14 @@ class PolicyInputs:
             bad_horizons = np.where(breached[:, asset_idx])[0]
             offending_values = ", ".join(
                 f"horizon {h + 1}: mean={mean[h, asset_idx]:.6e}" for h in bad_horizons
+            )
+            dropped_assets.append(
+                DroppedAsset(
+                    asset=asset,
+                    horizons=tuple(int(h + 1) for h in bad_horizons),
+                    values=tuple(float(mean[h, asset_idx]) for h in bad_horizons),
+                    reason="expectation_tolerance",
+                )
             )
             logger.warning(
                 "Dropping asset %s because expected return breached ±%.6e. "
@@ -452,6 +472,7 @@ class PolicyInputs:
             cls._filter_by_asset_indices(correlations, keep_idx, kind="cube"),
             cls._filter_by_asset_indices(scenario_returns, keep_idx, kind="scenarios"),
             cls._filter_by_asset_indices(cov_factor, keep_idx, kind="cube"),
+            tuple(dropped_assets),
         )
 
     @staticmethod
@@ -493,10 +514,10 @@ class PolicyInputs:
         max_horizons: int | None = None,
         subset: AssetSubset = "tradable",
         pnl_type: PnL_OPTIONS = "relative",
-        expectation_tolerance: float | None = 1.0,
+        expectation_tolerance: float | None = None,
         mean_decay: float = 1.0,
         step_size: int = 1,
-        periods_per_year: int = 252,
+        periods_per_year: float | None = None,
         as_of: datetime | None = None,
     ) -> "PolicyInputs":
         """
@@ -514,6 +535,18 @@ class PolicyInputs:
             raise ValueError("risk must be one of 'covariance', 'cvar', or 'both'.")
         if expected_returns == "historical" and history is None:
             raise ValueError("history is required when expected_returns='historical'.")
+        if periods_per_year is None:
+            if history is None:
+                raise ValueError(
+                    "periods_per_year is required when history is unavailable."
+                )
+            from qraft.core.cadence import infer_periods_per_year
+
+            periods_per_year = infer_periods_per_year(history.dates.to_list())
+        if as_of is None:
+            if history is None:
+                raise ValueError("as_of is required when history is unavailable.")
+            as_of = history.dates[-1]
 
         pnl_by_asset = incremental_returns_from_forecast_paths(
             forecast_paths=forecasts,
@@ -570,6 +603,7 @@ class PolicyInputs:
             correlations,
             scenario_returns,
             cov_factor,
+            dropped_assets,
         ) = cls._filter_policy_fields_by_expectation_tolerance(
             assets=assets,
             mean=mean,
@@ -594,6 +628,7 @@ class PolicyInputs:
                 as_of=as_of,
             ),
             cov_factor=cov_factor,
+            dropped_assets=dropped_assets,
         )
 
     @classmethod
@@ -608,6 +643,7 @@ class PolicyInputs:
         scenario_probs: ProbVector | None = None,
         cash_return: NDArray[np.floating] | float | None = None,
         cov_factor: NDArray[np.floating] | None = None,
+        dropped_assets: tuple[DroppedAsset, ...] = (),
     ) -> "PolicyInputs":
         cash_array = (
             None if cash_return is None else np.asarray(cash_return, dtype=float)
@@ -625,6 +661,7 @@ class PolicyInputs:
             scenario_probs=scenario_probs,
             cash_return=cash_array,
             cov_factor=cov_factor,
+            dropped_assets=dropped_assets,
         )
 
 
@@ -636,7 +673,7 @@ class PolicyInputConfig:
     max_horizons: int | None = None
     subset: AssetSubset = "tradable"
     pnl_type: PnL_OPTIONS = "relative"
-    expectation_tolerance: float | None = 1.0
+    expectation_tolerance: float | None = None
     mean_decay: float = 1.0
     step_size: int = 1
-    periods_per_year: int = 252
+    periods_per_year: float | None = None

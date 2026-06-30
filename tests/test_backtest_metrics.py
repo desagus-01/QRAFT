@@ -20,6 +20,7 @@ def _result(nav: list[float], periods: list[object] | None = None) -> BacktestRe
         nav_dates=[datetime(2024, 1, i + 1) for i in range(len(nav))],
         nav=np.array(nav, dtype=float),
         periods=periods or [],
+        periods_per_year=252.0,
     )
 
 
@@ -87,4 +88,4 @@ def test_performance_summary_degenerate_nav_does_not_raise_or_emit_nan(
 
     assert values["annualised_vol"] == 0.0
     assert values["sharpe"] == 0.0
-    assert np.isnan(values["cvar"]) if len(nav) == 1 else np.isfinite(values["cvar"])
+    assert np.isfinite(values["cvar"])

@@ -174,6 +174,11 @@ def _fill_decision(
     )
     trade_cost = costs.trade_charge(executed, prices, nav_pre, sigma=sigma)
     cash = _charge(cash, trade_cost, nav_pre, "trade cost", bar)
+    diagnostics = getattr(decision, "diagnostics", None)
+    dropped_assets = tuple(
+        getattr(drop, "asset", str(drop))
+        for drop in getattr(diagnostics, "dropped_assets", ())
+    )
     return (
         shares,
         cash,
@@ -187,6 +192,7 @@ def _fill_decision(
             solver_status=status,
             cost=trade_cost,
             decision_error=error_msg,
+            dropped_assets=dropped_assets,
         ),
     )
 
@@ -329,4 +335,5 @@ def run_backtest(
         periods=periods,
         warnings_log=warnings_log,
         holding_costs=np.array(holding_costs, dtype=float),
+        periods_per_year=market.config.periods_per_year,
     )

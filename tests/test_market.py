@@ -75,7 +75,7 @@ def test_market_snapshot_dataclass() -> None:
 def test_market_data_config_defaults() -> None:
     cfg = MarketDataConfig()
     assert cfg.cash_column == "DFF"
-    assert cfg.periods_per_year == 252
+    assert cfg.periods_per_year is None
     assert cfg.cash_day_count == 360
 
 
@@ -235,8 +235,7 @@ def test_cash_rate_asof_returns_per_step_return() -> None:
     md = _market_data()
     rate = md.cash_rate_asof(datetime(2024, 1, 2))
     # latest known at 2024-01-02: 5.25% / 100 = 0.0525 annual
-    # per-step = (1.0525)^(1/252) - 1
-    expected = (1.0525) ** (1.0 / 252) - 1.0
+    expected = (1.0525) ** (1.0 / md.config.periods_per_year) - 1.0
     assert rate == pytest.approx(expected)
 
 
@@ -250,7 +249,7 @@ def test_cash_rate_asof_with_step_size() -> None:
     md = _market_data()
     one_step = md.cash_rate_asof(datetime(2024, 1, 2), step_size=1)
     five_step = md.cash_rate_asof(datetime(2024, 1, 2), step_size=5)
-    expected_five = (1.0525) ** (5.0 / 252) - 1.0
+    expected_five = (1.0525) ** (5.0 / md.config.periods_per_year) - 1.0
     assert five_step == pytest.approx(expected_five)
     assert five_step > one_step
 
@@ -337,7 +336,9 @@ def test_log_price_frame_converted_to_price_output() -> None:
             "B": [np.log(30.0)],
         }
     )
-    md = MarketData.from_log_prices(df, _universe())
+    md = MarketData.from_log_prices(
+        df, _universe(), config=MarketDataConfig(periods_per_year=252)
+    )
     np.testing.assert_allclose(md.prices_at(datetime(2024, 1, 1)), [15.0, 30.0])
 
 
@@ -353,7 +354,9 @@ def test_from_prices_accepts_string_date_columns() -> None:
     md = MarketData.from_prices(df, _universe(), cash=cash)
     assert md.trading_bars == [datetime(2024, 1, 1), datetime(2024, 1, 2)]
     np.testing.assert_allclose(md.prices_at("2024-01-02"), [11.0, 22.0])
-    assert md.cash_rate_asof("2024-01-02") == pytest.approx((1.05) ** (1.0 / 252) - 1.0)
+    assert md.cash_rate_asof("2024-01-02") == pytest.approx(
+        (1.05) ** (1.0 / md.config.periods_per_year) - 1.0
+    )
 
 
 def test_cash_rate_asof_uses_latest_rate_before_t() -> None:
@@ -366,7 +369,7 @@ def test_cash_rate_asof_uses_latest_rate_before_t() -> None:
     md = MarketData.from_prices(_price_frame(), _universe(), cash=df)
     # At t=2024-01-03, latest rate <= t is 5.0 (from 2024-01-01)
     assert md.cash_rate_asof(datetime(2024, 1, 3)) == pytest.approx(
-        (1.05) ** (1.0 / 252) - 1.0
+        (1.05) ** (1.0 / md.config.periods_per_year) - 1.0
     )
 
 

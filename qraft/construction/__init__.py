@@ -14,6 +14,7 @@ __all__ = [
     "SolverStatus",
     "PolicyInputs",
     "PolicyInputConfig",
+    "DroppedAsset",
     "PnL_OPTIONS",
     "ExpectedReturnSource",
     "RiskSource",
@@ -54,6 +55,7 @@ from qraft.construction.optimization.constraints import (  # noqa: F401
 )
 from qraft.construction.optimization.moments import (  # noqa: F401
     ExpectedReturnSource,
+    DroppedAsset,
     PnL_OPTIONS,
     PolicyInputConfig,
     PolicyInputs,

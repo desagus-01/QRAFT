@@ -22,6 +22,7 @@ class BacktestPeriod:
     cost: float = 0.0
     forecasts: ForecastPaths | None = None
     decision_error: str | None = None
+    dropped_assets: tuple[str, ...] = ()
 
 
 BacktestWarning = dict[str, Any]
@@ -38,6 +39,7 @@ class BacktestResult:
     holding_costs: NDArray[np.floating] = field(
         default_factory=lambda: np.array([], dtype=float)
     )
+    periods_per_year: float | None = None
 
     def window(self, start: datetime, end: datetime) -> "BacktestResult":
         """Return a sub-result over the inclusive date range ``[start, end]``."""
@@ -64,6 +66,13 @@ class BacktestResult:
             periods=periods,
             warnings_log=warnings,
             holding_costs=holding,
+            periods_per_year=self.periods_per_year,
+        )
+
+    @property
+    def dropped_assets(self) -> tuple[str, ...]:
+        return tuple(
+            sorted({asset for p in self.periods for asset in p.dropped_assets})
         )
 
     @property
