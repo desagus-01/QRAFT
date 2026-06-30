@@ -24,8 +24,8 @@ from qraft.forecast.time_series.models.fitted_types import (
     RandomWalkRes,
     UnivariateRes,
 )
-from qraft.forecast.time_series.models.model_quality import ModelQuality
 from qraft.forecast.time_series.models.mean import fit_arma
+from qraft.forecast.time_series.models.model_quality import ModelQuality
 from qraft.forecast.time_series.models.volatility import fit_garch
 from qraft.forecast.time_series.preprocessing.apply import (
     apply_deseason,
@@ -83,77 +83,43 @@ class FittedUniverse:
         pipeline_config: PipelineConfig,
         seed: int | None = None,
     ) -> FittedUniverse:
-        """Run preprocess + model selection and assemble the invariants panel."""
-        all_tickers = universe.all_tickers
-        preprocess = run_univariate_preprocess(
-            data=data,
-            prob=prob,
-            assets=all_tickers,
-            preprocess_config=pipeline_config.preprocess,
-            seed=seed,
+        """Select a forecast recipe, then apply it on the same window."""
+        recipe = create_forecast_recipe(
+            data, prob, universe, pipeline_config, seed=seed
         )
-        logger.info(
-            "Preprocessing complete: post_data_shape=%s assets_to_model=%s",
-            preprocess.post_data.shape,
-            preprocess.needs_further_modelling,
-        )
+        return apply_forecast_recipe(recipe, data, prob, pipeline_config)
 
-        models = run_univariate_pipeline(
-            data=preprocess.post_data,
-            assets_to_model=preprocess.needs_further_modelling,
-            pipeline_config=pipeline_config,
-        )
-        logger.info(
-            "Univariate model selection complete for %d assets",
-            len(preprocess.needs_further_modelling),
-        )
-
-        simulation_forecasts = _build_simulation_forecasts(
-            data=preprocess.post_data,
-            models=models,
-            assets=all_tickers,
-            variance_cap_factor=pipeline_config.volatility.variance_cap_factor,
-        )
-
-        invariants = _build_invariants_panel(
-            post=preprocess.post_data,
-            models=models,
-            assets=all_tickers,
-            prob=prob,
-        )
-        if pipeline_config.exclude_non_invariants:
-            invariants = _remove_non_invariants(
-                invariants_panel=invariants,
-                seed=seed,
-                already_iid=preprocess.assets_already_iid,
-                protected=set(universe.factors),
-            )
-
-        surviving = invariants.asset_names
-        n_dropped = len(all_tickers) - len(surviving)
-        if n_dropped > 0:
-            models = {k: v for k, v in models.items() if k in surviving}
-            simulation_forecasts = {
-                k: v for k, v in simulation_forecasts.items() if k in surviving
-            }
-            preprocess = preprocess.filter_to(set(surviving))
-
-            n_asset_drops = len([a for a in universe.assets if a not in surviving])
-            logger.warning(
-                "Removed %d non-invariant tradable asset(s) "
-                "(%d factors remain protected). Surviving tickers (%d): %s",
-                n_asset_drops,
-                len(universe.factors),
-                len(surviving),
-                surviving,
-            )
-
-        return cls(
-            assets=list(surviving),
-            preprocess=preprocess,
-            models=models,
-            simulation_forecasts=simulation_forecasts,
-            invariants=invariants,
+    def recipe(self) -> ForecastRecipe:
+        return ForecastRecipe(
+            detrend=self.preprocess.detrend_decision,
+            deseason=self.preprocess.deseason_decision,
+            needs_modelling=list(self.preprocess.needs_further_modelling),
+            mean_orders={
+                a: getattr(m.mean_res, "model_order", None)
+                for a, m in self.models.items()
+            },
+            vol_orders={
+                a: getattr(m.volatility_res, "model_order", None)
+                for a, m in self.models.items()
+            },
+            mean_fallback_identity={
+                a: m.mean_res.kind if m.mean_res is not None else None
+                for a, m in self.models.items()
+            },
+            vol_distributions={
+                a: getattr(m.volatility_res, "distribution", None)
+                for a, m in self.models.items()
+            },
+            quality={a: m.quality for a, m in self.models.items()},
+            admissible={
+                a: getattr(m.volatility_res, "admissible", None)
+                for a, m in self.models.items()
+            },
+            fallback_reason={
+                a: getattr(m.volatility_res, "fallback_reason", None)
+                for a, m in self.models.items()
+            },
+            survivors=list(self.assets),
         )
 
     def simulate(
@@ -189,38 +155,87 @@ class FittedUniverse:
             )
         return paths
 
-    def recipe(self) -> ForecastRecipe:
-        return ForecastRecipe(
-            detrend=self.preprocess.detrend_decision,
-            deseason=self.preprocess.deseason_decision,
-            needs_modelling=list(self.preprocess.needs_further_modelling),
-            mean_orders={
-                a: getattr(m.mean_res, "model_order", None)
-                for a, m in self.models.items()
-            },
-            vol_orders={
-                a: getattr(m.volatility_res, "model_order", None)
-                for a, m in self.models.items()
-            },
-            mean_fallback_identity={
-                a: m.mean_res.kind if m.mean_res is not None else None
-                for a, m in self.models.items()
-            },
-            vol_distributions={
-                a: getattr(m.volatility_res, "distribution", None)
-                for a, m in self.models.items()
-            },
-            quality={a: m.quality for a, m in self.models.items()},
-            admissible={
-                a: getattr(m.volatility_res, "admissible", None)
-                for a, m in self.models.items()
-            },
-            fallback_reason={
-                a: getattr(m.volatility_res, "fallback_reason", None)
-                for a, m in self.models.items()
-            },
-            survivors=list(self.assets),
+
+def create_forecast_recipe(
+    data: pl.DataFrame,
+    prob: ProbVector,
+    universe: AssetUniverse,
+    pipeline_config: PipelineConfig,
+    seed: int | None = None,
+) -> ForecastRecipe:
+    """Run expensive preprocessing/model selection and return a reusable recipe."""
+    all_tickers = universe.all_tickers
+    preprocess = run_univariate_preprocess(
+        data=data,
+        prob=prob,
+        assets=all_tickers,
+        preprocess_config=pipeline_config.preprocess,
+        seed=seed,
+    )
+    logger.info(
+        "Preprocessing complete: post_data_shape=%s assets_to_model=%s",
+        preprocess.post_data.shape,
+        preprocess.needs_further_modelling,
+    )
+
+    models = run_univariate_pipeline(
+        data=preprocess.post_data,
+        assets_to_model=preprocess.needs_further_modelling,
+        pipeline_config=pipeline_config,
+    )
+    logger.info(
+        "Univariate model selection complete for %d assets",
+        len(preprocess.needs_further_modelling),
+    )
+
+    simulation_forecasts = _build_simulation_forecasts(
+        data=preprocess.post_data,
+        models=models,
+        assets=all_tickers,
+        variance_cap_factor=pipeline_config.volatility.variance_cap_factor,
+    )
+
+    invariants = _build_invariants_panel(
+        post=preprocess.post_data,
+        models=models,
+        assets=all_tickers,
+        prob=prob,
+    )
+    if pipeline_config.exclude_non_invariants:
+        invariants = _remove_non_invariants(
+            invariants_panel=invariants,
+            seed=seed,
+            already_iid=preprocess.assets_already_iid,
+            protected=set(universe.factors),
         )
+
+    surviving = invariants.asset_names
+    n_dropped = len(all_tickers) - len(surviving)
+    if n_dropped > 0:
+        models = {k: v for k, v in models.items() if k in surviving}
+        simulation_forecasts = {
+            k: v for k, v in simulation_forecasts.items() if k in surviving
+        }
+        preprocess = preprocess.filter_to(set(surviving))
+
+        n_asset_drops = len([a for a in universe.assets if a not in surviving])
+        logger.warning(
+            "Removed %d non-invariant tradable asset(s) "
+            "(%d factors remain protected). Surviving tickers (%d): %s",
+            n_asset_drops,
+            len(universe.factors),
+            len(surviving),
+            surviving,
+        )
+
+    fit = FittedUniverse(
+        assets=list(surviving),
+        preprocess=preprocess,
+        models=models,
+        simulation_forecasts=simulation_forecasts,
+        invariants=invariants,
+    )
+    return fit.recipe()
 
 
 def _merge_inv(
@@ -249,7 +264,11 @@ def fit_with_orders(
             if not np.isfinite(scale) or scale <= 0:
                 scale = 1.0
             mean_res = RandomWalkRes(residuals=diff_vals, residual_scale=scale)
-            out[a] = UnivariateRes(mean_res=mean_res, volatility_res=None, quality=None)
+            out[a] = UnivariateRes(
+                mean_res=mean_res,
+                volatility_res=None,
+                quality=recipe.quality.get(a),
+            )
             continue
         arr = post_data.select(a).drop_nulls().to_numpy().ravel()
         mean_order = recipe.mean_orders[a]
@@ -282,7 +301,7 @@ def fit_with_orders(
     return out
 
 
-def recondition(
+def apply_forecast_recipe(
     recipe: ForecastRecipe,
     data: pl.DataFrame,
     prob: ProbVector,
@@ -293,8 +312,6 @@ def recondition(
         base=data, patch=after_detrend, assets=recipe.survivors, suffix="_detrend"
     )
     post, inv_s = apply_deseason(merged, recipe.deseason)
-    # apply_deseason only returns columns for assets with season decisions;
-    # re-attach any survivor columns it dropped.
     missing = [a for a in recipe.survivors if a not in post.columns]
     if missing:
         post = post.join(merged.select(["date"] + missing), on="date", how="left")
@@ -325,6 +342,34 @@ def recondition(
         ),
         invariants=_build_invariants_panel(post, models, recipe.survivors, prob),
     )
+
+
+def select_recipe(
+    data: pl.DataFrame,
+    prob: ProbVector,
+    universe: AssetUniverse,
+    pipeline_config: PipelineConfig,
+    seed: int | None = None,
+) -> ForecastRecipe:
+    return create_forecast_recipe(data, prob, universe, pipeline_config, seed=seed)
+
+
+def apply_recipe(
+    recipe: ForecastRecipe,
+    data: pl.DataFrame,
+    prob: ProbVector,
+    cfg: PipelineConfig,
+) -> FittedUniverse:
+    return apply_forecast_recipe(recipe, data, prob, cfg)
+
+
+def recondition(
+    recipe: ForecastRecipe,
+    data: pl.DataFrame,
+    prob: ProbVector,
+    cfg: PipelineConfig,
+) -> FittedUniverse:
+    return apply_forecast_recipe(recipe, data, prob, cfg)
 
 
 def _build_simulation_forecasts(

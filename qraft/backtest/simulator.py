@@ -18,8 +18,8 @@ from qraft.backtest.inputs import PolicyInputsProvider
 from qraft.backtest.market import MarketData
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.construction.market_snapshot import MarketSnapshot
-from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
 

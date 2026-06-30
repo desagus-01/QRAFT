@@ -12,9 +12,10 @@ from qraft.core.probability.distributions import uniform_probs
 from qraft.forecast.pipelines.fitted_universe import (
     FittedUniverse,
     ForecastRecipe,
+    apply_recipe,
     _merge_inv,
     fit_with_orders,
-    recondition,
+    select_recipe,
 )
 from qraft.forecast.time_series.models.fitted_types import (
     AutoARMARes,
@@ -240,7 +241,7 @@ def test_recondition_returns_fitted_universe() -> None:
     )
     cfg = PipelineConfig()
 
-    result = recondition(recipe, data, prob, cfg)
+    result = apply_recipe(recipe, data, prob, cfg)
 
     assert isinstance(result, FittedUniverse)
     assert result.assets == ["A"]
@@ -284,7 +285,7 @@ def test_recondition_recipe_round_trip() -> None:
         survivors=["A"],
     )
 
-    result = recondition(recipe, data, prob, PipelineConfig())
+    result = apply_recipe(recipe, data, prob, PipelineConfig())
 
     round_tripped = result.recipe()
     assert round_tripped.survivors == recipe.survivors
@@ -360,7 +361,7 @@ def test_recondition_parity_with_fit() -> None:
 
     fit_result = FittedUniverse.fit(data, prob, universe, cfg, seed=0)
     recipe = fit_result.recipe()
-    rec_result = recondition(recipe, data, prob, cfg)
+    rec_result = apply_recipe(recipe, data, prob, cfg)
 
     for asset in recipe.survivors:
         f_res = fit_result.models[asset]
@@ -396,4 +397,27 @@ def test_recondition_parity_with_fit() -> None:
         fit_result.invariants.values.to_numpy(),
         rec_result.invariants.values.to_numpy(),
         err_msg="invariants differ",
+    )
+
+
+def test_fit_is_select_then_apply() -> None:
+    from qraft.forecast.forecast_paths import AssetUniverse
+
+    n = 60
+    rng = np.random.default_rng(7)
+    y = np.cumsum(rng.normal(0, 0.02, n))
+    dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(n)]
+    data = pl.DataFrame({"date": dates, "A": y})
+    prob = uniform_probs(data.height)
+    universe = AssetUniverse(assets=["A"], factors=[])
+    cfg = PipelineConfig(exclude_non_invariants=False)
+
+    fit_result = FittedUniverse.fit(data, prob, universe, cfg, seed=0)
+    recipe = select_recipe(data, prob, universe, cfg, seed=0)
+    applied = apply_recipe(recipe, data, prob, cfg)
+
+    assert fit_result.recipe() == recipe
+    np.testing.assert_array_equal(
+        fit_result.invariants.values.to_numpy(),
+        applied.invariants.values.to_numpy(),
     )

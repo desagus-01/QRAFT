@@ -18,7 +18,11 @@ from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.sampling import weighted_bootstrapping_idx
 from qraft.core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
-from qraft.forecast.pipelines.fitted_universe import FittedUniverse
+from qraft.forecast.pipelines.fitted_universe import (
+    FittedUniverse,
+    apply_forecast_recipe,
+    create_forecast_recipe,
+)
 from qraft.forecast.time_series.transforms.inverses import apply_inverse_transforms
 
 logger = logging.getLogger(__name__)
@@ -206,13 +210,14 @@ def run_forecast(
     data = panel.to_frame()
     prob = panel.prob
 
-    universe_fit = FittedUniverse.fit(
+    recipe = create_forecast_recipe(
         data=data,
         prob=prob,
         universe=universe,
         seed=seed,
         pipeline_config=pipeline_config,
     )
+    universe_fit = apply_forecast_recipe(recipe, data, prob, pipeline_config)
     return _forecast_from_fit(
         panel=panel,
         asset_universe=universe,

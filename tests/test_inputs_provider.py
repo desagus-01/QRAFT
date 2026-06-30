@@ -88,8 +88,12 @@ def test_forecast_provider_uses_snapshot_cash_rate(monkeypatch):
 
     monkeypatch.setattr(provider, "_forecast", lambda *args: forecast)
     monkeypatch.setattr(
-        "qraft.backtest.inputs.FittedUniverse.fit",
-        lambda **kwargs: type("Fit", (), {"recipe": lambda self: object()})(),
+        "qraft.backtest.inputs.select_recipe",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "qraft.backtest.inputs.apply_recipe",
+        lambda *args, **kwargs: object(),
     )
     monkeypatch.setattr(
         "qraft.backtest.inputs.PolicyInputs.from_policy_sources",

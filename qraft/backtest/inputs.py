@@ -12,7 +12,6 @@ from qraft.construction.optimization.moments import (
     PolicyInputConfig,
     PolicyInputs,
     RequiredPolicyInputs,
-    RiskSource,
 )
 from qraft.core.configs import (
     DEFAULT_FORECAST_PROVIDER_CONFIG,
@@ -27,7 +26,8 @@ from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 from qraft.forecast.pipelines.fitted_universe import (
     FittedUniverse,
     ForecastRecipe,
-    recondition,
+    apply_recipe,
+    select_recipe,
 )
 from qraft.forecast.pipelines.forecasting import _forecast_from_fit
 
@@ -95,21 +95,18 @@ class ForecastInputsProvider:
         seed = self._seed_for(step)
 
         if rebuild_recipe:
-            fit = FittedUniverse.fit(
+            self._recipe = select_recipe(
                 data=data,
                 prob=prob,
                 universe=universe,
                 pipeline_config=self.pipeline_config,
                 seed=seed,
             )
-            self._recipe = fit.recipe()
             self._last_universe = universe_key
-            logger.info("step %d: rebuilt forecast recipe (full fit)", step)
-        else:
-            assert self._recipe is not None
-            fit = recondition(self._recipe, data, prob, self.pipeline_config)
-            logger.info("step %d: reconditioned forecast (cached recipe)", step)
+            logger.info("step %d: rebuilt forecast recipe", step)
 
+        assert self._recipe is not None
+        fit = apply_recipe(self._recipe, data, prob, self.pipeline_config)
         forecasts = self._forecast(panel, universe, fit, data, seed)
         inputs = self._build_inputs(
             forecasts,
@@ -121,6 +118,38 @@ class ForecastInputsProvider:
             inputs = inputs.astype(self.dtype)
         self._cached_inputs = inputs
         return inputs
+
+    def build(self, snapshots) -> dict[datetime, PolicyInputs]:
+        return {
+            snapshot.t: self.for_date(snapshot, i)
+            for i, snapshot in enumerate(snapshots)
+        }
+
+    def _risk_source(self):
+        if self.input_config.risk is not None:
+            self._validate_explicit_risk(self.input_config.risk)
+            return self.input_config.risk
+        if self.policy is None:
+            return "both"
+        return self.policy.required_inputs().risk_source
+
+    def _validate_explicit_risk(self, risk):
+        if self.policy is None:
+            return
+        required = self.policy.required_inputs()
+        has_covariance = risk in {"covariance", "both"}
+        has_scenarios = risk in {"cvar", "both"}
+        missing: list[str] = []
+        if required.covariances and not has_covariance:
+            missing.append("covariances")
+        if required.scenarios and not has_scenarios:
+            missing.append("scenario_returns")
+        if missing:
+            raise ValueError(
+                f"input_config.risk={risk!r} does not satisfy policy requirements: "
+                f"missing {', '.join(missing)}. Omit risk to infer it from the "
+                "policy, or use risk='both'."
+            )
 
     def _forecast(
         self, panel, universe: AssetUniverse, fit: FittedUniverse, data, seed
@@ -161,32 +190,6 @@ class ForecastInputsProvider:
             as_of=as_of,
             cash_return=cash_return,
         )
-
-    def _risk_source(self) -> RiskSource:
-        if self.input_config.risk is not None:
-            self._validate_explicit_risk(self.input_config.risk)
-            return self.input_config.risk
-        if self.policy is None:
-            return "both"
-        return self.policy.required_inputs().risk_source
-
-    def _validate_explicit_risk(self, risk: RiskSource) -> None:
-        if self.policy is None:
-            return
-        required = self.policy.required_inputs()
-        has_covariance = risk in {"covariance", "both"}
-        has_scenarios = risk in {"cvar", "both"}
-        missing: list[str] = []
-        if required.covariances and not has_covariance:
-            missing.append("covariances")
-        if required.scenarios and not has_scenarios:
-            missing.append("scenario_returns")
-        if missing:
-            raise ValueError(
-                f"input_config.risk={risk!r} does not satisfy policy requirements: "
-                f"missing {', '.join(missing)}. Omit risk to infer it from the "
-                "policy, or use risk='both'."
-            )
 
     def _seed_for(self, step: int) -> int | None:
         seed = self.provider_config.seed
