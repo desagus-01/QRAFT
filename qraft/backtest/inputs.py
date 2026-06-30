@@ -111,7 +111,12 @@ class ForecastInputsProvider:
             logger.info("step %d: reconditioned forecast (cached recipe)", step)
 
         forecasts = self._forecast(panel, universe, fit, data, seed)
-        inputs = self._build_inputs(forecasts, history=panel, as_of=snapshot.t)
+        inputs = self._build_inputs(
+            forecasts,
+            history=panel,
+            as_of=snapshot.t,
+            cash_return=snapshot.cash_rate,
+        )
         if self.dtype != np.float64:
             inputs = inputs.astype(self.dtype)
         self._cached_inputs = inputs
@@ -136,6 +141,7 @@ class ForecastInputsProvider:
         history: ScenarioPanel | None = None,
         *,
         as_of: datetime | None = None,
+        cash_return: float | None = None,
     ) -> PolicyInputs:
         cfg = self.input_config
         risk = self._risk_source()
@@ -153,6 +159,7 @@ class ForecastInputsProvider:
             step_size=cfg.step_size,
             periods_per_year=cfg.periods_per_year,
             as_of=as_of,
+            cash_return=cash_return,
         )
 
     def _risk_source(self) -> RiskSource:

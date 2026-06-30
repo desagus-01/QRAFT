@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from polars import DataFrame
 
 from qraft.core.probability.distributions import uniform_probs
-from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
+from qraft.core.probability.prob_vector import ProbVector, as_prob_vector
 
 ScenarioPanelKind = Literal["log_price", "return", "invariant", "level"]
 DatetimeSeries = Annotated[pl.Series, "dtype: pl.Datetime"]
@@ -68,13 +68,8 @@ class ScenarioPanel:
                 "ScenarioPanel.values must contain only finite numeric values"
             ) from exc
 
-        if self.prob.shape[0] != self.values.height:
-            raise ValueError(
-                f"prob length {self.prob.shape[0]} != rows {self.values.height}"
-            )
-        validate_prob_vector(self.prob)
-        self.prob.setflags(write=False)
-        object.__setattr__(self, "prob", self.prob)
+        prob = as_prob_vector(self.prob, length=self.values.height)
+        object.__setattr__(self, "prob", prob)
 
         if len(self.dates) != self.values.height:
             raise ValueError(

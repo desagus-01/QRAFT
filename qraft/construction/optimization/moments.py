@@ -264,9 +264,7 @@ class PolicyInputs:
         return self.cash_return
 
     def astype(self, dtype: type) -> "PolicyInputs":
-        """Down-cast the memory-heavy arrays (scenario tensor + covariance
-        cubes) to ``dtype``. ``mean``/``cash_return``/``scenario_probs`` stay
-        as-is (small, precision-sensitive). cvxpy upcasts at solve time."""
+        """Cast large optimization arrays to ``dtype``; keep small vectors stable."""
 
         def cast(a: NDArray[np.floating] | None) -> NDArray[np.floating] | None:
             return None if a is None else a.astype(dtype, copy=False)
@@ -371,6 +369,82 @@ class PolicyInputs:
         if kind == "scenarios":
             return value[:, :, keep_idx]
         raise ValueError(f"Unknown filter kind: {kind!r}")
+
+    @classmethod
+    def _filter_policy_fields_by_drop_mask(
+        cls,
+        *,
+        assets: list[str],
+        mean: NDArray[np.floating],
+        covariances: NDArray[np.floating] | None,
+        correlations: NDArray[np.floating] | None,
+        scenario_returns: NDArray[np.floating] | None,
+        cov_factor: NDArray[np.floating] | None,
+        drop_mask: NDArray[np.bool_],
+        dropped_assets: tuple[DroppedAsset, ...],
+    ) -> tuple[
+        list[str],
+        NDArray[np.floating],
+        NDArray[np.floating] | None,
+        NDArray[np.floating] | None,
+        NDArray[np.floating] | None,
+        NDArray[np.floating] | None,
+        tuple[DroppedAsset, ...],
+    ]:
+        if not np.any(drop_mask):
+            return (
+                assets,
+                mean,
+                covariances,
+                correlations,
+                scenario_returns,
+                cov_factor,
+                (),
+            )
+
+        keep_idx = np.where(~drop_mask)[0]
+        if len(keep_idx) == 0:
+            reasons = sorted({drop.reason for drop in dropped_assets})
+            raise ValueError(f"All assets were dropped due to {reasons}.")
+
+        return (
+            [assets[i] for i in keep_idx],
+            mean[:, keep_idx],
+            cls._filter_by_asset_indices(covariances, keep_idx, kind="cube"),
+            cls._filter_by_asset_indices(correlations, keep_idx, kind="cube"),
+            cls._filter_by_asset_indices(scenario_returns, keep_idx, kind="scenarios"),
+            cls._filter_by_asset_indices(cov_factor, keep_idx, kind="cube"),
+            dropped_assets,
+        )
+
+    @staticmethod
+    def _degenerate_asset_drops(
+        assets: list[str],
+        inc_returns: NDArray[np.floating],
+        *,
+        eps: float = 1e-12,
+    ) -> tuple[NDArray[np.bool_], tuple[DroppedAsset, ...]]:
+        variance = np.var(inc_returns, axis=0)
+        breached = variance <= eps
+        drop_mask = np.any(breached, axis=0)
+        drops: list[DroppedAsset] = []
+        for asset_idx in np.where(drop_mask)[0]:
+            horizons = np.where(breached[:, asset_idx])[0]
+            drops.append(
+                DroppedAsset(
+                    asset=assets[asset_idx],
+                    horizons=tuple(int(h + 1) for h in horizons),
+                    values=tuple(float(variance[h, asset_idx]) for h in horizons),
+                    reason="degenerate_forecast",
+                )
+            )
+            logger.warning(
+                "Dropping asset %s because forecast return variance is degenerate "
+                "at horizon(s) %s.",
+                assets[asset_idx],
+                ", ".join(str(int(h + 1)) for h in horizons),
+            )
+        return drop_mask, tuple(drops)
 
     @classmethod
     def _filter_policy_fields_by_expectation_tolerance(
@@ -519,6 +593,7 @@ class PolicyInputs:
         step_size: int = 1,
         periods_per_year: float | None = None,
         as_of: datetime | None = None,
+        cash_return: NDArray[np.floating] | float | None = None,
     ) -> "PolicyInputs":
         """
         Build policy inputs from two simple choices: expected returns and risk.
@@ -564,6 +639,17 @@ class PolicyInputs:
         inc_returns = np.empty((n_paths, n_horizons, n_assets), dtype=float)
         for col_idx, asset_returns in enumerate(pnl_by_asset.values()):
             inc_returns[:, :, col_idx] = asset_returns
+
+        degenerate_mask, degenerate_drops = cls._degenerate_asset_drops(
+            assets, inc_returns
+        )
+        if np.any(degenerate_mask):
+            keep_idx = np.where(~degenerate_mask)[0]
+            if len(keep_idx) == 0:
+                raise ValueError("All assets were dropped due to degenerate forecasts.")
+            assets = [assets[i] for i in keep_idx]
+            inc_returns = inc_returns[:, :, keep_idx]
+            n_assets = len(assets)
 
         if expected_returns == "forecast":
             mean = np.empty((n_horizons, n_assets), dtype=float)
@@ -613,6 +699,7 @@ class PolicyInputs:
             cov_factor=cov_factor,
             expectation_tolerance=expectation_tolerance,
         )
+        dropped_assets = degenerate_drops + dropped_assets
 
         return cls.from_arrays(
             assets=assets,
@@ -621,7 +708,9 @@ class PolicyInputs:
             correlations=correlations,
             scenario_returns=scenario_returns,
             scenario_probs=scenario_probs,
-            cash_return=cls.get_cash_return(
+            cash_return=cash_return
+            if cash_return is not None
+            else cls.get_cash_return(
                 path=cash_path,
                 step_size=step_size,
                 periods_per_year=periods_per_year,

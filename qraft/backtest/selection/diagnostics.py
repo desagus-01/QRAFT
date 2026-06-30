@@ -12,12 +12,32 @@ from qraft.backtest.selection.significance import (
     prob_of_backtest_overfit,
 )
 from qraft.core import metrics
+from qraft.core.cadence import infer_periods_per_year
+
+
+def resolve_selection_periods_per_year(
+    candidate_results: Sequence[CandidateResult], configured: float | None
+) -> float:
+    if configured is not None:
+        return configured
+    for candidate_result in candidate_results:
+        if candidate_result.backtest is None:
+            continue
+        if candidate_result.backtest.periods_per_year is not None:
+            return candidate_result.backtest.periods_per_year
+        if len(candidate_result.backtest.nav_dates) >= 2:
+            return infer_periods_per_year(candidate_result.backtest.nav_dates)
+    raise ValueError(
+        "periods_per_year is required when no successful candidate can infer it."
+    )
 
 
 def trial_sharpes(
-    candidate_results: Sequence[CandidateResult], periods_per_year: float
+    candidate_results: Sequence[CandidateResult], periods_per_year: float | None
 ) -> list[float]:
     """Per-period Sharpe values from successful full-run candidates."""
+    if periods_per_year is None:
+        periods_per_year = resolve_selection_periods_per_year(candidate_results, None)
     return [
         candidate_result.summary.sharpe / math.sqrt(periods_per_year)
         for candidate_result in candidate_results

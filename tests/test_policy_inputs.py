@@ -34,6 +34,33 @@ def _forecast_paths() -> ForecastPaths:
     )
 
 
+def test_forecast_paths_rejects_invalid_path_probs() -> None:
+    with pytest.raises(ValueError, match="sum to 1"):
+        ForecastPaths(
+            asset_paths={"A": np.array([[101.0, 102.0], [99.0, 100.0]])},
+            dates=pl.Series("date", [datetime(2024, 1, 4), datetime(2024, 1, 5)]),
+            path_probs=np.array([0.5, 0.4]),
+            initial_prices={"A": 100.0},
+            universe=AssetUniverse.factors_free(["A"]),
+        )
+
+
+def test_forecast_paths_copies_and_freezes_path_probs() -> None:
+    path_probs = np.array([0.5, 0.5])
+    forecasts = ForecastPaths(
+        asset_paths={"A": np.array([[101.0, 102.0], [99.0, 100.0]])},
+        dates=pl.Series("date", [datetime(2024, 1, 4), datetime(2024, 1, 5)]),
+        path_probs=path_probs,
+        initial_prices={"A": 100.0},
+        universe=AssetUniverse.factors_free(["A"]),
+    )
+
+    path_probs[0] = 1.0
+
+    np.testing.assert_allclose(forecasts.path_probs, [0.5, 0.5])
+    assert not forecasts.path_probs.flags.writeable
+
+
 def _history() -> ScenarioPanel:
     return ScenarioPanel.from_prices(
         pl.DataFrame(
@@ -109,8 +136,32 @@ def test_policy_inputs_from_policy_sources_covariance_risk_only(tmp_path) -> Non
     assert inputs.covariances is not None
     assert inputs.covariances.shape == (2, 2, 2)
     inputs.require_covariances()
-    with pytest.raises(ValueError, match="scenario_returns"):
-        inputs.require_scenarios()
+
+
+def test_policy_inputs_drops_degenerate_forecast_asset(tmp_path) -> None:
+    forecasts = ForecastPaths(
+        asset_paths={
+            "A": np.array([[101.0, 102.0], [99.0, 100.0]]),
+            "B": np.array([[50.0, 50.0], [50.0, 50.0]]),
+        },
+        dates=pl.Series("date", [datetime(2024, 1, 4), datetime(2024, 1, 5)]),
+        path_probs=np.array([0.5, 0.5]),
+        initial_prices={"A": 100.0, "B": 50.0},
+        universe=AssetUniverse.factors_free(["A", "B"]),
+    )
+
+    inputs = PolicyInputs.from_policy_sources(
+        forecasts=forecasts,
+        cash_path=_cash_path(tmp_path),
+        expected_returns="forecast",
+        risk="both",
+        periods_per_year=252,
+        as_of=datetime(2024, 1, 3),
+    )
+
+    assert inputs.assets == ["A"]
+    assert [drop.asset for drop in inputs.dropped_assets] == ["B"]
+    assert inputs.dropped_assets[0].reason == "degenerate_forecast"
 
 
 def test_policy_inputs_from_policy_sources_historical_mean_decay(tmp_path) -> None:

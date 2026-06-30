@@ -15,6 +15,14 @@ from qraft.forecast.forecast_paths import AssetUniverse, InnovationPaths
 from qraft.forecast.pipelines import forecasting
 
 
+def test_innovation_paths_rejects_invalid_path_probs() -> None:
+    with pytest.raises(ValueError, match="sum to 1"):
+        InnovationPaths(
+            values=np.ones((2, 3, 1)),
+            path_probs=np.array([0.5, 0.4]),
+        )
+
+
 class DummyFittedUniverse:
     def __init__(self) -> None:
         self.invariants = ScenarioPanel(

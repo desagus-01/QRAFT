@@ -1,8 +1,9 @@
-import numpy as np
-from qraft.core.probability.prob_vector import ProbVector
-from qraft.globals import model_cfg
 from numpy.typing import NDArray
+import numpy as np
 from pydantic import validate_call
+
+from qraft.core.probability.prob_vector import ProbVector, as_prob_vector
+from qraft.globals import model_cfg
 
 
 def kernel_smoothing(
@@ -37,7 +38,7 @@ def uniform_probs(len: int) -> ProbVector:
     """
     Returns a uniform probability vector
     """
-    return np.ones(len) / len
+    return as_prob_vector(np.ones(len) / len)
 
 
 @validate_call(config=model_cfg, validate_return=True)
@@ -53,7 +54,7 @@ def state_crisp_probs(length: int, condition_vector: NDArray[np.bool_]) -> ProbV
     selected_indices = np.where(condition_vector)[0]
 
     p[selected_indices] = 1.0 / len(selected_indices)
-    return p
+    return as_prob_vector(p)
 
 
 @validate_call(config=model_cfg, validate_return=True)
@@ -71,4 +72,4 @@ def state_smooth_probs(
         reference=reference,
         time_based=time_based,
     )
-    return w / w.sum()
+    return as_prob_vector(w / w.sum())

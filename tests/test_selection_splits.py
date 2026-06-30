@@ -15,12 +15,17 @@ from qraft.backtest.selection import (
     WalkForwardReport,
     walk_forward_folds,
 )
+from qraft.backtest.selection.diagnostics import (
+    candidate_block_returns,
+    trial_sharpes,
+)
 from qraft.backtest.selection.results import (
     CandidateResult,
     PolicyParams,
     SelectionReport,
 )
-from qraft.backtest.selection.walkforward import _block_returns
+
+_block_returns = candidate_block_returns
 
 DATES = [datetime(2024, 1, 1 + i) for i in range(10)]
 
@@ -182,6 +187,36 @@ def test_block_returns_builds_block_candidate_matrix() -> None:
     )
 
     assert perf.shape == (2, 2)
+
+
+def test_trial_sharpes_infers_periods_per_year_from_candidate_dates() -> None:
+    summary = PerformanceSummary(
+        total_return=0.10,
+        annualised_return=0.20,
+        annualised_vol=0.15,
+        sharpe=2.0,
+        sortino=2.0,
+        max_drawdown=-0.05,
+        calmar=4.0,
+        cvar=-0.02,
+        hit_rate=0.55,
+        avg_turnover=0.10,
+        total_cost=0.01,
+        n_periods=2,
+        n_warnings=0,
+        n_solver_failures=0,
+        held_fraction=0.0,
+    )
+    candidate = _candidate_result(1, DATES[:4])
+    candidate = CandidateResult(
+        params=candidate.params,
+        summary=summary,
+        backtest=candidate.backtest,
+    )
+
+    values = trial_sharpes([candidate], None)
+
+    assert values == pytest.approx([2.0 / np.sqrt(365.25)])
 
 
 def _candidate_result(value: int, dates: list[datetime]) -> CandidateResult:

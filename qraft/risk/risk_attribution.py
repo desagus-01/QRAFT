@@ -342,6 +342,14 @@ def effective_bets(
         min_torso_exposures * transformed_covariance_exposure / portfolio_variance
     )
 
+    if not np.all(np.isfinite(factor_risk_contribution)) or np.any(
+        factor_risk_contribution <= 0.0
+    ):
+        raise ValueError(
+            "effective_bets requires strictly positive factor risk contributions; "
+            "ENB assumes a long-only-like contribution simplex."
+        )
+
     enb = float(
         np.exp(-np.sum(factor_risk_contribution * np.log(factor_risk_contribution)))
     )

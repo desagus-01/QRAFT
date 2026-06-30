@@ -100,6 +100,29 @@ def test_direct_scenario_panel_defaults_to_level_kind() -> None:
     assert panel.kind == "level"
 
 
+def test_scenario_panel_copies_and_freezes_prob() -> None:
+    prob = np.array([0.5, 0.5])
+    panel = ScenarioPanel(
+        values=pl.DataFrame({"asset": [1.0, 2.0]}),
+        dates=pl.Series("date", [datetime(2024, 1, 1), datetime(2024, 1, 2)]),
+        prob=prob,
+    )
+
+    prob[0] = 1.0
+
+    np.testing.assert_allclose(panel.prob, [0.5, 0.5])
+    assert not panel.prob.flags.writeable
+
+
+def test_scenario_panel_rejects_invalid_prob() -> None:
+    with pytest.raises(ValueError, match="sum to 1"):
+        ScenarioPanel(
+            values=pl.DataFrame({"asset": [1.0, 2.0]}),
+            dates=pl.Series("date", [datetime(2024, 1, 1), datetime(2024, 1, 2)]),
+            prob=np.array([0.5, 0.4]),
+        )
+
+
 def test_log_price_diff_is_tagged_as_return() -> None:
     panel = ScenarioPanel.from_log_prices(
         pl.DataFrame(

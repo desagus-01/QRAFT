@@ -3,14 +3,19 @@ from datetime import datetime
 import numpy as np
 import polars as pl
 
-from qraft.backtest.inputs import DateCache, PrecomputedInputsProvider
+from qraft.backtest.inputs import (
+    DateCache,
+    ForecastInputsProvider,
+    PrecomputedInputsProvider,
+)
 from qraft.construction.market_snapshot import MarketSnapshot
+from qraft.construction.optimization.moments import PolicyInputConfig
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.core.panel import ScenarioPanel
 from qraft.forecast.forecast_paths import AssetUniverse
 
 
-def _snap(t: datetime) -> MarketSnapshot:
+def _snap(t: datetime, cash_rate: float = 0.0) -> MarketSnapshot:
     hist = ScenarioPanel.from_prices(
         pl.DataFrame({"date": [datetime(2024, 1, 1), t], "A": [9.0, 10.0]})
     )
@@ -20,7 +25,7 @@ def _snap(t: datetime) -> MarketSnapshot:
         universe=AssetUniverse.factors_free(["A"]),
         history=hist,
         prices_t=np.array([10.0]),
-        cash_rate=0.0,
+        cash_rate=cash_rate,
     )
 
 
@@ -68,3 +73,30 @@ def test_astype_downcasts_only_heavy_arrays():
     assert c.cov_factor.dtype == np.float32
     assert c.scenario_returns.dtype == np.float32
     assert c.mean.dtype == np.float64  # small arrays preserved
+
+
+def test_forecast_provider_uses_snapshot_cash_rate(monkeypatch):
+    provider = ForecastInputsProvider(PolicyInputConfig(cash_path="unused.csv"))
+    forecast = object()
+    captured = {}
+
+    def fake_from_policy_sources(**kwargs):
+        captured.update(kwargs)
+        return PolicyInputs.from_arrays(
+            assets=["A"], mean=np.ones((1, 1)), cash_return=kwargs["cash_return"]
+        )
+
+    monkeypatch.setattr(provider, "_forecast", lambda *args: forecast)
+    monkeypatch.setattr(
+        "qraft.backtest.inputs.FittedUniverse.fit",
+        lambda **kwargs: type("Fit", (), {"recipe": lambda self: object()})(),
+    )
+    monkeypatch.setattr(
+        "qraft.backtest.inputs.PolicyInputs.from_policy_sources",
+        fake_from_policy_sources,
+    )
+
+    inputs = provider.for_date(_snap(datetime(2024, 1, 2), cash_rate=0.001), 1)
+
+    np.testing.assert_allclose(inputs.cash_return, [0.001])
+    assert captured["cash_return"] == 0.001

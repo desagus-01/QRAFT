@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 from polars import DataFrame
 
 from qraft.core.panel import DatetimeSeries, ScenarioPanel, normalize_datetime_series
-from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
+from qraft.core.probability.prob_vector import ProbVector, as_prob_vector
 from qraft.utils.visuals import plot_simulation_results
 
 if TYPE_CHECKING:
@@ -60,6 +60,12 @@ class InnovationPaths:
     values: NDArray[np.floating]
     path_probs: ProbVector
 
+    def __post_init__(self) -> None:
+        if self.values.ndim < 1:
+            raise ValueError("InnovationPaths.values must have at least one dimension")
+        path_probs = as_prob_vector(self.path_probs, length=self.values.shape[0])
+        object.__setattr__(self, "path_probs", path_probs)
+
 
 AssetSubset = Literal["all", "tradable", "factors"]
 
@@ -76,8 +82,6 @@ class ForecastPaths:
     def __post_init__(self) -> None:
         if not self.asset_paths:
             raise ValueError("ForecastPaths.asset_paths cannot be empty")
-
-        validate_prob_vector(self.path_probs)
 
         base_shape: tuple[int, int] | None = None
 
@@ -100,11 +104,8 @@ class ForecastPaths:
         assert base_shape is not None
         n_paths, n_horizons = base_shape
 
-        if len(self.path_probs) != n_paths:
-            raise ValueError(
-                f"path_probs length {len(self.path_probs)} "
-                f"must equal number of paths {n_paths}"
-            )
+        path_probs = as_prob_vector(self.path_probs, length=n_paths)
+        object.__setattr__(self, "path_probs", path_probs)
         if len(self.dates) != n_horizons:
             raise ValueError(
                 f"dates length {len(self.dates)} must equal number of horizons "

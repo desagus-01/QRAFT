@@ -15,6 +15,7 @@ from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.diagnostics import (
     compute_deflated_sharpe,
     compute_pbo,
+    resolve_selection_periods_per_year,
     trial_sharpes,
 )
 from qraft.backtest.selection.evaluate import evaluate_candidate_grid
@@ -201,6 +202,14 @@ def combinatorial_purged(
     paths = _assign_paths(
         cv_config.n_groups, cv_config.n_test_groups, fold_test_group_returns
     )
+    periods_per_year = resolve_selection_periods_per_year(
+        candidate_results, backtest_config.periods_per_year
+    )
+    resolved_backtest_config = BacktestConfig(
+        schedule=backtest_config.schedule,
+        initial_cash=backtest_config.initial_cash,
+        periods_per_year=periods_per_year,
+    )
     path_returns = [
         np.concatenate(parts)
         for path in paths
@@ -209,7 +218,7 @@ def combinatorial_purged(
     summaries = [
         summary_from_returns(
             r,
-            backtest_config,
+            resolved_backtest_config,
             cv_config.cv_config.risk_free_rate,
             policy_name="cpcv_path",
         )
@@ -219,7 +228,7 @@ def combinatorial_purged(
     summary_tuple = tuple(s for _, s in valid)
     sharpes = np.array([s.sharpe for s in summary_tuple], dtype=float)
     n_trials, dsr, pbo_value = _diagnostics(
-        candidate_results, valid, sharpes, cv_config, backtest_config
+        candidate_results, valid, sharpes, cv_config, resolved_backtest_config
     )
     return CombinatorialReport(
         paths=summary_tuple,

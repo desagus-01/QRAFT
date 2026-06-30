@@ -8,7 +8,7 @@ from numpy._typing import NDArray
 from polars import DataFrame
 from scipy.stats import norm, t
 
-from qraft.core.probability.prob_vector import ProbVector
+from qraft.core.probability.prob_vector import ProbVector, as_prob_vector
 
 
 def sample_marginal(
@@ -128,10 +128,7 @@ def weighted_bootstrapping_idx(
     ValueError
         If the length of ``prob_vector`` does not match the number of rows in ``data``.
     """
-    if data.height != len(prob_vector):
-        raise ValueError(
-            f"Data size {data.height} and probability vector size {len(prob_vector)} do not match."
-        )
+    prob_vector = as_prob_vector(prob_vector, length=data.height, copy=False)
     rng = random.default_rng(seed)
     return rng.choice(data.height, size=n_samples, replace=True, p=prob_vector)
 

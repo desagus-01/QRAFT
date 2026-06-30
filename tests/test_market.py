@@ -265,24 +265,22 @@ def test_realised_cash_return_no_cash_returns_zero() -> None:
     assert r == 0.0
 
 
-def test_realised_cash_return_uses_act_360() -> None:
+def test_realised_cash_return_uses_optimizer_cash_convention() -> None:
     md = _market_data()
     r = md.realised_cash_return(datetime(2024, 1, 1), datetime(2024, 1, 2))
-    # rate at t_prev=2024-01-01: 5.0% -> 0.05 -> 0.05 * 1 / 360
-    assert r == pytest.approx(0.05 / 360)
+    assert r == pytest.approx(md.cash_rate_asof(datetime(2024, 1, 1)))
 
 
 def test_realised_cash_return_accepts_string_dates() -> None:
     md = _market_data()
     r = md.realised_cash_return("2024-01-01", "2024-01-02")
-    assert r == pytest.approx(0.05 / 360)
+    assert r == pytest.approx(md.cash_rate_asof("2024-01-01"))
 
 
 def test_realised_cash_return_multi_day_interval() -> None:
     md = _market_data()
     r = md.realised_cash_return(datetime(2024, 1, 1), datetime(2024, 1, 3))
-    # 0.05 * 2 / 360
-    assert r == pytest.approx(0.05 * 2 / 360)
+    assert r == pytest.approx(md.cash_rate_asof(datetime(2024, 1, 1)))
 
 
 def test_realised_cash_return_raises_on_no_prior_rate() -> None:
@@ -383,4 +381,4 @@ def test_realised_cash_return_uses_rate_at_t_prev() -> None:
     md = MarketData.from_prices(_price_frame(), _universe(), cash=df)
     # uses rate at 2024-01-01 (t_prev), which is 5.0%
     r = md.realised_cash_return(datetime(2024, 1, 1), datetime(2024, 1, 3))
-    assert r == pytest.approx(0.05 * 2 / 360)
+    assert r == pytest.approx(md.cash_rate_asof(datetime(2024, 1, 1)))

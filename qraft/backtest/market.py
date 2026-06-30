@@ -149,16 +149,11 @@ class MarketData:
         return (1.0 + annual) ** (step_size / self.config.periods_per_year) - 1.0
 
     def realised_cash_return(self, t_prev: DateLike, t: DateLike) -> float:
-        """Realised accrual over (t_prev, t] on the rate entering the interval (ACT/360)."""
+        """Realised accrual uses the same per-step convention as optimizer cash."""
         t_prev = self._as_datetime(t_prev)
-        t = self._as_datetime(t)
         if self.cash is None:
             return 0.0
-        prior = self.cash.filter(pl.col("date") <= t_prev)
-        if prior.height == 0:
-            raise ValueError(f"No cash rate on or before {t_prev!r}")
-        annual = float(prior.get_column(self.config.cash_column)[-1]) / 100.0
-        return annual * (t - t_prev).days / self.config.cash_day_count
+        return self.cash_rate_asof(t_prev, step_size=1)
 
     def snapshot_at(
         self, t: DateLike, t_next: DateLike, *, step_size: int = 1

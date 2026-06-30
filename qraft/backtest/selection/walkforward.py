@@ -14,6 +14,7 @@ from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.diagnostics import (
     compute_deflated_sharpe,
     compute_pbo,
+    resolve_selection_periods_per_year,
     trial_sharpes,
 )
 from qraft.backtest.selection.evaluate import evaluate_candidate_grid
@@ -263,16 +264,25 @@ def walk_forward(
         full, folds, walk_config, backtest_config, score
     )
 
+    periods_per_year = resolve_selection_periods_per_year(
+        full, backtest_config.periods_per_year
+    )
+    resolved_backtest_config = BacktestConfig(
+        schedule=backtest_config.schedule,
+        initial_cash=backtest_config.initial_cash,
+        periods_per_year=periods_per_year,
+    )
+
     nav, nav_dates, summary = _stitch(
         oos_returns,
         oos_dates,
         folds,
-        backtest_config.initial_cash,
-        backtest_config.periods_per_year,
+        resolved_backtest_config.initial_cash,
+        periods_per_year,
         walk_config.risk_free_rate,
     )
     n_trials, dsr, pbo_value = _compute_walk_forward_diagnostics(
-        full, oos_returns, walk_config, backtest_config
+        full, oos_returns, walk_config, resolved_backtest_config
     )
 
     return WalkForwardReport(
