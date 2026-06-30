@@ -39,6 +39,16 @@ def test_core_metrics_per_period_sharpe_handles_degenerate_series() -> None:
     assert metrics.per_period_sharpe(np.array([0.01, 0.01], dtype=float)) == 0.0
 
 
+def test_returns_from_nav_rejects_non_positive_nav() -> None:
+    with pytest.raises(ValueError, match="NAV must be strictly positive"):
+        metrics.returns_from_nav(np.array([100.0, 0.0], dtype=float))
+
+
+def test_returns_from_nav_rejects_non_finite_nav() -> None:
+    with pytest.raises(ValueError, match="NAV must contain only finite"):
+        metrics.returns_from_nav(np.array([100.0, np.nan], dtype=float))
+
+
 def test_performance_summary_uses_active_window_slice() -> None:
     dates = [datetime(2024, 1, i + 1) for i in range(4)]
     state = PortfolioState(

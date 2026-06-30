@@ -6,8 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
-from qraft.construction.optimization.moments import PolicyInputs
-from qraft.construction.optimization.moments import RequiredPolicyInputs
+from qraft.construction.optimization.moments import PolicyInputs, RequiredPolicyInputs
 from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     TransactionCost,
@@ -16,6 +15,7 @@ from qraft.construction.optimization.optimization import (
     MPOFailure,
     MPOResult,
     MultiPeriodOptimizer,
+    OptimizationFailure,
 )
 from qraft.construction.optimization.presets import PreMadeObjectives
 from qraft.construction.optimization.problem import MPOProblem
@@ -186,6 +186,6 @@ class MPOPolicy:
             **self.problem.solver_options,
         )
         if isinstance(result, MPOFailure):
-            raise RuntimeError(result.message)
+            raise OptimizationFailure(result)
 
         return _decision_from_mpo(result, cash_return=policy_inputs.cash_return)

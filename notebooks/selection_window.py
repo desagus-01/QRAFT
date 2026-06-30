@@ -101,13 +101,13 @@ forecast_provider = ForecastInputsProvider(
     ),
     policy=base_policy,
     simulation_config=SimulationForecastConfig(
-        horizon=15,
+        horizon=10,
         method="cma",
         n_sims=10_000,
         cma_config=CMAConfig(target_copula="t"),
     ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
-    provider_config=ForecastProviderConfig(refit_every=3),
+    provider_config=ForecastProviderConfig(refit_every=5),
 )
 
 # %%
@@ -125,4 +125,4 @@ with profile():
 
 
 # %%
-results.summary_df()
+results.plot()

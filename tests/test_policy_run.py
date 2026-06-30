@@ -2,7 +2,9 @@ from datetime import datetime
 
 import numpy as np
 import polars as pl
+import pytest
 
+from qraft.backtest.execution import execute_frictionless
 from qraft.construction.policies import (
     EqualWeightPolicy,
     PolicyDecision,
@@ -42,6 +44,22 @@ def test_policy_decide_returns_decision_without_projecting() -> None:
     assert decision.asset_order == ["A", "B"]
     np.testing.assert_allclose(decision.target_weights_risk, [0.4, 0.4])
     assert decision.target_cash_weight == 0.2
+
+
+def test_portfolio_state_rejects_non_positive_prices() -> None:
+    with pytest.raises(ValueError, match="initial_prices must be strictly positive"):
+        PortfolioState(["A"], np.array([0.0]), np.array([1.0]), 100.0)
+
+
+def test_execute_frictionless_rejects_non_positive_prices() -> None:
+    with pytest.raises(ValueError, match="execution prices must be strictly positive"):
+        execute_frictionless(
+            PolicyDecision(["A"], np.array([1.0]), 0.0),
+            shares=np.array([0.0]),
+            cash=100.0,
+            prices=np.array([0.0]),
+            asset_order=["A"],
+        )
 
 
 def test_forecast_at_step_repeats_horizon_date() -> None:

@@ -193,8 +193,14 @@ def execute_frictionless(
     prices: NDArray[np.floating],
     asset_order: list[str],
 ) -> tuple[NDArray[np.floating], NDArray[np.floating], float]:
+    if not np.all(np.isfinite(prices)):
+        raise ValueError("execution prices must contain only finite values")
+    if np.any(prices <= 0):
+        raise ValueError("execution prices must be strictly positive")
     asset_value = shares * prices
     nav = float(asset_value.sum() + cash)
+    if not np.isfinite(nav) or nav <= 0:
+        raise ValueError("NAV before execution must be finite and strictly positive")
     target_value = _target_weights_full(decision, asset_order) * nav
     trade_value = target_value - asset_value
     executed = trade_value / prices

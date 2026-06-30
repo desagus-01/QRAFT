@@ -54,10 +54,27 @@ class RequiredPolicyInputs:
 
 def psd_sqrt_factor(covariance: NDArray[np.floating]) -> NDArray[np.floating]:
     """Return F with ``F @ F.T ≈ covariance`` (negative eigenvalues clamped)."""
+    if not np.all(np.isfinite(covariance)):
+        raise ValueError("covariance contains NaN or inf.")
     cov = 0.5 * (covariance + covariance.T)
     eigvals, eigvecs = np.linalg.eigh(cov)
-    eigvals = np.maximum(eigvals, 0.0)
-    return eigvecs @ np.diag(np.sqrt(eigvals))
+    min_eig = float(eigvals.min())
+    max_eig = float(eigvals.max())
+    if min_eig < 0.0:
+        logger.warning(
+            "PSD repair clamped covariance eigenvalues: min=%.6g max=%.6g",
+            min_eig,
+            max_eig,
+        )
+    repaired = np.maximum(eigvals, 0.0)
+    positive = repaired[repaired > 0.0]
+    if positive.size:
+        cond = float(positive.max() / positive.min())
+        if cond > 1e12:
+            logger.warning(
+                "Covariance matrix is ill-conditioned after PSD repair: %.6g", cond
+            )
+    return eigvecs @ np.diag(np.sqrt(repaired))
 
 
 def pnl_from_values(
@@ -71,6 +88,8 @@ def pnl_from_values(
         raise ValueError(
             f"values must be 2-D (n_paths, n_periods); got shape {values.shape}"
         )
+    if not np.all(np.isfinite(values)):
+        raise ValueError("values must contain only finite values")
 
     prev = values[:, :-1]
     curr = values[:, 1:]
@@ -79,9 +98,13 @@ def pnl_from_values(
         return curr - prev
 
     if mode == "relative":
+        if np.any(prev <= 0):
+            raise ValueError("relative PnL requires strictly positive previous values")
         denom = prev.astype(float, copy=True)
         return (curr - prev) / denom
 
+    if np.any(prev <= 0) or np.any(curr <= 0):
+        raise ValueError("log PnL requires strictly positive values")
     denom = prev.astype(float, copy=True)
     ratio = curr / denom
     return np.log(ratio)
@@ -182,6 +205,8 @@ class PolicyInputs:
                     f"scenario_returns asset dimension {self.scenario_returns.shape[2]} "
                     f"does not match assets length {n_a}."
                 )
+            if not np.all(np.isfinite(self.scenario_returns)):
+                raise ValueError("scenario_returns contains NaN or inf.")
             horizon_counts.append(int(self.scenario_returns.shape[1]))
 
         if self.scenario_probs is not None:
@@ -203,6 +228,8 @@ class PolicyInputs:
             cash = np.asarray(self.cash_return, dtype=float).ravel()
             if cash.size == 0:
                 raise ValueError("cash_return cannot be empty.")
+            if not np.all(np.isfinite(cash)):
+                raise ValueError("cash_return contains NaN or inf.")
             if cash.size > 1:
                 horizon_counts.append(cash.size)
             object.__setattr__(self, "cash_return", cash)

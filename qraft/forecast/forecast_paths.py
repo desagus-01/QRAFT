@@ -86,10 +86,17 @@ class ForecastPaths:
         base_shape: tuple[int, int] | None = None
 
         for asset, path in self.asset_paths.items():
+            path = np.asarray(path, dtype=float)
             if path.ndim != 2:
                 raise ValueError(
                     f"Forecast for {asset} must have shape "
                     f"(n_paths, n_horizons); got {path.shape}"
+                )
+            if not np.all(np.isfinite(path)):
+                raise ValueError(f"Forecast for {asset} contains NaN or inf")
+            if np.any(path <= 0):
+                raise ValueError(
+                    f"Forecast prices for {asset} must be strictly positive"
                 )
 
             if base_shape is None:
@@ -112,6 +119,11 @@ class ForecastPaths:
                 f"{n_horizons}"
             )
         object.__setattr__(self, "dates", normalize_datetime_series(self.dates))
+        for asset, price in self.initial_prices.items():
+            if not np.isfinite(price):
+                raise ValueError(f"initial price for {asset} must be finite")
+            if price <= 0:
+                raise ValueError(f"initial price for {asset} must be strictly positive")
 
     @property
     def price_stack(self) -> NDArray[np.floating]:

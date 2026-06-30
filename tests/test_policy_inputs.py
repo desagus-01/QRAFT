@@ -61,6 +61,28 @@ def test_forecast_paths_copies_and_freezes_path_probs() -> None:
     assert not forecasts.path_probs.flags.writeable
 
 
+def test_forecast_paths_rejects_non_positive_prices() -> None:
+    with pytest.raises(ValueError, match="strictly positive"):
+        ForecastPaths(
+            asset_paths={"A": np.array([[101.0, 0.0], [99.0, 100.0]])},
+            dates=pl.Series("date", [datetime(2024, 1, 4), datetime(2024, 1, 5)]),
+            path_probs=np.array([0.5, 0.5]),
+            initial_prices={"A": 100.0},
+            universe=AssetUniverse.factors_free(["A"]),
+        )
+
+
+def test_forecast_paths_rejects_non_finite_paths() -> None:
+    with pytest.raises(ValueError, match="NaN or inf"):
+        ForecastPaths(
+            asset_paths={"A": np.array([[101.0, np.inf], [99.0, 100.0]])},
+            dates=pl.Series("date", [datetime(2024, 1, 4), datetime(2024, 1, 5)]),
+            path_probs=np.array([0.5, 0.5]),
+            initial_prices={"A": 100.0},
+            universe=AssetUniverse.factors_free(["A"]),
+        )
+
+
 def _history() -> ScenarioPanel:
     return ScenarioPanel.from_prices(
         pl.DataFrame(
@@ -191,3 +213,22 @@ def test_policy_inputs_validate_required_fields() -> None:
     inputs.require_covariances()
     with pytest.raises(ValueError, match="mean"):
         inputs.require_mean()
+
+
+def test_policy_inputs_rejects_non_finite_scenario_returns() -> None:
+    with pytest.raises(ValueError, match="scenario_returns contains"):
+        PolicyInputs.from_arrays(
+            assets=["A"],
+            mean=np.array([[0.01]]),
+            scenario_returns=np.array([[[np.nan]]]),
+            scenario_probs=np.array([1.0]),
+        )
+
+
+def test_policy_inputs_rejects_non_finite_cash_return() -> None:
+    with pytest.raises(ValueError, match="cash_return contains"):
+        PolicyInputs.from_arrays(
+            assets=["A"],
+            mean=np.array([[0.01]]),
+            cash_return=np.array([np.inf]),
+        )

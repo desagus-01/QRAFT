@@ -95,9 +95,18 @@ class MarketData:
             .select("date", *universe.all_tickers)
             .sort("date")
         )
+        values = frame.select(*universe.all_tickers).to_numpy()
+        if not np.all(np.isfinite(values)):
+            raise ValueError("MarketData prices must contain only finite values")
+        if price_kind == "price" and np.any(values <= 0):
+            raise ValueError("MarketData prices must be strictly positive")
         cash_sorted = (
             cls._normalize_date_column(cash).sort("date") if cash is not None else None
         )
+        if cash_sorted is not None:
+            cash_values = cash_sorted.get_column(config.cash_column).to_numpy()
+            if not np.all(np.isfinite(cash_values)):
+                raise ValueError("Cash rates must contain only finite values")
         resolved_config = MarketDataConfig(
             cash_column=config.cash_column,
             periods_per_year=resolve_periods_per_year(
@@ -138,7 +147,7 @@ class MarketData:
         return ScenarioPanel.from_prices(window, prob=prob)
 
     def cash_rate_asof(self, t: DateLike, *, step_size: int = 1) -> float:
-        """Ex-ante assumption: latest rate known at t, as a per-step return."""
+        """Ex-ante assumption: latest rate known at t, as an ACT/day-count return."""
         t = self._as_datetime(t)
         if self.cash is None:
             return 0.0
@@ -146,14 +155,20 @@ class MarketData:
         if prior.height == 0:
             raise ValueError(f"No cash rate on or before {t!r}")
         annual = float(prior.get_column(self.config.cash_column)[-1]) / 100.0
-        return (1.0 + annual) ** (step_size / self.config.periods_per_year) - 1.0
+        if not np.isfinite(annual):
+            raise ValueError("Cash rate must be finite")
+        return annual * step_size / self.config.cash_day_count
 
     def realised_cash_return(self, t_prev: DateLike, t: DateLike) -> float:
-        """Realised accrual uses the same per-step convention as optimizer cash."""
+        """Realised accrual over the actual elapsed calendar days."""
         t_prev = self._as_datetime(t_prev)
+        t = self._as_datetime(t)
         if self.cash is None:
             return 0.0
-        return self.cash_rate_asof(t_prev, step_size=1)
+        days = (t - t_prev).total_seconds() / 86_400.0
+        if days <= 0:
+            raise ValueError("t must be after t_prev to realise cash return.")
+        return self.cash_rate_asof(t_prev, step_size=days)
 
     def snapshot_at(
         self, t: DateLike, t_next: DateLike, *, step_size: int = 1

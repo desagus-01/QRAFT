@@ -25,6 +25,16 @@ class PortfolioState:
             raise ValueError(
                 "Number of initial prices do NOT match with the number of assets you have"
             )
+        if not np.all(np.isfinite(self.initial_prices)):
+            raise ValueError("initial_prices must contain only finite values")
+        if np.any(self.initial_prices <= 0):
+            raise ValueError("initial_prices must be strictly positive")
+        if not np.all(np.isfinite(self.shares)):
+            raise ValueError("shares must contain only finite values")
+        if not np.isfinite(self.cash):
+            raise ValueError("cash must be finite")
+        if not np.isfinite(self.portfolio_value) or self.portfolio_value <= 0:
+            raise ValueError("portfolio_value must be finite and strictly positive")
 
     @classmethod
     def from_forecast_and_assets(

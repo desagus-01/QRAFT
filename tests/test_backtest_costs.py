@@ -2,9 +2,10 @@ from datetime import datetime
 
 import numpy as np
 import polars as pl
+import pytest
 
 from qraft.backtest.costs import CostModel
-from qraft.backtest.market import MarketData
+from qraft.backtest.market import MarketData, MarketDataConfig
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.backtest.simulator import run_backtest
 from qraft.construction.optimization.objectives.specs import (
@@ -90,13 +91,32 @@ def test_all_cash_pays_no_holding_cost():
 def test_long_book_accrues_holding_drag():
     res = run_backtest(
         _market(),
-        EqualWeightPolicy(target_cash_weight=0.0),
+        EqualWeightPolicy(target_cash_weight=0.01),
         schedule=RebalanceSchedule(cadence="every_bar"),
         costs=CostModel(holding=HoldingCost(0.0, 0.0252, 0.0)),
     )
     assert res.holding_costs[0] == 0.0
     assert res.total_holding_cost > 0.0
     assert len(res.holding_costs) == len(res.nav)
+
+
+def test_holding_cost_scales_with_calendar_gap():
+    dates = [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 12)]
+    market = MarketData.from_prices(
+        pl.DataFrame({"date": dates, "A": [10.0, 10.0, 10.0]}),
+        AssetUniverse.factors_free(["A"]),
+        cash=pl.DataFrame({"date": dates, "DFF": [0.0, 0.0, 0.0]}),
+        config=MarketDataConfig(cash_day_count=360),
+    )
+
+    res = run_backtest(
+        market,
+        EqualWeightPolicy(target_cash_weight=0.02),
+        schedule=RebalanceSchedule(cadence="every_bar"),
+        costs=CostModel(holding=HoldingCost(0.0, 0.36, 0.0, periods_per_year=360)),
+    )
+
+    np.testing.assert_allclose(res.holding_costs[2], 0.98, rtol=1e-12)
 
 
 def test_cost_model_from_policy_reads_preset():
@@ -158,3 +178,8 @@ def test_impact_uses_forecast_sigma():
         1_000.0 * 1.0 * 0.015 * (0.2**1.5),
         rtol=1e-12,
     )
+
+
+def test_cost_overdraft_fails_loudly():
+    with pytest.raises(ValueError, match="drove cash negative"):
+        _run(TransactionCost(cost=10.0, market_impact=0.0))

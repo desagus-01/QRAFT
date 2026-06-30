@@ -111,10 +111,12 @@ def cvar(
 
 def returns_from_nav(nav: NDArray[np.floating]) -> NDArray[np.floating]:
     """Simple per-bar returns from a NAV path."""
+    _validate_nav(nav)
     return np.diff(nav) / nav[:-1]
 
 
 def drawdown_curve(nav: NDArray[np.floating]) -> NDArray[np.floating]:
+    _validate_nav(nav)
     peak = np.maximum.accumulate(nav)
     return nav / peak - 1.0
 
@@ -124,6 +126,7 @@ def max_drawdown(nav: NDArray[np.floating]) -> float:
 
 
 def annualised_return(nav: NDArray[np.floating], periods_per_year: float) -> float:
+    _validate_nav(nav)
     if len(nav) < 2:
         return 0.0
     total_return = nav[-1] / nav[0]
@@ -180,3 +183,10 @@ def calmar(nav: NDArray[np.floating], periods_per_year: float) -> float:
     ann_ret = annualised_return(nav, periods_per_year)
     mdd = abs(max_drawdown(nav))
     return ann_ret / mdd if mdd > 0 else 0.0
+
+
+def _validate_nav(nav: NDArray[np.floating]) -> None:
+    if not np.all(np.isfinite(nav)):
+        raise ValueError("NAV must contain only finite values.")
+    if np.any(nav <= 0):
+        raise ValueError("NAV must be strictly positive.")

@@ -79,6 +79,20 @@ def test_market_data_config_defaults() -> None:
     assert cfg.cash_day_count == 360
 
 
+def test_market_data_rejects_non_positive_prices() -> None:
+    df = _price_frame().with_columns(pl.lit(0.0).alias("A"))
+
+    with pytest.raises(ValueError, match="prices must be strictly positive"):
+        MarketData.from_prices(df, _universe())
+
+
+def test_market_data_rejects_non_finite_cash_rates() -> None:
+    cash = _cash_frame().with_columns(pl.lit(float("nan")).alias("DFF"))
+
+    with pytest.raises(ValueError, match="Cash rates"):
+        MarketData.from_prices(_price_frame(), _universe(), cash=cash)
+
+
 # ---------------------------------------------------------------------------
 # WindowWeighting
 # ---------------------------------------------------------------------------
@@ -235,7 +249,7 @@ def test_cash_rate_asof_returns_per_step_return() -> None:
     md = _market_data()
     rate = md.cash_rate_asof(datetime(2024, 1, 2))
     # latest known at 2024-01-02: 5.25% / 100 = 0.0525 annual
-    expected = (1.0525) ** (1.0 / md.config.periods_per_year) - 1.0
+    expected = 0.0525 / md.config.cash_day_count
     assert rate == pytest.approx(expected)
 
 
@@ -249,7 +263,7 @@ def test_cash_rate_asof_with_step_size() -> None:
     md = _market_data()
     one_step = md.cash_rate_asof(datetime(2024, 1, 2), step_size=1)
     five_step = md.cash_rate_asof(datetime(2024, 1, 2), step_size=5)
-    expected_five = (1.0525) ** (5.0 / md.config.periods_per_year) - 1.0
+    expected_five = 0.0525 * 5.0 / md.config.cash_day_count
     assert five_step == pytest.approx(expected_five)
     assert five_step > one_step
 
@@ -280,7 +294,7 @@ def test_realised_cash_return_accepts_string_dates() -> None:
 def test_realised_cash_return_multi_day_interval() -> None:
     md = _market_data()
     r = md.realised_cash_return(datetime(2024, 1, 1), datetime(2024, 1, 3))
-    assert r == pytest.approx(md.cash_rate_asof(datetime(2024, 1, 1)))
+    assert r == pytest.approx(md.cash_rate_asof(datetime(2024, 1, 1), step_size=2))
 
 
 def test_realised_cash_return_raises_on_no_prior_rate() -> None:
@@ -353,7 +367,7 @@ def test_from_prices_accepts_string_date_columns() -> None:
     assert md.trading_bars == [datetime(2024, 1, 1), datetime(2024, 1, 2)]
     np.testing.assert_allclose(md.prices_at("2024-01-02"), [11.0, 22.0])
     assert md.cash_rate_asof("2024-01-02") == pytest.approx(
-        (1.05) ** (1.0 / md.config.periods_per_year) - 1.0
+        0.05 / md.config.cash_day_count
     )
 
 
@@ -367,7 +381,7 @@ def test_cash_rate_asof_uses_latest_rate_before_t() -> None:
     md = MarketData.from_prices(_price_frame(), _universe(), cash=df)
     # At t=2024-01-03, latest rate <= t is 5.0 (from 2024-01-01)
     assert md.cash_rate_asof(datetime(2024, 1, 3)) == pytest.approx(
-        (1.05) ** (1.0 / md.config.periods_per_year) - 1.0
+        0.05 / md.config.cash_day_count
     )
 
 
@@ -381,4 +395,4 @@ def test_realised_cash_return_uses_rate_at_t_prev() -> None:
     md = MarketData.from_prices(_price_frame(), _universe(), cash=df)
     # uses rate at 2024-01-01 (t_prev), which is 5.0%
     r = md.realised_cash_return(datetime(2024, 1, 1), datetime(2024, 1, 3))
-    assert r == pytest.approx(md.cash_rate_asof(datetime(2024, 1, 1)))
+    assert r == pytest.approx(md.cash_rate_asof(datetime(2024, 1, 1), step_size=2))

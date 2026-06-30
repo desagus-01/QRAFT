@@ -13,6 +13,7 @@ from qraft.backtest.market import MarketData, MarketSnapshot, WindowWeighting
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.backtest.simulator import run_backtest
 from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.optimization import MPOFailure, OptimizationFailure
 from qraft.construction.policies import EqualWeightPolicy, PolicyDecision
 from qraft.construction.state import PortfolioState
 from qraft.forecast.forecast_paths import AssetUniverse
@@ -79,6 +80,25 @@ class FailingPolicy:
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
         raise RuntimeError("intentional failure for testing")
+
+
+class OptimizationFailingPolicy:
+    name: str = "optimization_failing"
+    min_history: int = 0
+
+    def decide(
+        self,
+        state: PortfolioState,
+        policy_inputs: PolicyInputs | None = None,
+        *,
+        inputs: dict[str, Any] | None = None,
+    ) -> PolicyDecision:
+        raise OptimizationFailure(
+            MPOFailure(
+                status="cvar_cutting_plane_nonconverged",
+                message="Optimization failed: cvar_cutting_plane_nonconverged",
+            )
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +294,26 @@ def test_7_solver_fallback_on_policy_failure() -> None:
     # All periods should have solver_status indicating error
     for p in result.periods:
         assert p.solver_status == "solver_error"
+
+
+def test_optimizer_failure_status_is_preserved_when_holding() -> None:
+    market = MarketData.from_prices(
+        _price_frame(DATES_4, A=[10.0, 12.0, 12.0, 15.0], B=[20.0, 18.0, 18.0, 18.0]),
+        _universe("A", "B"),
+        cash=_cash_frame(DATES_4, [3.6, 7.2, 7.2, 7.2]),
+    )
+
+    result = run_backtest(
+        market=market,
+        schedule=RebalanceSchedule(cadence="every_bar"),
+        inputs=RecordingForecaster(),
+        policy=OptimizationFailingPolicy(),
+        initial_cash=100.0,
+    )
+
+    assert {p.solver_status for p in result.periods} == {
+        "cvar_cutting_plane_nonconverged"
+    }
 
 
 # ---------------------------------------------------------------------------

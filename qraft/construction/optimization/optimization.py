@@ -37,6 +37,7 @@ SolverStatus = Literal[
     "unbounded",
     "unbounded_inaccurate",
     "solver_error",
+    "cvar_cutting_plane_nonconverged",
 ]
 
 
@@ -157,7 +158,7 @@ class MPOResult:
 
     @property
     def is_optimal(self) -> bool:
-        return self.status in ("optimal", "optimal_inaccurate")
+        return self.status == "optimal"
 
     @property
     def target_weights(self) -> NDArray[np.floating]:
@@ -204,6 +205,13 @@ class MPOFailure:
     solver_stats: Any = None
     message: str = ""
     is_optimal: bool = False
+
+
+class OptimizationFailure(RuntimeError):
+    def __init__(self, failure: MPOFailure) -> None:
+        super().__init__(failure.message)
+        self.status = failure.status
+        self.solver_stats = failure.solver_stats
 
 
 class MultiPeriodOptimizer:
@@ -397,7 +405,7 @@ class MultiPeriodOptimizer:
 
     def _failure_if_not_optimal(self, raise_on_failure: bool) -> MPOFailure | None:
         status = cast(SolverStatus, self.problem.status)
-        if status in {"optimal", "optimal_inaccurate"}:
+        if status == "optimal":
             return None
 
         message = f"Optimization failed: {status}"
@@ -605,6 +613,17 @@ class MultiPeriodOptimizer:
                 "(%d total cuts placed).",
                 max_iter,
                 total_cuts,
+            )
+            message = (
+                "Optimization failed: cvar_cutting_plane_nonconverged "
+                f"after {max_iter} iterations ({total_cuts} total cuts placed)."
+            )
+            if raise_on_failure:
+                raise RuntimeError(message)
+            return MPOFailure(
+                status="cvar_cutting_plane_nonconverged",
+                solver_stats=self.problem.solver_stats,
+                message=message,
             )
 
         if objective_value is None:

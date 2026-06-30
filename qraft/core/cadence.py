@@ -13,7 +13,10 @@ def infer_periods_per_year(dates: Sequence[datetime]) -> float:
     ]
     if any(delta <= 0 for delta in deltas):
         raise ValueError("dates must be strictly increasing to infer periods_per_year.")
-    return 365.25 / median(deltas)
+    median_delta = median(deltas)
+    if median_delta == 1.0:
+        return 252.0
+    return 365.25 / median_delta
 
 
 def resolve_periods_per_year(
@@ -22,7 +25,7 @@ def resolve_periods_per_year(
     if len(dates) < 2 and configured is not None:
         if configured <= 0:
             raise ValueError("periods_per_year must be > 0")
-        return float(configured)
+        return configured
     inferred = infer_periods_per_year(dates)
     if configured is None:
         return inferred
@@ -33,4 +36,4 @@ def resolve_periods_per_year(
             "periods_per_year is inconsistent with observed cadence: "
             f"configured={configured:.6g}, inferred={inferred:.6g}."
         )
-    return float(configured)
+    return configured

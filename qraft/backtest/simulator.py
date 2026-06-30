@@ -18,6 +18,7 @@ from qraft.backtest.inputs import PolicyInputsProvider
 from qraft.backtest.market import MarketData
 from qraft.backtest.schedule import RebalanceSchedule
 from qraft.construction.market_snapshot import MarketSnapshot
+from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
@@ -56,7 +57,7 @@ def decide_or_hold(
         status = getattr(decision.diagnostics, "status", "ok")
         sigma = _aligned_sigma(policy_inputs, asset_order)
         return DecideOrHoldResult(decision, status, sigma, None, None)
-    except (RuntimeError, ValueError) as exc:
+    except (OptimizationFailure, RuntimeError, ValueError) as exc:
         bar = point.decision_bar
         logger.warning("decision at %s failed (%s); holding.", bar, exc)
         logger.debug(
@@ -71,7 +72,8 @@ def decide_or_hold(
         decision = PolicyDecision(
             asset_order, state.asset_weights, float(state.cash_weight)
         )
-        return DecideOrHoldResult(decision, "solver_error", None, exc_str, warning)
+        status = getattr(exc, "status", "solver_error")
+        return DecideOrHoldResult(decision, status, None, exc_str, warning)
 
 
 def _make_warning(
@@ -111,18 +113,14 @@ def _aligned_sigma(
 
 
 def _charge(cash: float, amount: float, nav: float, label: str, bar: datetime) -> float:
-    """Debit a realised cost from cash; absorb float-noise, warn on a real overdraft."""
+    """Debit a realised cost from cash; absorb float-noise, fail on a real overdraft."""
     cash -= amount
     if cash >= 0.0 or cash > -1e-9 * max(abs(nav), 1.0):
         return max(cash, 0.0)
-    logger.warning(
-        "%s at %s drove cash negative (%.6g); add a MinCashWeight buffer "
-        "or allow_borrow.",
-        label,
-        bar,
-        cash,
+    raise ValueError(
+        f"{label} at {bar} drove cash negative ({cash:.6g}); add a "
+        "MinCashWeight buffer or allow_borrow."
     )
-    return cash
 
 
 def _accrue_and_price(
@@ -146,10 +144,15 @@ def _apply_holding_cost(
     prices: NDArray,
     nav_now: float,
     cash: float,
+    day_count: int,
 ) -> tuple[float, float]:
     holding = 0.0
     if prev is not None and nav_now > 0.0 and costs.holding is not None:
-        holding = costs.holding_charge((shares * prices) / nav_now, nav_now)
+        days = (bar - prev).total_seconds() / 86_400.0
+        holding_periods = days * costs.holding.periods_per_year / day_count
+        holding = costs.holding_charge(
+            (shares * prices) / nav_now, nav_now, n_periods=holding_periods
+        )
         cash = _charge(cash, holding, nav_now, "holding cost", bar)
     return holding, cash
 
@@ -288,7 +291,14 @@ def run_backtest(
         prices, nav_now, cash = _accrue_and_price(prev, bar, market, shares, cash)
 
         holding, cash = _apply_holding_cost(
-            prev, bar, costs, shares, prices, nav_now, cash
+            prev,
+            bar,
+            costs,
+            shares,
+            prices,
+            nav_now,
+            cash,
+            market.config.cash_day_count,
         )
         holding_costs.append(holding)
 

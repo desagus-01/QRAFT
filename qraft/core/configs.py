@@ -205,7 +205,7 @@ class WalkForwardConfig(CVConfig):
     anchored: bool = False
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        CVConfig.__post_init__(self)
         if self.train_size is None or self.test_size is None:
             raise ValueError("train_size and test_size are required")
         if self.train_size < 1 or self.test_size < 1:

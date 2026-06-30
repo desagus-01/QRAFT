@@ -52,7 +52,7 @@ class CostModel:
         self,
         weights: NDArray[np.floating],
         nav: float,
-        n_periods: int = 1,
+        n_periods: float = 1.0,
     ) -> float:
         if self.holding is None or nav <= 0.0:
             return 0.0

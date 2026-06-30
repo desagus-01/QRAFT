@@ -72,6 +72,14 @@ def test_walk_forward_config_validates() -> None:
         WalkForwardConfig(train_size=0, test_size=2)
 
 
+def test_walk_forward_config_constructs_with_inherited_slots() -> None:
+    config = WalkForwardConfig(risk_free_rate=0.01, train_size=3, test_size=2)
+
+    assert config.risk_free_rate == 0.01
+    assert config.train_size == 3
+    assert config.test_size == 2
+
+
 def test_combinatorial_cv_config_defaults_are_conservative() -> None:
     config = CombinatorialCVConfig()
 
@@ -216,7 +224,7 @@ def test_trial_sharpes_infers_periods_per_year_from_candidate_dates() -> None:
 
     values = trial_sharpes([candidate], None)
 
-    assert values == pytest.approx([2.0 / np.sqrt(365.25)])
+    assert values == pytest.approx([2.0 / np.sqrt(252.0)])
 
 
 def _candidate_result(value: int, dates: list[datetime]) -> CandidateResult:
