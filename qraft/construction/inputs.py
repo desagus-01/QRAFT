@@ -108,6 +108,7 @@ def forecast_policy_input_table(
         forecast_snapshots,
         recipe_history,
         pipeline_config=pipeline_config,
+        seed=provider_config.seed,
         simulation_config=simulation_config,
     )
     return build_policy_input_table(

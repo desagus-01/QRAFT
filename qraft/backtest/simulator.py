@@ -309,6 +309,7 @@ def precompute_inputs_from_recipe_history(
     warmup: int,
     *,
     policy: PolicyInputRequirements | None = None,
+    seed: int | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
     dtype: type = np.float64,
     step_size: int = 1,
@@ -320,6 +321,7 @@ def precompute_inputs_from_recipe_history(
         recipe_history,
         min_history=warmup,
         forecast_cadence=schedule.cadence,
+        seed=seed,
         simulation_config=simulation_config,
     )
     table = build_policy_input_table_from_forecast_run(

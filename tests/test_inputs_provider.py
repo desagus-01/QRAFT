@@ -209,6 +209,7 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
     assert captured["simulate"][1] is recipe_history
     assert captured["simulate"][2]["min_history"] == 2
     assert captured["simulate"][2]["forecast_cadence"] == "every_bar"
+    assert captured["simulate"][2]["seed"] is None
     assert captured["build"][1] is forecast_run
     assert [snapshot.t for snapshot in captured["build"][0]] == dates[1:-1]
     assert table.keys() == set(dates[1:-1])

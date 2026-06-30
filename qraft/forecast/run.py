@@ -37,10 +37,17 @@ class ForecastRecipeHistory:
     pipeline_config: PipelineConfig
 
     def period_at(self, as_of: datetime) -> tuple[int, RecipePeriod]:
+        if not self.periods:
+            raise KeyError(f"No forecast recipes are available for {as_of!r}")
         for index, period in enumerate(self.periods):
             if period.start <= as_of and (period.end is None or as_of < period.end):
                 return index, period
-        raise KeyError(f"No forecast recipe active at {as_of!r}")
+        first = self.periods[0].start
+        last = self.periods[-1].end
+        raise KeyError(
+            f"No forecast recipe active at {as_of!r}; recipe history starts at "
+            f"{first!r} and ends at {last!r}"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +73,7 @@ def build_forecast_recipe_history(
     seed: int | None = None,
     pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
 ) -> ForecastRecipeHistory:
+    """Build recipes from every-bar snapshots; ``refit_every`` is in bars."""
     if min_history < 1 or refit_every < 1:
         raise ValueError("min_history and refit_every must be >= 1")
     snapshots = _forecast_snapshots_from_market(
@@ -88,6 +96,7 @@ def simulate_forecast_paths(
     *,
     min_history: int,
     forecast_cadence: Cadence = "quarter_end",
+    seed: int | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
 ) -> ForecastRun:
     if min_history < 1:
@@ -101,6 +110,7 @@ def simulate_forecast_paths(
         snapshots,
         recipe_history,
         pipeline_config=recipe_history.pipeline_config,
+        seed=seed,
         simulation_config=simulation_config,
     )
 
@@ -113,6 +123,7 @@ def build_forecast_recipe_history_from_snapshots(
     seed: int | None = None,
     pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
 ) -> ForecastRecipeHistory:
+    """Build recipes from supplied snapshots; ``refit_every`` is in snapshot steps."""
     if refit_every < 1:
         raise ValueError("refit_every must be >= 1")
     recipe: ForecastRecipe | None = None
@@ -167,11 +178,12 @@ def simulate_forecast_paths_from_snapshots(
     recipe_history: ForecastRecipeHistory,
     *,
     pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
+    seed: int | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
 ) -> ForecastRun:
     steps: list[ForecastStep] = []
 
-    for snapshot in snapshots:
+    for step, snapshot in enumerate(snapshots):
         period_index, period = recipe_history.period_at(snapshot.as_of)
         panel = snapshot.history
         data = panel.to_frame()
@@ -182,7 +194,7 @@ def simulate_forecast_paths_from_snapshots(
             universe_fit=fit,
             last_data=data.tail(1),
             n_rows=data.height,
-            seed=None,
+            seed=_seed_for(seed, step),
             simulation_config=simulation_config,
         )
         steps.append(

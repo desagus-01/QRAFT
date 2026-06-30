@@ -4,7 +4,12 @@ import polars as pl
 
 from qraft.backtest.market import MarketData
 from qraft.core.universe import AssetUniverse
-from qraft.forecast.run import build_forecast_recipe_history, simulate_forecast_paths
+from qraft.forecast.run import (
+    ForecastRecipeHistory,
+    RecipePeriod,
+    build_forecast_recipe_history,
+    simulate_forecast_paths,
+)
 
 
 def _market(universe: AssetUniverse | None = None) -> MarketData:
@@ -106,6 +111,55 @@ def test_forecast_cadence_selects_backtest_style_market_bars(monkeypatch):
         datetime(2024, 1, 4),
         datetime(2024, 1, 5),
     ]
+
+
+def test_forecast_run_passes_seed_to_each_forecast_step(monkeypatch):
+    captured: list[int | None] = []
+
+    def forecast_from_fit(**kwargs):
+        captured.append(kwargs["seed"])
+        return object()
+
+    _patch_runner(monkeypatch)
+    monkeypatch.setattr("qraft.forecast.run.forecast_from_fit", forecast_from_fit)
+    history = build_forecast_recipe_history(
+        _market(),
+        min_history=2,
+        refit_every=12,
+    )
+
+    simulate_forecast_paths(
+        _market(),
+        history,
+        min_history=2,
+        forecast_cadence="every_bar",
+        seed=7,
+    )
+
+    assert captured == [7, 8, 9, 10]
+
+
+def test_recipe_history_period_at_reports_available_bounds():
+    recipe = object()
+    history = ForecastRecipeHistory(
+        periods=(
+            RecipePeriod(
+                start=datetime(2024, 1, 3),
+                end=None,
+                recipe=recipe,
+                universe=("A",),
+                selected_at_step=0,
+            ),
+        ),
+        pipeline_config=object(),
+    )
+
+    try:
+        history.period_at(datetime(2024, 1, 2))
+    except KeyError as exc:
+        assert "recipe history starts at" in str(exc)
+    else:
+        raise AssertionError("period_at should reject dates before the first period")
 
 
 def test_forecast_package_does_not_import_backtest_or_construction():
