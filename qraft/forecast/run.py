@@ -73,7 +73,7 @@ def build_forecast_recipe_history(
         min_history=min_history,
         cadence="every_bar",
     )
-    return _build_forecast_recipe_history_from_snapshots(
+    return build_forecast_recipe_history_from_snapshots(
         snapshots,
         refit_every=refit_every,
         reselect_on_universe_change=reselect_on_universe_change,
@@ -97,7 +97,7 @@ def simulate_forecast_paths(
         min_history=min_history,
         cadence=forecast_cadence,
     )
-    return _build_forecast_run_from_snapshots(
+    return simulate_forecast_paths_from_snapshots(
         snapshots,
         recipe_history,
         pipeline_config=recipe_history.pipeline_config,
@@ -105,7 +105,7 @@ def simulate_forecast_paths(
     )
 
 
-def _build_forecast_recipe_history_from_snapshots(
+def build_forecast_recipe_history_from_snapshots(
     snapshots: Iterable[ForecastSnapshot],
     *,
     refit_every: int,
@@ -162,7 +162,7 @@ def _build_forecast_recipe_history_from_snapshots(
     return ForecastRecipeHistory(tuple(periods), pipeline_config=pipeline_config)
 
 
-def _build_forecast_run_from_snapshots(
+def simulate_forecast_paths_from_snapshots(
     snapshots: Iterable[ForecastSnapshot],
     recipe_history: ForecastRecipeHistory,
     *,
@@ -199,6 +199,12 @@ def _build_forecast_run_from_snapshots(
         )
 
     return ForecastRun(recipe_history=recipe_history, steps=tuple(steps))
+
+
+_build_forecast_recipe_history_from_snapshots = (
+    build_forecast_recipe_history_from_snapshots
+)
+_build_forecast_run_from_snapshots = simulate_forecast_paths_from_snapshots
 
 
 def _forecast_snapshots_from_market(

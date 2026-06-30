@@ -9,11 +9,11 @@ from qraft.backtest.inputs import (
     PrecomputedInputsProvider,
 )
 from qraft.construction.market_snapshot import MarketSnapshot
+from qraft.construction.inputs import build_policy_input_table
 from qraft.construction.optimization.moments import PolicyInputConfig
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.core.panel import ScenarioPanel
-from qraft.forecast.forecast_paths import AssetUniverse
-from qraft.forecast.run import ForecastRun
+from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 
 
 def _snap(t: datetime, cash_rate: float = 0.0) -> MarketSnapshot:
@@ -78,7 +78,37 @@ def test_astype_downcasts_only_heavy_arrays():
 
 def test_forecast_provider_uses_snapshot_cash_rate(monkeypatch):
     provider = ForecastInputsProvider(PolicyInputConfig(cash_path="unused.csv"))
-    forecast = object()
+    captured = {}
+
+    def fake_build(snapshots, **kwargs):
+        snapshots = list(snapshots)
+        captured["cash_return"] = snapshots[0].cash_rate
+        return {
+            snapshots[0].t: PolicyInputs.from_arrays(
+                assets=["A"], mean=np.ones((1, 1)), cash_return=snapshots[0].cash_rate
+            )
+        }
+
+    monkeypatch.setattr(
+        "qraft.backtest.inputs.forecast_policy_input_table",
+        fake_build,
+    )
+
+    inputs = provider.for_date(_snap(datetime(2024, 1, 2), cash_rate=0.001), 1)
+
+    np.testing.assert_allclose(inputs.cash_return, [0.001])
+    assert captured["cash_return"] == 0.001
+
+
+def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
+    snapshot = _snap(datetime(2024, 1, 2), cash_rate=0.002)
+    forecast = ForecastPaths(
+        asset_paths={"A": np.array([[10.5], [11.0]])},
+        dates=pl.Series("date", [datetime(2024, 1, 3)]),
+        path_probs=np.array([0.5, 0.5]),
+        initial_prices={"A": 10.0},
+        universe=AssetUniverse.factors_free(["A"]),
+    )
     captured = {}
 
     def fake_from_policy_sources(**kwargs):
@@ -87,22 +117,19 @@ def test_forecast_provider_uses_snapshot_cash_rate(monkeypatch):
             assets=["A"], mean=np.ones((1, 1)), cash_return=kwargs["cash_return"]
         )
 
-    def fake_run(snapshots):
-        snapshots = list(snapshots)
-        step = type(
-            "Step",
-            (),
-            {"as_of": snapshots[0].as_of, "forecast": forecast},
-        )()
-        return ForecastRun(recipe_history=None, steps=(step,))
-
-    monkeypatch.setattr(provider, "run", fake_run)
     monkeypatch.setattr(
-        "qraft.backtest.inputs.PolicyInputs.from_policy_sources",
+        "qraft.construction.inputs.PolicyInputs.from_policy_sources",
         fake_from_policy_sources,
     )
 
-    inputs = provider.for_date(_snap(datetime(2024, 1, 2), cash_rate=0.001), 1)
+    table = build_policy_input_table(
+        [snapshot],
+        [forecast],
+        input_config=PolicyInputConfig(cash_path="unused.csv"),
+        risk_source="both",
+    )
 
-    np.testing.assert_allclose(inputs.cash_return, [0.001])
-    assert captured["cash_return"] == 0.001
+    assert table.keys() == {snapshot.t}
+    assert captured["forecasts"] is forecast
+    assert captured["history"] is snapshot.history
+    assert captured["cash_return"] == 0.002

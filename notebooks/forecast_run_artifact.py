@@ -57,8 +57,8 @@ market = MarketData.from_log_prices(
 # %%
 recipe_history = build_forecast_recipe_history(
     market,
-    min_history=250,
-    refit_every=350,
+    min_history=150,
+    refit_every=22,
     seed=3,
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
 )

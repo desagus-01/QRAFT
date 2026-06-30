@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Iterable, Mapping, Protocol, runtime_checkable
+from typing import Mapping, Protocol, runtime_checkable
 
 import numpy as np
 
+from qraft.construction.inputs import forecast_policy_input_table
 from qraft.construction.optimization.moments import (
     PolicyInputConfig,
     PolicyInputs,
@@ -21,14 +22,7 @@ from qraft.core.configs import (
     SimulationForecastConfig,
 )
 from qraft.core.snapshot import (
-    ForecastSnapshot,
     MarketSnapshot,
-    forecast_snapshot_from_decision_snapshot,
-)
-from qraft.forecast.run import (
-    ForecastRun,
-    _build_forecast_recipe_history_from_snapshots,
-    _build_forecast_run_from_snapshots,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,51 +70,14 @@ class ForecastInputsProvider:
         return self._table[snapshot.t]
 
     def build(self, snapshots) -> dict[datetime, PolicyInputs]:
-        market_snapshots = list(snapshots)
-        forecast_snapshots = [
-            forecast_snapshot_from_decision_snapshot(snapshot)
-            for snapshot in market_snapshots
-        ]
-        run = self.run(forecast_snapshots)
-        table: dict[datetime, PolicyInputs] = {}
-
-        for snapshot, step in zip(market_snapshots, run.steps, strict=True):
-            inputs = PolicyInputs.from_policy_sources(
-                forecasts=step.forecast,
-                cash_path=self.input_config.cash_path,
-                expected_returns=self.input_config.expected_returns,
-                risk=self._risk_source(),
-                history=snapshot.history,
-                max_horizons=self.input_config.max_horizons,
-                subset=self.input_config.subset,
-                pnl_type=self.input_config.pnl_type,
-                expectation_tolerance=self.input_config.expectation_tolerance,
-                mean_decay=self.input_config.mean_decay,
-                step_size=self.input_config.step_size,
-                periods_per_year=self.input_config.periods_per_year,
-                as_of=snapshot.t,
-                cash_return=snapshot.cash_rate,
-            )
-            if self.dtype != np.float64:
-                inputs = inputs.astype(self.dtype)
-            table[snapshot.t] = inputs
-
-        return table
-
-    def run(self, snapshots: Iterable[ForecastSnapshot]) -> ForecastRun:
-        snapshots = list(snapshots)
-        recipe_history = _build_forecast_recipe_history_from_snapshots(
+        return forecast_policy_input_table(
             snapshots,
-            refit_every=self.provider_config.refit_every,
-            reselect_on_universe_change=self.provider_config.reselect_on_universe_change,
-            seed=self.provider_config.seed,
-            pipeline_config=self.pipeline_config,
-        )
-        return _build_forecast_run_from_snapshots(
-            snapshots,
-            recipe_history,
+            input_config=self.input_config,
+            risk_source=self._risk_source(),
+            provider_config=self.provider_config,
             pipeline_config=self.pipeline_config,
             simulation_config=self.simulation_config,
+            dtype=self.dtype,
         )
 
     def _risk_source(self):
