@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from qraft.backtest.schedule import RebalanceSchedule
-
 GarchDist = Literal["t", "normal", "skewt"]
 IC = Literal["bic", "aic"]
 
@@ -167,11 +165,15 @@ DEFAULT_FORECAST_PROVIDER_CONFIG: ForecastProviderConfig = ForecastProviderConfi
 class BacktestConfig:
     """Execution and scoring settings shared by backtest entry points."""
 
-    schedule: RebalanceSchedule = field(default_factory=RebalanceSchedule)
+    schedule: object | None = None
     initial_cash: float = 100.0
     periods_per_year: float | None = None
 
     def __post_init__(self) -> None:
+        if self.schedule is None:
+            from qraft.backtest.schedule import RebalanceSchedule
+
+            object.__setattr__(self, "schedule", RebalanceSchedule())
         if self.initial_cash <= 0:
             raise ValueError("initial_cash must be > 0")
         if self.periods_per_year is not None and self.periods_per_year <= 0:

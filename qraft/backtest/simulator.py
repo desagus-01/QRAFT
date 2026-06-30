@@ -14,10 +14,13 @@ from qraft.backtest.execution import (
     BacktestWarning,
     execute_frictionless,
 )
-from qraft.backtest.inputs import PolicyInputsProvider
+from qraft.backtest.inputs import ForecastInputsProvider, PolicyInputsProvider
 from qraft.backtest.market import MarketData
 from qraft.backtest.schedule import RebalanceSchedule
-from qraft.construction.market_snapshot import MarketSnapshot
+from qraft.construction.market_snapshot import (
+    MarketSnapshot,
+    forecast_snapshot_from_market,
+)
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
@@ -247,10 +250,17 @@ def precompute_inputs(
     valid only for candidates sharing this ``provider``, ``warmup``,
     ``step_size`` and ``schedule``; any input-layer change needs its own table.
     """
-    table = {
-        point.decision_bar: provider.for_date(point.snapshot, point.index)
-        for point in decision_points(market, schedule, warmup, step_size=step_size)
-    }
+    points = decision_points(market, schedule, warmup, step_size=step_size)
+    if isinstance(provider, ForecastInputsProvider):
+        run = provider.run(
+            forecast_snapshot_from_market(point.snapshot) for point in points
+        )
+        table = run.policy_inputs_table()
+    else:
+        table = {
+            point.decision_bar: provider.for_date(point.snapshot, point.index)
+            for point in points
+        }
     logger.info("precompute_inputs: cached %d decision date(s)", len(table))
     return table
 
