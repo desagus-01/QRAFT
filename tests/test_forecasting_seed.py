@@ -55,8 +55,11 @@ def _panel() -> ScenarioPanel:
 def test_run_forecast_passes_top_level_seed_to_stochastic_steps(monkeypatch) -> None:
     captured: dict[str, int | None] = {}
 
-    def fake_fit(**kwargs):
+    def fake_create_forecast_recipe(**kwargs):
         captured["fit_seed"] = kwargs["seed"]
+        return object()
+
+    def fake_apply_forecast_recipe(*args, **kwargs):
         return DummyFittedUniverse()
 
     def fake_draw_innovations(**kwargs):
@@ -66,7 +69,12 @@ def test_run_forecast_passes_top_level_seed_to_stochastic_steps(monkeypatch) -> 
             path_probs=np.full(2, 0.5),
         )
 
-    monkeypatch.setattr(forecasting.FittedUniverse, "fit", fake_fit)
+    monkeypatch.setattr(
+        forecasting, "create_forecast_recipe", fake_create_forecast_recipe
+    )
+    monkeypatch.setattr(
+        forecasting, "apply_forecast_recipe", fake_apply_forecast_recipe
+    )
     monkeypatch.setattr(forecasting, "draw_innovations", fake_draw_innovations)
 
     forecasting.run_forecast(
@@ -88,8 +96,11 @@ def test_run_forecast_leaves_stochastic_steps_unseeded_when_seed_is_omitted(
 ) -> None:
     captured: dict[str, int | None] = {}
 
-    def fake_fit(**kwargs):
+    def fake_create_forecast_recipe(**kwargs):
         captured["fit_seed"] = kwargs["seed"]
+        return object()
+
+    def fake_apply_forecast_recipe(*args, **kwargs):
         return DummyFittedUniverse()
 
     def fake_draw_innovations(**kwargs):
@@ -99,7 +110,12 @@ def test_run_forecast_leaves_stochastic_steps_unseeded_when_seed_is_omitted(
             path_probs=np.full(2, 0.5),
         )
 
-    monkeypatch.setattr(forecasting.FittedUniverse, "fit", fake_fit)
+    monkeypatch.setattr(
+        forecasting, "create_forecast_recipe", fake_create_forecast_recipe
+    )
+    monkeypatch.setattr(
+        forecasting, "apply_forecast_recipe", fake_apply_forecast_recipe
+    )
     monkeypatch.setattr(forecasting, "draw_innovations", fake_draw_innovations)
 
     forecasting.run_forecast(

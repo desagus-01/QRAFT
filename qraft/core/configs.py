@@ -145,17 +145,16 @@ DEFAULT_SIMULATION_CONFIG: SimulationForecastConfig = SimulationForecastConfig()
 
 @dataclass(frozen=True, slots=True)
 class ForecastProviderConfig:
-    """Controls how often forecast inputs are refreshed during a backtest."""
+    """Controls forecast dates and recipe refits."""
 
     refit_every: int = 12
     forecast_every: int = 1
+    reselect_on_universe_change: bool = True
     seed: int | None = None
 
     def __post_init__(self) -> None:
         if self.refit_every < 1 or self.forecast_every < 1:
             raise ValueError("refit_every and forecast_every must be >= 1")
-        if self.forecast_every > self.refit_every:
-            raise ValueError("forecast_every must be <= refit_every")
 
 
 DEFAULT_FORECAST_PROVIDER_CONFIG: ForecastProviderConfig = ForecastProviderConfig()

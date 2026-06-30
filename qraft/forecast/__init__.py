@@ -11,6 +11,7 @@ __all__ = [
     "IIDConfig",
     "PreprocessConfig",
     "FittedUniverse",
+    "forecast_from_fit",
     "run_univariate_preprocess",
     "Signal",
     "SimulationForecast",
@@ -30,7 +31,10 @@ from qraft.forecast.forecast_paths import (  # noqa: F401
     InnovationPaths,
 )
 from qraft.forecast.pipelines.fitted_universe import FittedUniverse  # noqa: F401
-from qraft.forecast.pipelines.forecasting import run_forecast  # noqa: F401
+from qraft.forecast.pipelines.forecasting import (  # noqa: F401
+    forecast_from_fit,
+    run_forecast,
+)
 from qraft.forecast.pipelines.model_selection import (
     run_univariate_pipeline,  # noqa: F401
 )

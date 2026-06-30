@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -181,6 +181,3 @@ class ForecastPaths:
             prob=self.path_probs,
             kind="level",
         )
-
-    def with_path_probs(self, path_probs: ProbVector) -> ForecastPaths:
-        return replace(self, path_probs=path_probs)

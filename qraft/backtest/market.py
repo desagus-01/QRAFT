@@ -6,11 +6,11 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
-from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.core.cadence import resolve_periods_per_year
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.distributions import state_smooth_probs, uniform_probs
 from qraft.core.probability.prob_vector import ProbVector
+from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecast_paths import AssetUniverse
 from qraft.utils.helpers import str_to_datetime
 

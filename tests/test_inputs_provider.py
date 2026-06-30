@@ -13,6 +13,7 @@ from qraft.construction.optimization.moments import PolicyInputConfig
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.core.panel import ScenarioPanel
 from qraft.forecast.forecast_paths import AssetUniverse
+from qraft.forecast.run import ForecastRun
 
 
 def _snap(t: datetime, cash_rate: float = 0.0) -> MarketSnapshot:
@@ -86,15 +87,16 @@ def test_forecast_provider_uses_snapshot_cash_rate(monkeypatch):
             assets=["A"], mean=np.ones((1, 1)), cash_return=kwargs["cash_return"]
         )
 
-    monkeypatch.setattr(provider, "_forecast", lambda *args: forecast)
-    monkeypatch.setattr(
-        "qraft.backtest.inputs.select_recipe",
-        lambda **kwargs: object(),
-    )
-    monkeypatch.setattr(
-        "qraft.backtest.inputs.apply_recipe",
-        lambda *args, **kwargs: object(),
-    )
+    def fake_run(snapshots):
+        snapshots = list(snapshots)
+        step = type(
+            "Step",
+            (),
+            {"as_of": snapshots[0].as_of, "forecast": forecast},
+        )()
+        return ForecastRun(recipe_history=None, steps=(step,))
+
+    monkeypatch.setattr(provider, "run", fake_run)
     monkeypatch.setattr(
         "qraft.backtest.inputs.PolicyInputs.from_policy_sources",
         fake_from_policy_sources,

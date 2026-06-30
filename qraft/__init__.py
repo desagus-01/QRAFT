@@ -5,6 +5,7 @@ __all__ = [
     "CMAConfig",
     "AssetUniverse",
     "ForecastPaths",
+    "forecast_from_fit",
     "run_forecast",
     "LogConfig",
     "PipelineConfig",
@@ -69,7 +70,7 @@ from qraft.core.panel import ScenarioPanel
 from qraft.core.scenarios.transforms import CMA, Views
 from qraft.core.universe import AssetUniverse
 from qraft.forecast.forecast_paths import ForecastPaths
-from qraft.forecast.pipelines.forecasting import run_forecast
+from qraft.forecast.pipelines.forecasting import forecast_from_fit, run_forecast
 from qraft.helper import profile
 from qraft.core.metrics import cvar, var
 from qraft.risk.risk_report import PortfolioRisk

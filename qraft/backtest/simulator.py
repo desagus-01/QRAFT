@@ -17,14 +17,11 @@ from qraft.backtest.execution import (
 from qraft.backtest.inputs import ForecastInputsProvider, PolicyInputsProvider
 from qraft.backtest.market import MarketData
 from qraft.backtest.schedule import RebalanceSchedule
-from qraft.construction.market_snapshot import (
-    MarketSnapshot,
-    forecast_snapshot_from_market,
-)
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
+from qraft.core.snapshot import MarketSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -252,10 +249,7 @@ def precompute_inputs(
     """
     points = decision_points(market, schedule, warmup, step_size=step_size)
     if isinstance(provider, ForecastInputsProvider):
-        run = provider.run(
-            forecast_snapshot_from_market(point.snapshot) for point in points
-        )
-        table = run.policy_inputs_table()
+        table = provider.build(point.snapshot for point in points)
     else:
         table = {
             point.decision_bar: provider.for_date(point.snapshot, point.index)

@@ -121,7 +121,7 @@ def _forecast_dates_from_history(dates: pl.Series, horizon: int) -> pl.Series:
     return pl.Series("date", [last_date + step * i for i in range(1, horizon + 1)])
 
 
-def _forecast_from_fit(
+def forecast_from_fit(
     panel: ScenarioPanel,
     asset_universe: AssetUniverse,
     universe_fit: FittedUniverse,
@@ -218,7 +218,7 @@ def run_forecast(
         pipeline_config=pipeline_config,
     )
     universe_fit = apply_forecast_recipe(recipe, data, prob, pipeline_config)
-    return _forecast_from_fit(
+    return forecast_from_fit(
         panel=panel,
         asset_universe=universe,
         universe_fit=universe_fit,

@@ -252,7 +252,7 @@ def _merge_inv(
 def fit_with_orders(
     post_data: pl.DataFrame,
     recipe: ForecastRecipe,
-    cfg: PipelineConfig,
+    pipeline_config: PipelineConfig,
 ) -> dict[str, UnivariateRes]:
     need = set(recipe.needs_modelling)
     out: dict[str, UnivariateRes] = {}
@@ -273,7 +273,7 @@ def fit_with_orders(
         arr = post_data.select(a).drop_nulls().to_numpy().ravel()
         mean_order = recipe.mean_orders[a]
         if mean_order is not None:
-            mean_res = fit_arma(arr, mean_order, cfg.mean)
+            mean_res = fit_arma(arr, mean_order, pipeline_config.mean)
             if mean_res is None:
                 logger.warning(
                     "Asset=%s: ARMA(%d,%d) fit failed; falling back to demean model",
@@ -289,7 +289,7 @@ def fit_with_orders(
             if distribution is None:
                 raise ValueError(f"Asset={a} recipe is missing GARCH distribution")
             vol_res = fit_garch(
-                mean_res.residuals, vol_order, distribution, cfg.volatility
+                mean_res.residuals, vol_order, distribution, pipeline_config.volatility
             )
         else:
             vol_res = None
@@ -305,7 +305,7 @@ def apply_forecast_recipe(
     recipe: ForecastRecipe,
     data: pl.DataFrame,
     prob: ProbVector,
-    cfg: PipelineConfig,
+    pipeline_config: PipelineConfig,
 ) -> FittedUniverse:
     after_detrend, inv_d = apply_detrend(data, recipe.detrend, prob)
     merged = overwrite_with_transforms(
@@ -316,7 +316,7 @@ def apply_forecast_recipe(
     if missing:
         post = post.join(merged.select(["date"] + missing), on="date", how="left")
 
-    models = fit_with_orders(post, recipe, cfg)
+    models = fit_with_orders(post, recipe, pipeline_config)
 
     inverse_specs = _merge_inv(inv_d, inv_s, recipe.survivors)
     need = set(recipe.needs_modelling)
@@ -338,38 +338,13 @@ def apply_forecast_recipe(
         ),
         models=models,
         simulation_forecasts=_build_simulation_forecasts(
-            post, models, recipe.survivors, cfg.volatility.variance_cap_factor
+            post,
+            models,
+            recipe.survivors,
+            pipeline_config.volatility.variance_cap_factor,
         ),
         invariants=_build_invariants_panel(post, models, recipe.survivors, prob),
     )
-
-
-def select_recipe(
-    data: pl.DataFrame,
-    prob: ProbVector,
-    universe: AssetUniverse,
-    pipeline_config: PipelineConfig,
-    seed: int | None = None,
-) -> ForecastRecipe:
-    return create_forecast_recipe(data, prob, universe, pipeline_config, seed=seed)
-
-
-def apply_recipe(
-    recipe: ForecastRecipe,
-    data: pl.DataFrame,
-    prob: ProbVector,
-    cfg: PipelineConfig,
-) -> FittedUniverse:
-    return apply_forecast_recipe(recipe, data, prob, cfg)
-
-
-def recondition(
-    recipe: ForecastRecipe,
-    data: pl.DataFrame,
-    prob: ProbVector,
-    cfg: PipelineConfig,
-) -> FittedUniverse:
-    return apply_forecast_recipe(recipe, data, prob, cfg)
 
 
 def _build_simulation_forecasts(
