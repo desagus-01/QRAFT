@@ -40,6 +40,9 @@ def var(
     distribution_type: Literal["pnl", "loss"] = "loss",
 ) -> NDArray[np.floating]:
     axis = normalize_axis_index(axis, distribution.ndim)
+    if distribution.shape[axis] == 0:
+        out_shape = distribution.shape[:axis] + distribution.shape[axis + 1 :]
+        return np.full(out_shape, np.nan, dtype=float)
 
     cutoff = tail_cutoff(
         distribution=distribution,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 from numpy.typing import NDArray
@@ -53,7 +53,11 @@ class CostModel:
         weights: NDArray[np.floating],
         nav: float,
         n_periods: float = 1.0,
+        periods_per_year: float | None = None,
     ) -> float:
         if self.holding is None or nav <= 0.0:
             return 0.0
-        return holding_cost_value(self.holding, weights, nav=nav, n_periods=n_periods)
+        holding = self.holding
+        if periods_per_year is not None:
+            holding = replace(holding, periods_per_year=periods_per_year)
+        return holding_cost_value(holding, weights, nav=nav, n_periods=n_periods)

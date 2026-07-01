@@ -9,6 +9,7 @@ import polars as pl
 import polars.selectors as cs
 from numpy.typing import NDArray
 
+from qraft.core.metrics import tail_cutoff
 from qraft.core.probability.prob_vector import ProbVector
 
 logger = logging.getLogger(__name__)
@@ -70,9 +71,16 @@ def weighted_moments(
 
 
 def indicator_quantile_marginal(
-    data: pl.DataFrame, target_quantile: float
+    data: pl.DataFrame, target_quantile: float, prob: ProbVector | None = None
 ) -> pl.DataFrame:
-    threshold = np.quantile(data, target_quantile)
+    values = data.select(cs.numeric()).to_numpy()
+    threshold = tail_cutoff(
+        values,
+        prob=prob,
+        alpha=target_quantile,
+        axis=0,
+        distribution_type="pnl",
+    )
 
     return data.with_columns(quant_ind=(cs.numeric() <= threshold).cast(pl.Int8))
 

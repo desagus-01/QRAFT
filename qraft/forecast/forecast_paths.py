@@ -46,6 +46,7 @@ class ForecastPaths:
             raise ValueError("ForecastPaths.asset_paths cannot be empty")
 
         base_shape: tuple[int, int] | None = None
+        asset_paths: dict[str, NDArray[np.floating]] = {}
 
         for asset, path in self.asset_paths.items():
             path = np.asarray(path, dtype=float)
@@ -68,10 +69,11 @@ class ForecastPaths:
                     f"Forecast shape mismatch for {asset}: {path.shape} != {base_shape}"
                 )
 
-            self.asset_paths[asset] = path
+            asset_paths[asset] = path
 
         assert base_shape is not None
         n_paths, n_horizons = base_shape
+        object.__setattr__(self, "asset_paths", asset_paths)
 
         path_probs = as_prob_vector(self.path_probs, length=n_paths)
         object.__setattr__(self, "path_probs", path_probs)

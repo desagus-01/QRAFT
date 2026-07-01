@@ -30,7 +30,7 @@ from qraft.forecast.run import build_forecast_recipe_history
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.INFO))
+setup_logging(LogConfig(level=logging.WARN))
 
 # %%
 # Data setup mirrors backtest_a.py, but keeps the universe small so a grid run is tractable.
@@ -77,11 +77,11 @@ base_policy = MPOPolicy.preset(
     objective_type="cvar_cuts",
     risk_aversion=0.01,
     constraints=constraints,
-    min_history=250,
+    min_history=360,
 )
 
-risk_aversion_values = [0, *np.logspace(-2, 2, 9)]
-risk_aversion_values = [1, 5, 10, 15]
+risk_aversion_values = [*np.logspace(-2, 2, 9)]
+# risk_aversion_values = [1, 5, 10, 15]
 # risk_aversion_values = [1, 5]
 
 grid = {
@@ -97,7 +97,7 @@ recipe_history = build_forecast_recipe_history(
     market,
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
     min_history=base_policy.min_history,
-    refit_every=int(data.height / 3),
+    refit_every=int(data.height / 5),
 )
 
 # %%
@@ -109,9 +109,9 @@ with profile():
         recipe_history=recipe_history,
         input_config=input_config,
         simulation_config=SimulationForecastConfig(
-            horizon=10,
+            horizon=15,
             method="cma",
-            n_sims=20_000,
+            n_sims=10_000,
             cma_config=CMAConfig(target_copula="t"),
         ),
         cv_config=CombinatorialCVConfig(

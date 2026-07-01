@@ -88,6 +88,12 @@ def test_cvar_empty_series_returns_nan_without_raising() -> None:
     assert np.isnan(value)
 
 
+def test_var_empty_series_returns_nan_without_raising() -> None:
+    value = metrics.var(np.array([], dtype=float), prob=None, distribution_type="pnl")
+
+    assert np.isnan(value)
+
+
 @pytest.mark.parametrize("nav", [[100.0], [100.0, 100.0]])
 def test_performance_summary_degenerate_nav_does_not_raise_or_emit_nan(
     nav: list[float],

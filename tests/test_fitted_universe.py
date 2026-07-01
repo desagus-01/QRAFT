@@ -17,6 +17,7 @@ from qraft.forecast.pipelines.fitted_universe import (
     create_forecast_recipe,
     fit_with_orders,
 )
+from qraft.forecast.pipelines.model_selection import run_univariate_pipeline
 from qraft.forecast.time_series.models.fitted_types import (
     AutoARMARes,
     AutoGARCHRes,
@@ -24,6 +25,8 @@ from qraft.forecast.time_series.models.fitted_types import (
     UnivariateRes,
 )
 from qraft.forecast.time_series.models.model_quality import ModelQuality
+from qraft.forecast.time_series.models.model_quality import SelectionAudit
+from qraft.forecast.simulation.state import _garch_unconditional_variance
 from qraft.forecast.time_series.preprocessing.types import (
     TransformDecision,
     UnivariatePreprocess,
@@ -329,6 +332,35 @@ def test_fit_with_orders_preserves_recipe_quality() -> None:
     result = fit_with_orders(data, recipe, PipelineConfig())
 
     assert result["A"].quality == quality
+
+
+def test_degenerate_random_walk_scale_records_quality_event() -> None:
+    data = _post_data({"A": np.ones(10)})
+
+    result = run_univariate_pipeline(
+        data, assets_to_model=[], pipeline_config=PipelineConfig()
+    )
+
+    quality = result["A"].quality
+    assert quality is not None
+    assert quality.grade != "A"
+    assert "DEGENERATE_SCALE_FALLBACK" in quality.reason_codes
+
+
+def test_degenerate_garch_unconditional_variance_records_audit_event() -> None:
+    audit = SelectionAudit(events=[], notes=[])
+
+    variance = _garch_unconditional_variance(
+        {"omega": 0.0, "alpha[1]": 1.0, "beta[1]": 0.0},
+        (1, 0, 1),
+        fallback=0.0,
+        audit=audit,
+        asset_name="A",
+    )
+
+    assert variance == 1.0
+    assert audit.events == ["DEGENERATE_SCALE_FALLBACK"]
+    assert "Asset=A" in audit.notes[0]
 
 
 # ---------------------------------------------------------------------------

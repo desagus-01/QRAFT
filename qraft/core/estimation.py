@@ -141,6 +141,12 @@ def weighted_covariance(
     prob: ProbVector,
     center: bool = True,
 ) -> NDArray[np.floating]:
+    """Probability-weighted scenario covariance.
+
+    This is the posterior/prior second central moment under ``prob`` and is not
+    Bessel-corrected. Realised-history volatility metrics use sample ``ddof=1``
+    estimators instead.
+    """
     data = data.reshape(-1, 1) if data.ndim == 1 else data
     w_mean = weighted_mean(data, prob)
     centered = data - w_mean
@@ -156,6 +162,7 @@ def weighted_variance(
     prob: ProbVector | None = None,
     center: bool = True,
 ) -> NDArray[np.floating]:
+    """Diagonal of :func:`weighted_covariance` using the same normalization."""
     if covariance is None:
         if data is None or prob is None:
             raise ValueError(
@@ -166,6 +173,7 @@ def weighted_variance(
 
 
 def weighted_correlation(data, prob, *, eps: float = 1e-12):
+    """Correlation implied by probability-weighted scenario covariance."""
     cov = weighted_covariance(data, prob)
     sd = np.sqrt(np.diag(cov))
     ok = sd > eps

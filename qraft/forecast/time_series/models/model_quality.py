@@ -12,6 +12,7 @@ QualityEvent = Literal[
     "MEAN_FALLBACK_DEMEAN",
     "MEAN_FALLBACK_BEST_IC_NO_DIAG_PASS",
     "VOL_FALLBACK_BEST_IC_NO_DIAG_PASS",
+    "DEGENERATE_SCALE_FALLBACK",
 ]
 
 Severity = Literal["low", "medium", "high"]
@@ -20,6 +21,7 @@ EVENT_SEVERITY: dict[QualityEvent, Severity] = {
     "MEAN_FALLBACK_DEMEAN": "medium",
     "MEAN_FALLBACK_BEST_IC_NO_DIAG_PASS": "high",
     "VOL_FALLBACK_BEST_IC_NO_DIAG_PASS": "high",
+    "DEGENERATE_SCALE_FALLBACK": "high",
 }
 
 # QualityConfig is defined in globals and re-exported here for convenience.

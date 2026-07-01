@@ -13,6 +13,12 @@ class ScenarioTransform(Protocol):
 
 @dataclass(frozen=True)
 class Views:
+    """Entropy-pooling view transform.
+
+    ``confidence`` is the linear posterior blend weight: ``1.0`` keeps the full
+    EP posterior and ``0.0`` keeps the prior panel probabilities.
+    """
+
     specs: list[ViewSpec]
     confidence: float = 1.0
 

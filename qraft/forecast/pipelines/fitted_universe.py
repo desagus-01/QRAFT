@@ -14,6 +14,7 @@ from qraft.core.probability.prob_vector import ProbVector
 from qraft.forecast.forecast_paths import AssetUniverse
 from qraft.forecast.pipelines.model_selection import (
     _demean_fallback,
+    residual_or_diff_scale,
     run_univariate_pipeline,
 )
 from qraft.forecast.pipelines.preprocess import run_univariate_preprocess
@@ -25,7 +26,11 @@ from qraft.forecast.time_series.models.fitted_types import (
     UnivariateRes,
 )
 from qraft.forecast.time_series.models.mean import fit_arma
-from qraft.forecast.time_series.models.model_quality import ModelQuality
+from qraft.forecast.time_series.models.model_quality import (
+    ModelQuality,
+    SelectionAudit,
+    score_audit,
+)
 from qraft.forecast.time_series.models.volatility import fit_garch
 from qraft.forecast.time_series.preprocessing.apply import (
     apply_deseason,
@@ -268,17 +273,22 @@ def fit_with_orders(
         if a not in need:
             arr = post_data.select(a).drop_nulls().to_numpy().ravel()
             diff_vals = np.diff(arr)
-            scale = float(np.std(diff_vals, ddof=1)) if diff_vals.size > 0 else 1.0
-            if not np.isfinite(scale) or scale <= 0:
-                scale = 1.0
+            audit = SelectionAudit(events=[], notes=[])
+            scale = residual_or_diff_scale(
+                diff_vals, audit=audit, asset_name=a, source="diff"
+            )
             mean_res = RandomWalkRes(residuals=diff_vals, residual_scale=scale)
+            quality = recipe.quality.get(a)
+            if audit.events:
+                quality = score_audit(audit, pipeline_config.quality)
             out[a] = UnivariateRes(
                 mean_res=mean_res,
                 volatility_res=None,
-                quality=recipe.quality.get(a),
+                quality=quality,
             )
             continue
         arr = post_data.select(a).drop_nulls().to_numpy().ravel()
+        audit = SelectionAudit(events=[], notes=[])
         mean_order = recipe.mean_orders[a]
         if mean_order is not None:
             mean_res = fit_arma(arr, mean_order, pipeline_config.mean)
@@ -288,9 +298,9 @@ def fit_with_orders(
                     a,
                     *mean_order,
                 )
-                mean_res = _demean_fallback(arr)
+                mean_res = _demean_fallback(arr, audit=audit, asset_name=a)
         else:
-            mean_res = _demean_fallback(arr)
+            mean_res = _demean_fallback(arr, audit=audit, asset_name=a)
         vol_order = recipe.vol_orders[a]
         if vol_order is not None and mean_res is not None:
             distribution = recipe.vol_distributions[a]
@@ -304,7 +314,9 @@ def fit_with_orders(
         out[a] = UnivariateRes(
             mean_res=mean_res,
             volatility_res=vol_res,
-            quality=recipe.quality.get(a),
+            quality=score_audit(audit, pipeline_config.quality)
+            if audit.events
+            else recipe.quality.get(a),
         )
     return out
 

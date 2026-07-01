@@ -72,3 +72,14 @@ def test_unconditional_variance_uses_garch_lag_parameter_keys() -> None:
     )
 
     assert variance == 0.1 / (1.0 - 0.2 - 0.05 - 0.6)
+
+
+def test_unconditional_variance_final_fallback_warns(caplog) -> None:
+    variance = _garch_unconditional_variance(
+        {"omega": 0.1, "alpha[1]": 1.1},
+        (1, 0, 0),
+        fallback=np.nan,
+    )
+
+    assert variance == 1.0
+    assert "GARCH unconditional variance fallback is degenerate" in caplog.text

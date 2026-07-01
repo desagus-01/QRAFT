@@ -61,6 +61,22 @@ def test_forecast_paths_copies_and_freezes_path_probs() -> None:
     assert not forecasts.path_probs.flags.writeable
 
 
+def test_forecast_paths_does_not_mutate_caller_asset_paths_dict() -> None:
+    raw = [[101.0, 102.0], [99.0, 100.0]]
+    asset_paths = {"A": raw}
+
+    forecasts = ForecastPaths(
+        asset_paths=asset_paths,
+        dates=pl.Series("date", [datetime(2024, 1, 4), datetime(2024, 1, 5)]),
+        path_probs=np.array([0.5, 0.5]),
+        initial_prices={"A": 100.0},
+        universe=AssetUniverse.factors_free(["A"]),
+    )
+
+    assert asset_paths["A"] is raw
+    assert isinstance(forecasts.asset_paths["A"], np.ndarray)
+
+
 def test_forecast_paths_rejects_non_positive_prices() -> None:
     with pytest.raises(ValueError, match="strictly positive"):
         ForecastPaths(

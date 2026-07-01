@@ -6,8 +6,15 @@ from typing import Mapping, Self
 import numpy as np
 from numpy._typing import NDArray
 
+from qraft.forecast.pipelines.model_selection import residual_or_diff_scale
 from qraft.forecast.time_series.models.fitted_types import UnivariateRes
+from qraft.forecast.time_series.models.model_quality import SelectionAudit
 from qraft.forecast.time_series.models.model_types import UnivariateModel
+
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -27,6 +34,8 @@ class UnivariateState:
         post_series_non_null: NDArray[np.floating],
         x_hist_len: int = 10,
         variance_overflow_cap_multiple: float | None = None,
+        audit: SelectionAudit | None = None,
+        asset_name: str | None = None,
     ) -> Self:
         """
         Build an initial UnivariateState from fitting results and observed series.
@@ -83,6 +92,8 @@ class UnivariateState:
                 univariate_model.vol_params,
                 univariate_model.vol_order,
                 fallback=float(np.mean(sig2)),
+                audit=audit,
+                asset_name=asset_name,
             )
             if variance_overflow_cap_multiple is not None:
                 var_cap = float(variance_overflow_cap_multiple * unconditional_variance)
@@ -127,6 +138,8 @@ class SimulationForecast:
         post_series_non_null: NDArray[np.floating],
         x_hist_len: int = 10,
         variance_overflow_cap_multiple: float | None = None,
+        audit: SelectionAudit | None = None,
+        asset_name: str | None = None,
     ):
         """
         Construct a SimulationForecast from fitting results and observed series.
@@ -163,9 +176,9 @@ class SimulationForecast:
 
         if fitting_results.mean_res is None and fitting_results.volatility_res is None:
             diff = np.diff(post_series_non_null)
-            scale = float(np.std(diff, ddof=1)) if diff.size > 0 else 1.0
-            if not np.isfinite(scale) or scale <= 0:
-                scale = 1.0
+            scale = residual_or_diff_scale(
+                diff, audit=audit, asset_name=asset_name, source="diff"
+            )
 
             model = UnivariateModel(
                 mean_kind=model.mean_kind,
@@ -185,6 +198,8 @@ class SimulationForecast:
                 post_series_non_null=post_series_non_null,
                 x_hist_len=x_hist_len,
                 variance_overflow_cap_multiple=variance_overflow_cap_multiple,
+                audit=audit,
+                asset_name=asset_name,
             ),
             variance_cap_diagnostics={},
         )
@@ -195,6 +210,8 @@ def _garch_unconditional_variance(
     order: tuple[int, int, int],
     *,
     fallback: float,
+    audit: SelectionAudit | None = None,
+    asset_name: str | None = None,
 ) -> float:
     p, o, q = order
     omega = float(params.get("omega", np.nan))
@@ -215,5 +232,10 @@ def _garch_unconditional_variance(
     if not np.isfinite(variance) or variance <= 0.0:
         variance = fallback
     if not np.isfinite(variance) or variance <= 0.0:
+        label = f"Asset={asset_name} " if asset_name is not None else ""
+        note = f"{label}GARCH unconditional variance fallback is degenerate; falling back to 1.0"
+        logger.warning(note)
+        if audit is not None:
+            audit.add_event("DEGENERATE_SCALE_FALLBACK", note)
         variance = 1.0
     return float(variance)

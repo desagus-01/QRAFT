@@ -158,12 +158,17 @@ def needs_mean_modelling(
     return result
 
 
-def _demean_fallback(asset_array: NDArray[np.floating]) -> DemeanRes:
+def _demean_fallback(
+    asset_array: NDArray[np.floating],
+    *,
+    audit: SelectionAudit | None = None,
+    asset_name: str | None = None,
+) -> DemeanRes:
     mean = float(np.mean(asset_array))
     residuals = asset_array - mean
-    scale = float(np.std(residuals, ddof=1))
-    if not np.isfinite(scale) or scale <= 0:
-        scale = 1.0
+    scale = residual_or_diff_scale(
+        residuals, audit=audit, asset_name=asset_name, source="demean residual"
+    )
 
     return DemeanRes(
         model_order=None,
@@ -172,6 +177,25 @@ def _demean_fallback(asset_array: NDArray[np.floating]) -> DemeanRes:
         residuals=residuals,
         residual_scale=scale,
     )
+
+
+def residual_or_diff_scale(
+    values: NDArray[np.floating],
+    *,
+    audit: SelectionAudit | None = None,
+    asset_name: str | None = None,
+    source: str = "residuals",
+) -> float:
+    scale = float(np.std(values, ddof=1)) if values.size > 0 else np.nan
+    if np.isfinite(scale) and scale > 0:
+        return scale
+
+    label = f"Asset={asset_name} " if asset_name is not None else ""
+    note = f"{label}{source} scale is degenerate; falling back to 1.0"
+    logger.warning(note)
+    if audit is not None:
+        audit.add_event("DEGENERATE_SCALE_FALLBACK", note)
+    return 1.0
 
 
 def _select_first_candidate_with_valid_residuals(
@@ -214,7 +238,7 @@ def get_appropriate_mean_model(
             audit.add_event(
                 "MEAN_FALLBACK_DEMEAN", f"Asset={asset_name} no admissible ARMA models"
             )
-        return _demean_fallback(asset_array)
+        return _demean_fallback(asset_array, audit=audit, asset_name=asset_name)
 
     candidates_by_information_criteria = sorted(candidate_models_res, key=by_criteria)
     model = _select_first_candidate_with_valid_residuals(
@@ -331,12 +355,15 @@ def mean_modelling_pipeline(
         else:
             mean = array.mean().item()
             residuals = array - mean
+            scale = residual_or_diff_scale(
+                residuals, audit=audit, asset_name=asset, source="demean residual"
+            )
             res = DemeanRes(
                 model_order=None,
                 degrees_of_freedom=0,
                 params={"mean": mean},
                 residuals=residuals,
-                residual_scale=float(np.std(residuals, ddof=1)),
+                residual_scale=scale,
             )
             asset_mean_model_res[asset] = res
             logger.info(
@@ -410,9 +437,9 @@ def run_univariate_pipeline(
         if mean_res is None:
             array = data.select(asset).drop_nulls().to_numpy().ravel()
             diff_vals = np.diff(array)
-            scale = float(np.std(diff_vals, ddof=1)) if diff_vals.size > 0 else 1.0
-            if not np.isfinite(scale) or scale <= 0:
-                scale = 1.0
+            scale = residual_or_diff_scale(
+                diff_vals, audit=combined_audit, asset_name=asset, source="diff"
+            )
             mean_res = RandomWalkRes(residuals=diff_vals, residual_scale=scale)
 
         quality = score_audit(combined_audit, pipeline_config.quality)

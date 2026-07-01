@@ -162,13 +162,17 @@ def _apply_holding_cost(
     nav_now: float,
     cash: float,
     day_count: int,
+    periods_per_year: float,
 ) -> tuple[float, float]:
     holding = 0.0
     if prev is not None and nav_now > 0.0 and costs.holding is not None:
         days = (bar - prev).total_seconds() / 86_400.0
-        holding_periods = days * costs.holding.periods_per_year / day_count
+        holding_periods = days * periods_per_year / day_count
         holding = costs.holding_charge(
-            (shares * prices) / nav_now, nav_now, n_periods=holding_periods
+            (shares * prices) / nav_now,
+            nav_now,
+            n_periods=holding_periods,
+            periods_per_year=periods_per_year,
         )
         cash = _charge(cash, holding, nav_now, "holding cost", bar)
     return holding, cash
@@ -382,6 +386,7 @@ def run_backtest(
             nav_now,
             cash,
             market.config.cash_day_count,
+            market.config.periods_per_year,
         )
         holding_costs.append(holding)
 

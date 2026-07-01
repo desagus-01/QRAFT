@@ -120,7 +120,7 @@ def compile_spec(
 
         case QuantileView(asset, quantile, target_prob):
             indicator = indicator_quantile_marginal(
-                panel.values.select(asset), quantile
+                panel.values.select(asset), quantile, prob=prior
             )
             x = indicator.select("quant_ind").to_numpy().ravel()
             lhs = x @ posterior
@@ -264,6 +264,10 @@ def entropy_pooling_probs(
     specs: Sequence[ViewSpec],
     confidence: float = 1.0,
 ) -> ProbVector:
-    """Run EP and blend posterior with prior by ``confidence``."""
+    """Run EP and linearly pool posterior with prior by ``confidence``.
+
+    ``confidence`` is a linear opinion-pool weight, not Meucci's partial-view
+    confidence/effective-number-of-views adjustment.
+    """
     posterior: ProbVector = entropy_pooling(panel, specs)
     return confidence * posterior + (1.0 - confidence) * panel.prob

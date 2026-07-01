@@ -116,7 +116,28 @@ def test_holding_cost_scales_with_calendar_gap():
         costs=CostModel(holding=HoldingCost(0.0, 0.36, 0.0, periods_per_year=360)),
     )
 
-    np.testing.assert_allclose(res.holding_costs[2], 0.98, rtol=1e-12)
+    expected = 98.0 * 0.36 * 10.0 / 360.0
+    np.testing.assert_allclose(res.holding_costs[2], expected, rtol=1e-12)
+
+
+def test_holding_cost_uses_market_cadence_not_holding_default():
+    dates = [datetime(2024, 1, 1), datetime(2024, 1, 8), datetime(2024, 1, 15)]
+    market = MarketData.from_prices(
+        pl.DataFrame({"date": dates, "A": [10.0, 10.0, 10.0]}),
+        AssetUniverse.factors_free(["A"]),
+        cash=pl.DataFrame({"date": dates, "DFF": [0.0, 0.0, 0.0]}),
+        config=MarketDataConfig(cash_day_count=365),
+    )
+
+    res = run_backtest(
+        market,
+        EqualWeightPolicy(target_cash_weight=0.1),
+        schedule=RebalanceSchedule(cadence="every_bar"),
+        costs=CostModel(holding=HoldingCost(0.0, 0.52, 0.0, periods_per_year=252)),
+    )
+
+    expected = 90.0 * 0.52 * 7.0 / 365.0
+    np.testing.assert_allclose(res.holding_costs[2], expected, rtol=1e-12)
 
 
 def test_cost_model_from_policy_reads_preset():
