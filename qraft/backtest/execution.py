@@ -23,6 +23,7 @@ class BacktestPeriod:
     forecasts: ForecastPaths | None = None
     decision_error: str | None = None
     dropped_assets: tuple[str, ...] = ()
+    asset_diagnostics: tuple[Any, ...] = ()
 
 
 BacktestWarning = dict[str, Any]

@@ -113,6 +113,7 @@ class MPOResult:
     objective_value: float
     solver_stats: Any
     dropped_assets: tuple[Any, ...] = ()
+    asset_diagnostics: tuple[Any, ...] = ()
 
     def __post_init__(self) -> None:
         n_assets = len(self.assets)
@@ -401,6 +402,7 @@ class MultiPeriodOptimizer:
             objective_value=objective_value,
             solver_stats=self.problem.solver_stats,
             dropped_assets=moments.dropped_assets,
+            asset_diagnostics=moments.asset_diagnostics,
         )
 
     def _failure_if_not_optimal(self, raise_on_failure: bool) -> MPOFailure | None:

@@ -66,6 +66,9 @@ class ForecastRecipe:
     survivors: list[str]
 
 
+FitDiagnostics = dict[str, float | int | bool | str | ModelQuality | None]
+
+
 @dataclass(frozen=True, slots=True)
 class FittedUniverse:
     """Everything needed to simulate a joint forecast for a set of assets."""
@@ -278,13 +281,10 @@ def fit_with_orders(
                 diff_vals, audit=audit, asset_name=a, source="diff"
             )
             mean_res = RandomWalkRes(residuals=diff_vals, residual_scale=scale)
-            quality = recipe.quality.get(a)
-            if audit.events:
-                quality = score_audit(audit, pipeline_config.quality)
             out[a] = UnivariateRes(
                 mean_res=mean_res,
                 volatility_res=None,
-                quality=quality,
+                quality=score_audit(audit, pipeline_config.quality),
             )
             continue
         arr = post_data.select(a).drop_nulls().to_numpy().ravel()
@@ -309,14 +309,20 @@ def fit_with_orders(
             vol_res = fit_garch(
                 mean_res.residuals, vol_order, distribution, pipeline_config.volatility
             )
+            if vol_res is None:
+                audit.add_event(
+                    "VOL_FALLBACK_BEST_IC_NO_DIAG_PASS",
+                    (
+                        f"Asset={a} GARCH{vol_order} refit failed during recipe "
+                        "reapply; volatility model lost for this date"
+                    ),
+                )
         else:
             vol_res = None
         out[a] = UnivariateRes(
             mean_res=mean_res,
             volatility_res=vol_res,
-            quality=score_audit(audit, pipeline_config.quality)
-            if audit.events
-            else recipe.quality.get(a),
+            quality=score_audit(audit, pipeline_config.quality),
         )
     return out
 
@@ -385,10 +391,10 @@ def _build_simulation_forecasts(
 
 
 def mark_frequent_variance_cap_binding(
-    diagnostics: dict[str, dict[str, float | int | bool | None]],
+    diagnostics: dict[str, FitDiagnostics],
     threshold: float,
-) -> dict[str, dict[str, float | int | bool | None]]:
-    marked: dict[str, dict[str, float | int | bool | None]] = {}
+) -> dict[str, FitDiagnostics]:
+    marked: dict[str, FitDiagnostics] = {}
     for asset, values in diagnostics.items():
         asset_values = dict(values)
         bind_rate = float(asset_values.get("bind_rate") or 0.0)
@@ -396,6 +402,34 @@ def mark_frequent_variance_cap_binding(
         asset_values["frequent_binding_threshold"] = threshold
         marked[asset] = asset_values
     return marked
+
+
+def fit_diagnostics(fit: FittedUniverse) -> dict[str, FitDiagnostics]:
+    diagnostics: dict[str, FitDiagnostics] = {}
+    for asset in fit.assets:
+        model = fit.models[asset]
+        volatility = model.volatility_res
+        quality = model.quality
+        values: FitDiagnostics = dict(
+            fit.simulation_forecasts[asset].variance_cap_diagnostics
+        )
+        values["quality"] = quality
+        values["admissible"] = getattr(volatility, "admissible", None)
+        fallback_reason = getattr(volatility, "fallback_reason", None)
+        if volatility is None:
+            if (
+                quality is not None
+                and "VOL_FALLBACK_BEST_IC_NO_DIAG_PASS" in quality.reason_codes
+            ):
+                fallback_reason = "garch_refit_failed"
+            else:
+                fallback_reason = None
+        values["fallback_reason"] = fallback_reason
+        values["scale_degenerate"] = bool(
+            quality is not None and "DEGENERATE_SCALE_FALLBACK" in quality.reason_codes
+        )
+        diagnostics[asset] = values
+    return diagnostics
 
 
 def _test_invariants_iid(

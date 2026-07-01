@@ -40,20 +40,24 @@ data, factors_cols = import_tickers_and_factors(
 )
 cash = pl.read_csv("data/cash.csv", try_parse_dates=True)
 
-min_price = 10
+data
+
+# %%
+min_price = 15
 cols_to_keep = [
     col
     for col in data.columns
     if col == "date"
     or (
-        data[col].null_count() == 0
+        col != "DHIL"
+        and data[col].null_count() == 0
         and data[col].dtype.is_numeric()
         and float(data[col].min()) >= np.log(min_price)  # type: ignore[arg-type]
     )
 ]
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:90])
 universe = AssetUniverse(assets=tradable_assets, factors=list(factors_cols))
 data = data.select("date", *universe.all_tickers)
 

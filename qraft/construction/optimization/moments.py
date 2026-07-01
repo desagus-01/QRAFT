@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Literal
+from typing import Any, Mapping, Literal
 
 import numpy as np
 import polars as pl
@@ -28,6 +28,12 @@ class DroppedAsset:
     horizons: tuple[int, ...]
     values: tuple[float, ...]
     reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class AssetDiagnostics:
+    asset: str
+    values: Mapping[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,6 +176,7 @@ class PolicyInputs:
     cash_return: NDArray[np.floating] | None = None
     cov_factor: NDArray[np.floating] | None = None
     dropped_assets: tuple[DroppedAsset, ...] = ()
+    asset_diagnostics: tuple[AssetDiagnostics, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.assets:
@@ -621,6 +628,7 @@ class PolicyInputs:
         periods_per_year: float | None = None,
         as_of: datetime | None = None,
         cash_return: NDArray[np.floating] | float | None = None,
+        asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
     ) -> "PolicyInputs":
         """
         Build policy inputs from two simple choices: expected returns and risk.
@@ -745,6 +753,7 @@ class PolicyInputs:
             ),
             cov_factor=cov_factor,
             dropped_assets=dropped_assets,
+            asset_diagnostics=asset_diagnostics,
         )
 
     @classmethod
@@ -760,6 +769,7 @@ class PolicyInputs:
         cash_return: NDArray[np.floating] | float | None = None,
         cov_factor: NDArray[np.floating] | None = None,
         dropped_assets: tuple[DroppedAsset, ...] = (),
+        asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
     ) -> "PolicyInputs":
         cash_array = (
             None if cash_return is None else np.asarray(cash_return, dtype=float)
@@ -778,6 +788,7 @@ class PolicyInputs:
             cash_return=cash_array,
             cov_factor=cov_factor,
             dropped_assets=dropped_assets,
+            asset_diagnostics=asset_diagnostics,
         )
 
 

@@ -203,6 +203,7 @@ def _fill_decision(
         getattr(drop, "asset", str(drop))
         for drop in getattr(diagnostics, "dropped_assets", ())
     )
+    asset_diagnostics = tuple(getattr(diagnostics, "asset_diagnostics", ()))
     return (
         shares,
         cash,
@@ -217,6 +218,7 @@ def _fill_decision(
             cost=trade_cost,
             decision_error=error_msg,
             dropped_assets=dropped_assets,
+            asset_diagnostics=asset_diagnostics,
         ),
     )
 

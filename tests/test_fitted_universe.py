@@ -9,12 +9,14 @@ import pytest
 from qraft.core.configs import PipelineConfig
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.distributions import uniform_probs
+from qraft.forecast.simulation.state import SimulationForecast
 from qraft.forecast.pipelines.fitted_universe import (
     FittedUniverse,
     ForecastRecipe,
     _merge_inv,
     apply_forecast_recipe,
     create_forecast_recipe,
+    fit_diagnostics,
     fit_with_orders,
 )
 from qraft.forecast.pipelines.model_selection import run_univariate_pipeline
@@ -107,7 +109,8 @@ def test_fit_with_orders_demean_fallback() -> None:
     assert isinstance(ures, UnivariateRes)
     assert isinstance(ures.mean_res, DemeanRes)
     assert ures.volatility_res is None
-    assert ures.quality is None
+    assert ures.quality is not None
+    assert ures.quality.grade == "A"
 
     assert abs(float(np.mean(ures.mean_res.residuals))) < 1e-10
 
@@ -303,10 +306,11 @@ def test_recondition_recipe_round_trip() -> None:
     assert round_tripped.mean_orders == recipe.mean_orders
     assert round_tripped.vol_orders == recipe.vol_orders
     assert round_tripped.vol_distributions == recipe.vol_distributions
-    assert round_tripped.quality == recipe.quality
+    assert round_tripped.quality["A"] is not None
+    assert round_tripped.quality["A"].grade == "A"
 
 
-def test_fit_with_orders_preserves_recipe_quality() -> None:
+def test_fit_with_orders_recomputes_recipe_quality() -> None:
     rng = np.random.default_rng(42)
     y = rng.normal(0.2, 1.0, 30)
     quality = ModelQuality(
@@ -331,7 +335,57 @@ def test_fit_with_orders_preserves_recipe_quality() -> None:
 
     result = fit_with_orders(data, recipe, PipelineConfig())
 
-    assert result["A"].quality == quality
+    assert result["A"].quality != quality
+    assert result["A"].quality is not None
+    assert result["A"].quality.grade == "A"
+
+
+def test_fit_diagnostics_exposes_scale_degeneracy() -> None:
+    data = _post_data({"A": np.ones(10)})
+    recipe = ForecastRecipe(
+        detrend={},
+        deseason={},
+        needs_modelling=[],
+        mean_orders={"A": None},
+        vol_orders={"A": None},
+        mean_fallback_identity={"A": "random_walk"},
+        vol_distributions={"A": None},
+        quality={"A": None},
+        admissible={"A": None},
+        fallback_reason={"A": None},
+        variance_cap_diagnostics={},
+        survivors=["A"],
+    )
+
+    models = fit_with_orders(data, recipe, PipelineConfig())
+    fit = FittedUniverse(
+        assets=["A"],
+        preprocess=UnivariatePreprocess(
+            post_data=data,
+            inverse_specs={},
+            needs_further_modelling=[],
+            detrend_decision={},
+            deseason_decision={},
+        ),
+        models=models,
+        simulation_forecasts={
+            "A": SimulationForecast.from_res_and_series(models["A"], np.ones(10))
+        },
+        invariants=ScenarioPanel.from_invariants(
+            pl.DataFrame(
+                {
+                    "date": [
+                        datetime(2024, 1, 1) + timedelta(days=i) for i in range(10)
+                    ],
+                    "A": np.zeros(10),
+                }
+            )
+        ),
+    )
+    diagnostics = fit_diagnostics(fit)
+
+    assert diagnostics["A"]["scale_degenerate"] is True
+    assert diagnostics["A"]["fallback_reason"] is None
 
 
 def test_degenerate_random_walk_scale_records_quality_event() -> None:

@@ -5,7 +5,11 @@ from typing import Iterable
 
 import numpy as np
 
-from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
+from qraft.construction.optimization.moments import (
+    AssetDiagnostics,
+    PolicyInputConfig,
+    PolicyInputs,
+)
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
@@ -37,9 +41,22 @@ def build_policy_input_table(
         if isinstance(forecasts, ForecastRun)
         else list(forecasts)
     )
+    forecast_diagnostics = (
+        [step.diagnostics for step in forecasts.steps]
+        if isinstance(forecasts, ForecastRun)
+        else [None] * len(forecast_paths)
+    )
 
     table: dict[datetime, PolicyInputs] = {}
-    for snapshot, forecast in zip(market_snapshots, forecast_paths, strict=True):
+    for snapshot, forecast, diagnostics in zip(
+        market_snapshots, forecast_paths, forecast_diagnostics, strict=True
+    ):
+        asset_diagnostics = ()
+        if diagnostics is not None:
+            asset_diagnostics = tuple(
+                AssetDiagnostics(asset=asset, values=values)
+                for asset, values in diagnostics.items()
+            )
         inputs = PolicyInputs.from_policy_sources(
             forecasts=forecast,
             cash_path=input_config.cash_path,
@@ -55,6 +72,7 @@ def build_policy_input_table(
             periods_per_year=input_config.periods_per_year,
             as_of=snapshot.t,
             cash_return=snapshot.cash_rate,
+            asset_diagnostics=asset_diagnostics,
         )
         if dtype != np.float64:
             inputs = inputs.astype(dtype)
