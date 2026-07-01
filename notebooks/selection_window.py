@@ -23,7 +23,7 @@ from qraft.construction import (
     PortfolioConstraint,
     TurnoverLimit,
 )
-from qraft.construction.optimization.moments import PolicyInputConfig
+from qraft.construction.optimization.moments import InputPlan
 from qraft.core.configs import SimulationForecastConfig
 from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.run import build_forecast_recipe_history
@@ -93,8 +93,8 @@ grid = {
     # "transaction_cost_weight": [0.5, 1.0],
 }
 
-input_config = PolicyInputConfig(
-    cash_path="data/cash.csv",
+input_config = InputPlan(
+    cash_return=0.0,
     expected_returns="forecast",
 )
 recipe_history = build_forecast_recipe_history(

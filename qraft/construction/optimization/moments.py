@@ -311,27 +311,6 @@ class PolicyInputs:
             scenario_returns=cast(self.scenario_returns),
         )
 
-    @staticmethod
-    def get_cash_return(
-        path: str,
-        step_size: int,
-        periods_per_year: float,
-        *,
-        as_of: datetime,
-    ) -> NDArray[np.floating]:
-        cash_return = pl.read_csv(path, try_parse_dates=True)
-        cash_return = cash_return.filter(pl.col("date") <= as_of)
-        if cash_return.height == 0:
-            raise ValueError(f"No cash rate available on or before {as_of!r}.")
-        annual_rate = (
-            cash_return.filter(pl.col("date") == pl.col("date").max())
-            .drop("date")
-            .to_numpy()
-            .ravel()
-        ) / 100
-        # Convert annual cash yield to this panel's per-step cadence.
-        return (1.0 + annual_rate) ** (step_size / periods_per_year) - 1.0
-
     @property
     def n_horizons(self) -> int:
         for value in (
@@ -615,7 +594,7 @@ class PolicyInputs:
         cls,
         *,
         forecasts: ForecastPaths,
-        cash_path: str,
+        cash_return: NDArray[np.floating] | float,
         expected_returns: ExpectedReturnSource = "forecast",
         risk: RiskSource = "both",
         history: ScenarioPanel | None = None,
@@ -627,7 +606,6 @@ class PolicyInputs:
         step_size: int = 1,
         periods_per_year: float | None = None,
         as_of: datetime | None = None,
-        cash_return: NDArray[np.floating] | float | None = None,
         asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
     ) -> "PolicyInputs":
         """
@@ -645,19 +623,6 @@ class PolicyInputs:
             raise ValueError("risk must be one of 'covariance', 'cvar', or 'both'.")
         if expected_returns == "historical" and history is None:
             raise ValueError("history is required when expected_returns='historical'.")
-        if periods_per_year is None:
-            if history is None:
-                raise ValueError(
-                    "periods_per_year is required when history is unavailable."
-                )
-            from qraft.core.cadence import infer_periods_per_year
-
-            periods_per_year = infer_periods_per_year(history.dates.to_list())
-        if as_of is None:
-            if history is None:
-                raise ValueError("as_of is required when history is unavailable.")
-            as_of = history.dates[-1]
-
         pnl_by_asset = incremental_returns_from_forecast_paths(
             forecast_paths=forecasts,
             horizons=max_horizons,
@@ -743,14 +708,7 @@ class PolicyInputs:
             correlations=correlations,
             scenario_returns=scenario_returns,
             scenario_probs=scenario_probs,
-            cash_return=cash_return
-            if cash_return is not None
-            else cls.get_cash_return(
-                path=cash_path,
-                step_size=step_size,
-                periods_per_year=periods_per_year,
-                as_of=as_of,
-            ),
+            cash_return=cash_return,
             cov_factor=cov_factor,
             dropped_assets=dropped_assets,
             asset_diagnostics=asset_diagnostics,
@@ -793,8 +751,8 @@ class PolicyInputs:
 
 
 @dataclass(frozen=True, slots=True)
-class PolicyInputConfig:
-    cash_path: str
+class InputPlan:
+    cash_return: NDArray[np.floating] | float | None = None
     expected_returns: ExpectedReturnSource = "forecast"
     risk: RiskSource | None = None
     max_horizons: int | None = None

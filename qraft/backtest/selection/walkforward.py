@@ -25,7 +25,7 @@ from qraft.backtest.selection.results import (
 from qraft.backtest.selection.scoring import find_candidate, score_candidate_range
 from qraft.backtest.selection.select import Scorer, select_candidate
 from qraft.backtest.selection.splits import Fold, walk_forward_folds
-from qraft.construction.optimization.moments import PolicyInputConfig
+from qraft.construction.optimization.moments import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.configs import DEFAULT_SIMULATION_CONFIG, SimulationForecastConfig
 from qraft.core import metrics
@@ -236,7 +236,7 @@ def walk_forward(
     *,
     provider: PolicyInputsProvider | None = None,
     recipe_history: ForecastRecipeHistory | None = None,
-    input_config: PolicyInputConfig | None = None,
+    input_config: InputPlan | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
     walk_config: WalkForwardConfig,
     backtest_config: BacktestConfig = BacktestConfig(),

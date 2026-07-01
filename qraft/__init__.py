@@ -26,7 +26,7 @@ __all__ = [
     "MPOProblem",
     "MPOProblemBuilder",
     "PolicyInputs",
-    "PolicyInputConfig",
+    "InputPlan",
     "ExpectedReturnSource",
     "RiskSource",
     "PortfolioRisk",
@@ -42,7 +42,7 @@ from qraft.construction.optimization.problem import (
 )
 from qraft.construction.optimization.moments import (
     ExpectedReturnSource,
-    PolicyInputConfig,
+    InputPlan,
     PolicyInputs,
     RiskSource,
 )

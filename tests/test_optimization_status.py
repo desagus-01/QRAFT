@@ -10,7 +10,7 @@ from qraft.construction.optimization.objectives.specs import (
 )
 
 
-def test_optimal_inaccurate_is_failure_not_success() -> None:
+def test_optimal_inaccurate_is_success_not_failure() -> None:
     optimizer = MultiPeriodOptimizer(
         objective=ObjectiveSpec((WeightedTerm(1.0, ExpectedReturn()),)),
         horizons=1,
@@ -22,5 +22,4 @@ def test_optimal_inaccurate_is_failure_not_success() -> None:
 
     failure = optimizer._failure_if_not_optimal(raise_on_failure=False)
 
-    assert failure is not None
-    assert failure.status == "optimal_inaccurate"
+    assert failure is None

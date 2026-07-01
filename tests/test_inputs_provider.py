@@ -9,7 +9,7 @@ from qraft.backtest.inputs import (
 )
 from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.inputs import build_policy_input_table
-from qraft.construction.optimization.moments import PolicyInputConfig
+from qraft.construction.optimization.moments import InputPlan
 from qraft.construction.optimization.moments import PolicyInputs, RequiredPolicyInputs
 from qraft.core.panel import ScenarioPanel
 from qraft.backtest.market import MarketData
@@ -121,7 +121,7 @@ def test_precompute_forecast_inputs_uses_snapshot_cash_rate(monkeypatch):
     table = precompute_forecast_inputs(
         market,
         RebalanceSchedule("every_bar"),
-        PolicyInputConfig(cash_path="unused.csv"),
+        InputPlan(cash_return=0.0),
         warmup=1,
     )
     inputs = table[datetime(2024, 1, 2)]
@@ -155,7 +155,7 @@ def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
     table = build_policy_input_table(
         [snapshot],
         [forecast],
-        input_config=PolicyInputConfig(cash_path="unused.csv"),
+        input_config=InputPlan(cash_return=0.0),
         risk_source="both",
     )
 
@@ -200,7 +200,7 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
     table = precompute_inputs_from_recipe_history(
         market,
         RebalanceSchedule("every_bar"),
-        PolicyInputConfig(cash_path="unused.csv"),
+        InputPlan(cash_return=0.0),
         recipe_history,
         warmup=2,
     )
@@ -253,7 +253,7 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         BacktestConfig(),
         risk_free_rate=0.0,
         recipe_history=recipe_history,
-        input_config=PolicyInputConfig(cash_path="unused.csv"),
+        input_config=InputPlan(cash_return=0.0),
     )
 
     assert results == ()

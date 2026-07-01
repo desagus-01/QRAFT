@@ -1,6 +1,6 @@
 __all__ = [
     "PolicyInputs",
-    "PolicyInputConfig",
+    "InputPlan",
     "DroppedAsset",
     "PnL_OPTIONS",
     "ExpectedReturnSource",
@@ -11,7 +11,7 @@ from qraft.construction.optimization.moments import (  # noqa: F401
     ExpectedReturnSource,
     DroppedAsset,
     PnL_OPTIONS,
-    PolicyInputConfig,
+    InputPlan,
     PolicyInputs,
     RiskSource,
 )

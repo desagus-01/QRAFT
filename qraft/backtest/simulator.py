@@ -25,7 +25,7 @@ from qraft.construction.inputs import (
     build_policy_input_table_from_forecast_run,
     forecast_policy_input_table,
 )
-from qraft.construction.optimization.moments import PolicyInputConfig, PolicyInputs
+from qraft.construction.optimization.moments import InputPlan, PolicyInputs
 from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
@@ -282,7 +282,7 @@ def precompute_inputs(
 def precompute_forecast_inputs(
     market: MarketData,
     schedule: RebalanceSchedule,
-    input_config: PolicyInputConfig,
+    input_config: InputPlan,
     warmup: int,
     *,
     policy: PolicyInputRequirements | None = None,
@@ -310,7 +310,7 @@ def precompute_forecast_inputs(
 def precompute_inputs_from_recipe_history(
     market: MarketData,
     schedule: RebalanceSchedule,
-    input_config: PolicyInputConfig,
+    input_config: InputPlan,
     recipe_history: ForecastRecipeHistory,
     warmup: int,
     *,

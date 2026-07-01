@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Mapping, Protocol, runtime_checkable
 
 from qraft.construction.optimization.moments import (
-    PolicyInputConfig,
+    InputPlan,
     PolicyInputs,
     RequiredPolicyInputs,
 )
@@ -30,7 +30,7 @@ class PolicyInputRequirements(Protocol):
 
 
 def policy_risk_source(
-    input_config: PolicyInputConfig,
+    input_config: InputPlan,
     policy: PolicyInputRequirements | None = None,
 ):
     if input_config.risk is not None:

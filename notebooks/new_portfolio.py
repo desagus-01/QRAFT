@@ -126,7 +126,7 @@ state = PortfolioState.from_forecast_and_assets(
 # ── Build PolicyInputs: historical expected returns + forecast risk ──
 policy_inputs = PolicyInputs.from_policy_sources(
     forecasts=forecasts,
-    cash_path="data/cash.csv",
+    cash_return=0.0,
     expected_returns="forecast",
     history=posterior_panel,
     risk="both",

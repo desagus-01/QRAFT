@@ -7,7 +7,7 @@ import numpy as np
 
 from qraft.construction.optimization.moments import (
     AssetDiagnostics,
-    PolicyInputConfig,
+    InputPlan,
     PolicyInputs,
 )
 from qraft.core.configs import (
@@ -30,7 +30,7 @@ def build_policy_input_table(
     snapshots: Iterable[MarketSnapshot],
     forecasts: ForecastRun | Iterable[ForecastPaths],
     *,
-    input_config: PolicyInputConfig,
+    input_config: InputPlan,
     risk_source,
     dtype: type = np.float64,
 ) -> dict[datetime, PolicyInputs]:
@@ -59,7 +59,6 @@ def build_policy_input_table(
             )
         inputs = PolicyInputs.from_policy_sources(
             forecasts=forecast,
-            cash_path=input_config.cash_path,
             expected_returns=input_config.expected_returns,
             risk=risk_source,
             history=snapshot.history,
@@ -85,7 +84,7 @@ def build_policy_input_table_from_forecast_run(
     snapshots: Iterable[MarketSnapshot],
     forecast_run: ForecastRun,
     *,
-    input_config: PolicyInputConfig,
+    input_config: InputPlan,
     risk_source,
     dtype: type = np.float64,
 ) -> dict[datetime, PolicyInputs]:
@@ -102,7 +101,7 @@ def build_policy_input_table_from_forecast_run(
 def forecast_policy_input_table(
     snapshots: Iterable[MarketSnapshot],
     *,
-    input_config: PolicyInputConfig,
+    input_config: InputPlan,
     risk_source,
     provider_config: ForecastProviderConfig,
     pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,

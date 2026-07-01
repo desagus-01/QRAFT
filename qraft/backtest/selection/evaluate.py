@@ -20,7 +20,7 @@ from qraft.backtest.simulator import (
     precompute_inputs_from_recipe_history,
     run_backtest,
 )
-from qraft.construction.optimization.moments import PolicyInputConfig
+from qraft.construction.optimization.moments import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.configs import DEFAULT_SIMULATION_CONFIG, SimulationForecastConfig
 from qraft.core.schedule import RebalanceSchedule
@@ -94,7 +94,7 @@ def run_selection_window(
     periods_per_year: float | None = None,
     risk_free_rate: float = 0.0,
     recipe_history: ForecastRecipeHistory | None = None,
-    input_config: PolicyInputConfig | None = None,
+    input_config: InputPlan | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
 ) -> tuple[CandidateResult, ...]:
     """Expand candidates, precompute moments ONCE, then evaluate them all."""
@@ -141,7 +141,7 @@ def evaluate_candidate_grid(
     risk_free_rate: float,
     provider: PolicyInputsProvider | None = None,
     recipe_history: ForecastRecipeHistory | None = None,
-    input_config: PolicyInputConfig | None = None,
+    input_config: InputPlan | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
 ) -> tuple[tuple[CandidateResult, ...], list[datetime]]:
     """Expand a candidate grid, precompute shared inputs, and evaluate once."""

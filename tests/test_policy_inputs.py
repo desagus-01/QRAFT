@@ -9,12 +9,6 @@ from qraft.core.panel import ScenarioPanel
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 
 
-def _cash_path(tmp_path) -> str:
-    path = tmp_path / "cash.csv"
-    path.write_text("date,DFF\n2024-01-03,0.0\n")
-    return str(path)
-
-
 def _forecast_paths() -> ForecastPaths:
     return ForecastPaths(
         asset_paths={
@@ -137,12 +131,10 @@ def test_policy_inputs_from_arrays_does_not_require_scenarios() -> None:
         inputs.require_scenarios()
 
 
-def test_policy_inputs_from_policy_sources_historical_mean_and_cvar_risk(
-    tmp_path,
-) -> None:
+def test_policy_inputs_from_policy_sources_historical_mean_and_cvar_risk() -> None:
     inputs = PolicyInputs.from_policy_sources(
         forecasts=_forecast_paths(),
-        cash_path=_cash_path(tmp_path),
+        cash_return=0.0,
         expected_returns="historical",
         history=_history(),
         risk="cvar",
@@ -158,10 +150,10 @@ def test_policy_inputs_from_policy_sources_historical_mean_and_cvar_risk(
     assert inputs.require_mean().shape == (2, 2)
 
 
-def test_policy_inputs_from_policy_sources_covariance_risk_only(tmp_path) -> None:
+def test_policy_inputs_from_policy_sources_covariance_risk_only() -> None:
     inputs = PolicyInputs.from_policy_sources(
         forecasts=_forecast_paths(),
-        cash_path=_cash_path(tmp_path),
+        cash_return=0.0,
         expected_returns="forecast",
         risk="covariance",
         expectation_tolerance=None,
@@ -176,7 +168,7 @@ def test_policy_inputs_from_policy_sources_covariance_risk_only(tmp_path) -> Non
     inputs.require_covariances()
 
 
-def test_policy_inputs_drops_degenerate_forecast_asset(tmp_path) -> None:
+def test_policy_inputs_drops_degenerate_forecast_asset() -> None:
     forecasts = ForecastPaths(
         asset_paths={
             "A": np.array([[101.0, 102.0], [99.0, 100.0]]),
@@ -190,7 +182,7 @@ def test_policy_inputs_drops_degenerate_forecast_asset(tmp_path) -> None:
 
     inputs = PolicyInputs.from_policy_sources(
         forecasts=forecasts,
-        cash_path=_cash_path(tmp_path),
+        cash_return=0.0,
         expected_returns="forecast",
         risk="both",
         periods_per_year=252,
@@ -202,10 +194,10 @@ def test_policy_inputs_drops_degenerate_forecast_asset(tmp_path) -> None:
     assert inputs.dropped_assets[0].reason == "degenerate_forecast"
 
 
-def test_policy_inputs_from_policy_sources_historical_mean_decay(tmp_path) -> None:
+def test_policy_inputs_from_policy_sources_historical_mean_decay() -> None:
     inputs = PolicyInputs.from_policy_sources(
         forecasts=_forecast_paths(),
-        cash_path=_cash_path(tmp_path),
+        cash_return=0.0,
         expected_returns="historical",
         history=_history(),
         risk="both",

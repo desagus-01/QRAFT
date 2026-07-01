@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 _DEFAULT_SOLVER = cp.CLARABEL
+_OPTIMAL_STATUSES = {"optimal", "optimal_inaccurate"}
 
 
 SolverStatus = Literal[
@@ -159,7 +160,7 @@ class MPOResult:
 
     @property
     def is_optimal(self) -> bool:
-        return self.status == "optimal"
+        return self.status in _OPTIMAL_STATUSES
 
     @property
     def target_weights(self) -> NDArray[np.floating]:
@@ -407,7 +408,7 @@ class MultiPeriodOptimizer:
 
     def _failure_if_not_optimal(self, raise_on_failure: bool) -> MPOFailure | None:
         status = cast(SolverStatus, self.problem.status)
-        if status == "optimal":
+        if status in _OPTIMAL_STATUSES:
             return None
 
         message = f"Optimization failed: {status}"

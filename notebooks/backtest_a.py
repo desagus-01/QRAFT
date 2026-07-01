@@ -23,7 +23,7 @@ from qraft.construction import (
     PortfolioConstraint,
     TurnoverLimit,
 )
-from qraft.construction.optimization.moments import PolicyInputConfig
+from qraft.construction.optimization.moments import InputPlan
 from qraft.core import state_smooth_probs
 from qraft.core.configs import ForecastProviderConfig, SimulationForecastConfig
 from qraft.core.schedule import RebalanceSchedule
@@ -97,8 +97,8 @@ policy = MPOPolicy.preset(
     min_history=250,
 )
 
-input_config = PolicyInputConfig(
-    cash_path="data/cash.csv",
+input_config = InputPlan(
+    cash_return=0.0,
     expected_returns="forecast",
     risk="both",
 )
