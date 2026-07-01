@@ -109,7 +109,7 @@ with profile():
         recipe_history=recipe_history,
         input_config=input_config,
         simulation_config=SimulationForecastConfig(
-            horizon=15,
+            horizon=10,
             method="cma",
             n_sims=20_000,
             cma_config=CMAConfig(target_copula="t"),

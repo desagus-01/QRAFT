@@ -42,7 +42,10 @@ class VolatilityModelConfig:
 
     # Admissibility constraints
     max_persistence: float = 0.9999
-    variance_cap_factor: float = 4.0
+    # Overflow guard for simulated GARCH variance. None disables the upper cap;
+    # when set, cap = multiple * fitted unconditional variance.
+    variance_overflow_cap_multiple: float | None = None
+    variance_cap_frequent_bind_threshold: float = 0.01
     tolerance_zero: float = 1e-10
     tolerance_dups: float = 1e-6
 

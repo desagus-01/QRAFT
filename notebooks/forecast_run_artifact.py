@@ -131,4 +131,3 @@ for period_index, period in enumerate(x):
 
 repeat_stats = dict(repeat_stats)
 repeat_stats
-len(x)

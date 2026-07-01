@@ -57,6 +57,7 @@ class ForecastRecipe:
     quality: dict[str, ModelQuality | None]
     admissible: dict[str, bool | None]
     fallback_reason: dict[str, str | None]
+    variance_cap_diagnostics: dict[str, dict[str, float | int | bool | None]]
     survivors: list[str]
 
 
@@ -119,6 +120,10 @@ class FittedUniverse:
                 a: getattr(m.volatility_res, "fallback_reason", None)
                 for a, m in self.models.items()
             },
+            variance_cap_diagnostics={
+                a: dict(self.simulation_forecasts[a].variance_cap_diagnostics)
+                for a in self.assets
+            },
             survivors=list(self.assets),
         )
 
@@ -152,6 +157,7 @@ class FittedUniverse:
             paths[asset] = simulate_asset_paths(
                 forecast_model=self.simulation_forecasts[asset],
                 innovations=innovation_paths[:, :, i],
+                asset=asset,
             )
         return paths
 
@@ -192,7 +198,9 @@ def create_forecast_recipe(
         data=preprocess.post_data,
         models=models,
         assets=all_tickers,
-        variance_cap_factor=pipeline_config.volatility.variance_cap_factor,
+        variance_overflow_cap_multiple=(
+            pipeline_config.volatility.variance_overflow_cap_multiple
+        ),
     )
 
     invariants = _build_invariants_panel(
@@ -341,7 +349,7 @@ def apply_forecast_recipe(
             post,
             models,
             recipe.survivors,
-            pipeline_config.volatility.variance_cap_factor,
+            pipeline_config.volatility.variance_overflow_cap_multiple,
         ),
         invariants=_build_invariants_panel(post, models, recipe.survivors, prob),
     )
@@ -351,7 +359,7 @@ def _build_simulation_forecasts(
     data: pl.DataFrame,
     models: Mapping[str, UnivariateRes],
     assets: list[str],
-    variance_cap_factor: float = 4.0,
+    variance_overflow_cap_multiple: float | None = None,
 ) -> dict[str, SimulationForecast]:
     forecasts: dict[str, SimulationForecast] = {}
     for asset in assets:
@@ -359,9 +367,23 @@ def _build_simulation_forecasts(
         forecasts[asset] = SimulationForecast.from_res_and_series(
             fitting_results=models[asset],
             post_series_non_null=series,
-            variance_cap_factor=variance_cap_factor,
+            variance_overflow_cap_multiple=variance_overflow_cap_multiple,
         )
     return forecasts
+
+
+def mark_frequent_variance_cap_binding(
+    diagnostics: dict[str, dict[str, float | int | bool | None]],
+    threshold: float,
+) -> dict[str, dict[str, float | int | bool | None]]:
+    marked: dict[str, dict[str, float | int | bool | None]] = {}
+    for asset, values in diagnostics.items():
+        asset_values = dict(values)
+        bind_rate = float(asset_values.get("bind_rate") or 0.0)
+        asset_values["frequent_binding"] = bind_rate > threshold
+        asset_values["frequent_binding_threshold"] = threshold
+        marked[asset] = asset_values
+    return marked
 
 
 def _test_invariants_iid(

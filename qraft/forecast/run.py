@@ -17,6 +17,7 @@ from qraft.forecast.pipelines.fitted_universe import (
     ForecastRecipe,
     apply_forecast_recipe,
     create_forecast_recipe,
+    mark_frequent_variance_cap_binding,
 )
 from qraft.forecast.pipelines.forecasting import forecast_from_fit
 
@@ -56,6 +57,7 @@ class ForecastStep:
     recipe_period_index: int
     forecast: ForecastPaths
     action: Literal["selected_recipe", "applied_recipe"]
+    diagnostics: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +199,16 @@ def simulate_forecast_paths_from_snapshots(
             seed=_seed_for(seed, step),
             simulation_config=simulation_config,
         )
+        if fit.simulation_forecasts:
+            diagnostics = mark_frequent_variance_cap_binding(
+                {
+                    asset: sf.variance_cap_diagnostics
+                    for asset, sf in fit.simulation_forecasts.items()
+                },
+                pipeline_config.volatility.variance_cap_frequent_bind_threshold,
+            )
+        else:
+            diagnostics = None
         steps.append(
             ForecastStep(
                 as_of=snapshot.as_of,
@@ -207,6 +219,7 @@ def simulate_forecast_paths_from_snapshots(
                     if period.start == snapshot.as_of
                     else "applied_recipe"
                 ),
+                diagnostics=diagnostics,
             )
         )
 

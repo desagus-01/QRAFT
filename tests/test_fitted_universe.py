@@ -91,6 +91,7 @@ def test_fit_with_orders_demean_fallback() -> None:
         quality={"A": None},
         admissible={"A": None},
         fallback_reason={"A": None},
+        variance_cap_diagnostics={},
         survivors=["A"],
     )
     cfg = PipelineConfig()
@@ -129,6 +130,7 @@ def test_fit_with_orders_arma() -> None:
         quality={"A": None},
         admissible={"A": None},
         fallback_reason={"A": None},
+        variance_cap_diagnostics={},
         survivors=["A"],
     )
     cfg = PipelineConfig()
@@ -165,6 +167,7 @@ def test_fit_with_orders_arma_and_garch(tmp_path: pytest.TempPathFactory) -> Non
         quality={"A": None},
         admissible={"A": None},
         fallback_reason={"A": None},
+        variance_cap_diagnostics={},
         survivors=["A"],
     )
     cfg = PipelineConfig()
@@ -198,6 +201,7 @@ def test_fit_with_orders_multiple_assets() -> None:
         quality={"A": None, "B": None},
         admissible={"A": None, "B": None},
         fallback_reason={"A": None, "B": None},
+        variance_cap_diagnostics={},
         survivors=["A", "B"],
     )
     cfg = PipelineConfig()
@@ -237,6 +241,7 @@ def test_recondition_returns_fitted_universe() -> None:
         quality={"A": None},
         admissible={"A": None},
         fallback_reason={"A": None},
+        variance_cap_diagnostics={},
         survivors=["A"],
     )
     cfg = PipelineConfig()
@@ -282,6 +287,7 @@ def test_recondition_recipe_round_trip() -> None:
         quality={"A": None},
         admissible={"A": None},
         fallback_reason={"A": None},
+        variance_cap_diagnostics={},
         survivors=["A"],
     )
 
@@ -316,6 +322,7 @@ def test_fit_with_orders_preserves_recipe_quality() -> None:
         quality={"A": quality},
         admissible={"A": None},
         fallback_reason={"A": "forced_demean"},
+        variance_cap_diagnostics={},
         survivors=["A"],
     )
 

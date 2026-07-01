@@ -17,6 +17,7 @@ class UnivariateState:
     vol_residual_lags: NDArray[np.floating] | None = None
     var_hist: NDArray[np.floating] | None = None
     var_cap: float | None = None
+    unconditional_variance: float | None = None
 
     @classmethod
     def from_fitting_results_and_model(
@@ -25,7 +26,7 @@ class UnivariateState:
         univariate_model: UnivariateModel,
         post_series_non_null: NDArray[np.floating],
         x_hist_len: int = 10,
-        variance_cap_factor: float = 4.0,
+        variance_overflow_cap_multiple: float | None = None,
     ) -> Self:
         """
         Build an initial UnivariateState from fitting results and observed series.
@@ -70,6 +71,7 @@ class UnivariateState:
         eps_vol_hist = None
         var_hist = None
         var_cap: float | None = None
+        unconditional_variance: float | None = None
         if (
             univariate_model.vol_kind == "garch"
             and fitting_results.volatility_res is not None
@@ -77,7 +79,13 @@ class UnivariateState:
             p_g, o_g, q_g = univariate_model.vol_order
             m = max(p_g, o_g, 1)
             sig2 = fitting_results.volatility_res.conditional_volatility**2
-            var_cap = float(variance_cap_factor * float(np.max(sig2)))
+            unconditional_variance = _garch_unconditional_variance(
+                univariate_model.vol_params,
+                univariate_model.vol_order,
+                fallback=float(np.mean(sig2)),
+            )
+            if variance_overflow_cap_multiple is not None:
+                var_cap = float(variance_overflow_cap_multiple * unconditional_variance)
 
             eps_vol_hist = (
                 fitting_results.volatility_res.residuals[-m:].copy() if m > 0 else None
@@ -90,6 +98,7 @@ class UnivariateState:
             vol_residual_lags=eps_vol_hist,
             var_hist=var_hist,
             var_cap=var_cap,
+            unconditional_variance=unconditional_variance,
         )
 
     def state_as_dict(self) -> Mapping[str, NDArray[np.floating]]:
@@ -105,10 +114,11 @@ class UnivariateState:
         return asdict(self)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class SimulationForecast:
     model: UnivariateModel
     state0: UnivariateState
+    variance_cap_diagnostics: dict[str, float | int | bool | None]
 
     @classmethod
     def from_res_and_series(
@@ -116,7 +126,7 @@ class SimulationForecast:
         fitting_results: UnivariateRes,
         post_series_non_null: NDArray[np.floating],
         x_hist_len: int = 10,
-        variance_cap_factor: float = 4.0,
+        variance_overflow_cap_multiple: float | None = None,
     ):
         """
         Construct a SimulationForecast from fitting results and observed series.
@@ -174,6 +184,36 @@ class SimulationForecast:
                 univariate_model=model,
                 post_series_non_null=post_series_non_null,
                 x_hist_len=x_hist_len,
-                variance_cap_factor=variance_cap_factor,
+                variance_overflow_cap_multiple=variance_overflow_cap_multiple,
             ),
+            variance_cap_diagnostics={},
         )
+
+
+def _garch_unconditional_variance(
+    params: Mapping[str, object],
+    order: tuple[int, int, int],
+    *,
+    fallback: float,
+) -> float:
+    p, o, q = order
+    omega = float(params.get("omega", np.nan))
+    alpha = np.asarray(
+        [float(params.get(f"alpha[{i}]", 0.0)) for i in range(1, p + 1)],
+        dtype=float,
+    )
+    gamma = np.asarray(
+        [float(params.get(f"gamma[{i}]", 0.0)) for i in range(1, o + 1)],
+        dtype=float,
+    )
+    beta = np.asarray(
+        [float(params.get(f"beta[{i}]", 0.0)) for i in range(1, q + 1)],
+        dtype=float,
+    )
+    persistence = float(np.sum(alpha) + 0.5 * np.sum(gamma) + np.sum(beta))
+    variance = omega / (1.0 - persistence) if persistence < 1.0 else np.nan
+    if not np.isfinite(variance) or variance <= 0.0:
+        variance = fallback
+    if not np.isfinite(variance) or variance <= 0.0:
+        variance = 1.0
+    return float(variance)

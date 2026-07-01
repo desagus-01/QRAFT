@@ -11,6 +11,7 @@ from numpy._typing import NDArray
 def simulate_asset_paths(
     forecast_model: SimulationForecast,
     innovations: NDArray[np.floating],
+    asset: str | None = None,
 ) -> NDArray[np.floating]:
     """
     Simulate asset paths given a prepared simulation forecast and innovations.
@@ -52,14 +53,17 @@ def simulate_asset_paths(
     if model.vol_kind == "none":
         eps_paths = model.innovation_scale * innovations
     elif model.vol_kind == "garch":
-        _, eps_paths = garch_simulation_paths(
+        _, eps_paths, diagnostics = garch_simulation_paths(
             params=params,
             garch_order=model.vol_order,
             eps_start=state0.vol_residual_lags,
             var_start=state0.var_hist,
             innovations=innovations,
             var_cap=state0.var_cap,
+            unconditional_variance=state0.unconditional_variance,
+            asset=asset,
         )
+        forecast_model.variance_cap_diagnostics = diagnostics.as_dict()
     else:
         raise ValueError(f"Unknown vol_kind: {model.vol_kind}")
 

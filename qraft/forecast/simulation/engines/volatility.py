@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -12,6 +13,38 @@ from qraft.forecast.simulation.engines.utils import (
     lag_matrix,
 )
 from qraft.forecast.time_series.models.model_types import CompiledParams
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class VarianceCapDiagnostics:
+    cap_enabled: bool
+    cap_value: float | None
+    unconditional_variance: float | None = None
+    bind_count: int = 0
+    step_count: int = 0
+    max_raw_variance: float | None = None
+
+    @property
+    def bind_rate(self) -> float:
+        return self.bind_count / self.step_count if self.step_count else 0.0
+
+    @property
+    def bound(self) -> bool:
+        return self.bind_count > 0
+
+    def as_dict(self) -> dict[str, float | int | bool | None]:
+        return {
+            "cap_enabled": self.cap_enabled,
+            "cap_value": self.cap_value,
+            "unconditional_variance": self.unconditional_variance,
+            "bind_count": self.bind_count,
+            "step_count": self.step_count,
+            "bind_rate": self.bind_rate,
+            "max_raw_variance": self.max_raw_variance,
+            "bound": self.bound,
+        }
 
 
 @dataclass
@@ -29,6 +62,7 @@ class GarchSimulator:
     var_lag: int
     var_floor: float = 1e-12
     var_cap: float | None = None
+    diagnostics: VarianceCapDiagnostics | None = None
 
     @classmethod
     def from_state(
@@ -41,6 +75,7 @@ class GarchSimulator:
         eps_start: NDArray[np.floating] | None,
         var_start: NDArray[np.floating] | None,
         var_cap: float | None = None,
+        unconditional_variance: float | None = None,
     ) -> GarchSimulator:
         """
         Initialize a GarchSimulator from compiled parameters and starting lags.
@@ -96,6 +131,11 @@ class GarchSimulator:
             eps_lag=eps_lag,
             var_lag=var_lag,
             var_cap=var_cap,
+            diagnostics=VarianceCapDiagnostics(
+                cap_enabled=var_cap is not None,
+                cap_value=var_cap,
+                unconditional_variance=unconditional_variance,
+            ),
         )
 
     def variance_step(self, t: int) -> NDArray[np.floating]:
@@ -131,7 +171,19 @@ class GarchSimulator:
             var_lags = lag_matrix(self.var_ext, var_last, self.q)
             v_next += var_lags @ self.beta
 
-        # return np.maximum(v_next, self.var_floor)
+        if self.diagnostics is not None:
+            self.diagnostics.step_count += n_sims
+            raw_max = float(np.max(v_next))
+            if self.diagnostics.max_raw_variance is None:
+                self.diagnostics.max_raw_variance = raw_max
+            else:
+                self.diagnostics.max_raw_variance = max(
+                    self.diagnostics.max_raw_variance, raw_max
+                )
+            if self.var_cap is not None:
+                self.diagnostics.bind_count += int(
+                    np.count_nonzero(v_next > self.var_cap)
+                )
         return np.clip(v_next, self.var_floor, self.var_cap)
 
     def push(
@@ -163,7 +215,9 @@ def garch_simulation_paths(
     var_start: NDArray[np.floating] | None,
     innovations: NDArray[np.floating],
     var_cap: float | None = None,
-) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
+    unconditional_variance: float | None = None,
+    asset: str | None = None,
+) -> tuple[NDArray[np.floating], NDArray[np.floating], VarianceCapDiagnostics]:
     """
     Simulate GARCH volatility and residual (eps) paths given innovations.
 
@@ -201,6 +255,7 @@ def garch_simulation_paths(
         eps_start=eps_start,
         var_start=var_start,
         var_cap=var_cap,
+        unconditional_variance=unconditional_variance,
     )
 
     sigma2 = np.empty((n_sims, horizon), dtype=float)
@@ -215,4 +270,21 @@ def garch_simulation_paths(
 
         sim.push(t, eps_next, v_next)
 
-    return sigma2, eps
+    diagnostics = sim.diagnostics or VarianceCapDiagnostics(
+        cap_enabled=var_cap is not None,
+        cap_value=var_cap,
+        unconditional_variance=unconditional_variance,
+    )
+    if diagnostics.bound:
+        logger.warning(
+            "Variance cap bound during GARCH simulation: asset=%s cap=%s "
+            "bind_count=%d step_count=%d bind_rate=%.6f max_raw_variance=%s",
+            asset,
+            diagnostics.cap_value,
+            diagnostics.bind_count,
+            diagnostics.step_count,
+            diagnostics.bind_rate,
+            diagnostics.max_raw_variance,
+        )
+
+    return sigma2, eps, diagnostics
