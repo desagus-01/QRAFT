@@ -113,11 +113,7 @@ def _garch_boundaries_check(
 def _admissable_garch_model(
     params: dict[str, float], cfg: VolatilityModelConfig
 ) -> bool:
-    persistence = _garch_persistence_calc(params)
-
-    if persistence >= cfg.max_persistence:
-        return False
-    if _garch_boundaries_check(params, cfg):
+    if not all(np.isfinite(v) for v in params.values()):
         return False
 
     omega = params.get("omega", 0.0)

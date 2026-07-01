@@ -15,7 +15,6 @@ from qraft import (
 )
 from qraft.backtest.inputs import PrecomputedInputsProvider
 from qraft.backtest.market import MarketData, WindowWeighting
-from qraft.core.schedule import RebalanceSchedule
 from qraft.backtest.simulator import precompute_forecast_inputs, run_backtest
 from qraft.construction import (
     FullyInvested,
@@ -27,6 +26,7 @@ from qraft.construction import (
 from qraft.construction.optimization.moments import PolicyInputConfig
 from qraft.core import state_smooth_probs
 from qraft.core.configs import ForecastProviderConfig, SimulationForecastConfig
+from qraft.core.schedule import RebalanceSchedule
 from qraft.utils.backtest_viz import plot_backtest_dashboard
 from qraft.utils.tiingo import import_tickers_and_factors
 
@@ -36,7 +36,6 @@ setup_logging(LogConfig(level=logging.WARN))
 
 # setup_logging(LogConfig(log_file="backtest.log"))
 # %%
-print("kernel ready")
 
 # ── Data loading ─────────────────────────────────────────────────────
 data, factors_cols = import_tickers_and_factors(
@@ -62,7 +61,7 @@ cols_to_keep = [
 
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:90])
 factors_cols = list(factors_cols)
 universe = AssetUniverse(assets=tradable_assets, factors=factors_cols)
 data = data.select("date", *universe.all_tickers)
@@ -84,18 +83,6 @@ mkt_dt = MarketData.from_log_prices(
 )
 
 # %%
-# forecasts = run_forecast(
-#     panel=posterior_panel,
-#     seed=3,
-#     universe=universe,
-#     include_fit_diagnostics=True,
-#     simulation_config=SimulationForecastConfig(
-#         method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
-#     ),
-# )
-#
-#
-# %%
 constraints: list[PortfolioConstraint] = [
     LongOnly(),
     FullyInvested(constraint_type="soft", soft_weight=1.0),
@@ -107,7 +94,7 @@ policy = MPOPolicy.preset(
     objective_type="cvar_cuts",
     risk_aversion=0.01,
     constraints=constraints,
-    min_history=504,
+    min_history=250,
 )
 
 input_config = PolicyInputConfig(
@@ -122,10 +109,10 @@ input_table = precompute_forecast_inputs(
     input_config,
     warmup=policy.min_history,
     simulation_config=SimulationForecastConfig(
-        horizon=15, method="cma", n_sims=10_000, cma_config=CMAConfig(target_copula="t")
+        horizon=15, method="cma", n_sims=20_000, cma_config=CMAConfig(target_copula="t")
     ),
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
-    provider_config=ForecastProviderConfig(refit_every=4),
+    provider_config=ForecastProviderConfig(refit_every=int(data.height / 3)),
 )
 
 result = run_backtest(

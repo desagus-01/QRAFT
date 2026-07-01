@@ -1,5 +1,6 @@
 # %%
 import logging
+from collections import defaultdict
 
 import numpy as np
 import polars as pl
@@ -38,7 +39,7 @@ cols_to_keep = [
 ]
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:20])
+tradable_assets = list(data.columns[10:90])
 
 # %%
 universe = AssetUniverse(assets=tradable_assets, factors=list(factors_cols))
@@ -56,7 +57,78 @@ market = MarketData.from_log_prices(
 recipe_history = build_forecast_recipe_history(
     market,
     min_history=150,
-    refit_every=22,
+    refit_every=int(data.height / 5),
     seed=3,
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
 )
+# %%
+
+x = recipe_history.periods
+repeat_stats = defaultdict(
+    lambda: {
+        "same_mean_count": 0,
+        # "same_mean_dates": [],
+        "same_vol_count": 0,
+        # "same_vol_dates": [],
+        "same_mean_and_vol_count": 0,
+        # "same_mean_and_vol_dates": [],
+        # "same_mean_consecutive_dates": [],
+        # "same_vol_consecutive_dates": [],
+        # "same_mean_and_vol_consecutive_dates": [],
+    }
+)
+
+previous_by_asset = {}
+
+for period_index, period in enumerate(x):
+    date = period.end
+    mean_orders = period.recipe.mean_orders
+    vol_orders = period.recipe.vol_orders
+
+    assets = set(mean_orders) | set(vol_orders)
+
+    for asset in assets:
+        mean_order = mean_orders.get(asset)
+        vol_order = vol_orders.get(asset)
+
+        previous = previous_by_asset.get(asset)
+
+        if previous is not None:
+            same_mean = mean_order == previous["mean_order"]
+            same_vol = vol_order == previous["vol_order"]
+
+            consecutive = period_index == previous["period_index"] + 1
+
+            if same_mean:
+                repeat_stats[asset]["same_mean_count"] += 1
+                # repeat_stats[asset]["same_mean_dates"].append(date)
+
+                # if consecutive:
+                #     repeat_stats[asset]["same_mean_consecutive_dates"].append(date)
+                #
+            if same_vol:
+                repeat_stats[asset]["same_vol_count"] += 1
+                # repeat_stats[asset]["same_vol_dates"].append(date)
+
+                # if consecutive:
+                #     repeat_stats[asset]["same_vol_consecutive_dates"].append(date)
+                #
+            if same_mean and same_vol:
+                repeat_stats[asset]["same_mean_and_vol_count"] += 1
+                # repeat_stats[asset]["same_mean_and_vol_dates"].append(date)
+
+                # if consecutive:
+                #     repeat_stats[asset]["same_mean_and_vol_consecutive_dates"].append(
+                #         date
+                #     )
+                #
+        previous_by_asset[asset] = {
+            "period_index": period_index,
+            "date": date,
+            "mean_order": mean_order,
+            "vol_order": vol_order,
+        }
+
+repeat_stats = dict(repeat_stats)
+repeat_stats
+len(x)
