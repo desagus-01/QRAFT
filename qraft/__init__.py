@@ -5,12 +5,12 @@ __all__ = [
     "CMAConfig",
     "AssetUniverse",
     "ForecastPaths",
+    "Forecaster",
     "forecast_from_fit",
     "run_forecast",
     "LogConfig",
     "PipelineConfig",
     "SimulationForecastConfig",
-    "ForecastProviderConfig",
     "BacktestConfig",
     "CVConfig",
     "WalkForwardConfig",
@@ -64,7 +64,6 @@ from qraft.backtest.configs import (
 )
 from qraft.core.configs import (
     CMAConfig,
-    ForecastProviderConfig,
     PipelineConfig,
     SimulationForecastConfig,
 )
@@ -72,6 +71,7 @@ from qraft.core.panel import ScenarioPanel
 from qraft.core.scenarios.transforms import CMA, Views
 from qraft.core.universe import AssetUniverse
 from qraft.forecast.forecast_paths import ForecastPaths
+from qraft.forecast.forecaster import Forecaster
 from qraft.forecast.pipelines.forecasting import forecast_from_fit, run_forecast
 from qraft.helper import profile
 from qraft.core.metrics import cvar, var

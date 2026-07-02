@@ -30,13 +30,10 @@ from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
 from qraft.core.configs import (
-    DEFAULT_FORECAST_PROVIDER_CONFIG,
-    DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
-    ForecastProviderConfig,
-    PipelineConfig,
     SimulationForecastConfig,
 )
+from qraft.forecast.forecaster import Forecaster
 from qraft.forecast.run import ForecastRecipeHistory, simulate_forecast_paths
 from qraft.core.snapshot import MarketSnapshot
 
@@ -286,9 +283,7 @@ def precompute_forecast_inputs(
     warmup: int,
     *,
     policy: PolicyInputRequirements | None = None,
-    provider_config: ForecastProviderConfig = DEFAULT_FORECAST_PROVIDER_CONFIG,
-    pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
-    simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
+    forecaster: Forecaster = Forecaster(),
     dtype: type = np.float64,
     step_size: int = 1,
 ) -> dict[datetime, PolicyInputs]:
@@ -298,9 +293,7 @@ def precompute_forecast_inputs(
         (point.snapshot for point in points),
         input_config=input_config,
         risk_source=policy_risk_source(input_config, policy),
-        provider_config=provider_config,
-        pipeline_config=pipeline_config,
-        simulation_config=simulation_config,
+        forecaster=forecaster,
         dtype=dtype,
     )
     logger.info("precompute_forecast_inputs: cached %d decision date(s)", len(table))

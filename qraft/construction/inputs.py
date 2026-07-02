@@ -10,13 +10,7 @@ from qraft.construction.optimization.moments import (
     InputPlan,
     PolicyInputs,
 )
-from qraft.core.configs import (
-    DEFAULT_PIPELINE_CONFIG,
-    DEFAULT_SIMULATION_CONFIG,
-    ForecastProviderConfig,
-    PipelineConfig,
-    SimulationForecastConfig,
-)
+from qraft.forecast.forecaster import Forecaster
 from qraft.core.snapshot import MarketSnapshot, forecast_snapshot_from_decision_snapshot
 from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.run import (
@@ -103,9 +97,7 @@ def forecast_policy_input_table(
     *,
     input_config: InputPlan,
     risk_source,
-    provider_config: ForecastProviderConfig,
-    pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
-    simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
+    forecaster: Forecaster,
     dtype: type = np.float64,
 ) -> dict[datetime, PolicyInputs]:
     """Forecast decision snapshots, then build ``{date: PolicyInputs}``."""
@@ -116,17 +108,17 @@ def forecast_policy_input_table(
     ]
     recipe_history = build_forecast_recipe_history_from_snapshots(
         forecast_snapshots,
-        refit_every=provider_config.refit_every,
-        reselect_on_universe_change=provider_config.reselect_on_universe_change,
-        seed=provider_config.seed,
-        pipeline_config=pipeline_config,
+        refit_every=forecaster.refit_every,
+        reselect_on_universe_change=forecaster.reselect_on_universe_change,
+        seed=forecaster.seed,
+        pipeline_config=forecaster.pipeline,
     )
     run = simulate_forecast_paths_from_snapshots(
         forecast_snapshots,
         recipe_history,
-        pipeline_config=pipeline_config,
-        seed=provider_config.seed,
-        simulation_config=simulation_config,
+        pipeline_config=forecaster.pipeline,
+        seed=forecaster.seed,
+        simulation_config=forecaster.simulation,
     )
     return build_policy_input_table(
         market_snapshots,

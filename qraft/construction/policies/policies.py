@@ -40,6 +40,8 @@ class PolicyProtocol(Protocol):
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision: ...
 
+    def required_inputs(self) -> RequiredPolicyInputs: ...
+
 
 def _decision_from_mpo(
     result: MPOResult, cash_return: NDArray[np.floating] | None
@@ -58,6 +60,9 @@ class EqualWeightPolicy:
     target_cash_weight: float
     name: str = "equal_weight"
     min_history: int = 0
+
+    def required_inputs(self) -> RequiredPolicyInputs:
+        return RequiredPolicyInputs()
 
     def decide(
         self,

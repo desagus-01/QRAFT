@@ -9,6 +9,7 @@ from qraft import (
     CMAConfig,
     LogConfig,
     MPOPolicy,
+    Forecaster,
     PipelineConfig,
     ScenarioPanel,
     setup_logging,
@@ -25,7 +26,7 @@ from qraft.construction import (
 )
 from qraft.construction.optimization.moments import InputPlan
 from qraft.core import state_smooth_probs
-from qraft.core.configs import ForecastProviderConfig, SimulationForecastConfig
+from qraft.core.configs import SimulationForecastConfig
 from qraft.core.schedule import RebalanceSchedule
 from qraft.utils.backtest_viz import plot_backtest_dashboard
 from qraft.utils.tiingo import import_tickers_and_factors
@@ -108,11 +109,16 @@ input_table = precompute_forecast_inputs(
     schedule,
     input_config,
     warmup=policy.min_history,
-    simulation_config=SimulationForecastConfig(
-        horizon=15, method="cma", n_sims=20_000, cma_config=CMAConfig(target_copula="t")
+    forecaster=Forecaster(
+        simulation=SimulationForecastConfig(
+            horizon=15,
+            method="cma",
+            n_sims=20_000,
+            cma_config=CMAConfig(target_copula="t"),
+        ),
+        pipeline=PipelineConfig(exclude_non_invariants=False),
+        refit_every=int(data.height / 3),
     ),
-    pipeline_config=PipelineConfig(exclude_non_invariants=False),
-    provider_config=ForecastProviderConfig(refit_every=int(data.height / 3)),
 )
 
 result = run_backtest(

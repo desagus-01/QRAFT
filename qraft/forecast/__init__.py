@@ -1,6 +1,7 @@
 __all__ = [
     "AssetUniverse",
     "ForecastPaths",
+    "Forecaster",
     "InnovationPaths",
     "run_forecast",
     "LogConfig",
@@ -30,6 +31,7 @@ from qraft.forecast.forecast_paths import (  # noqa: F401
     ForecastPaths,
     InnovationPaths,
 )
+from qraft.forecast.forecaster import Forecaster  # noqa: F401
 from qraft.forecast.pipelines.fitted_universe import FittedUniverse  # noqa: F401
 from qraft.forecast.pipelines.forecasting import (  # noqa: F401
     forecast_from_fit,
