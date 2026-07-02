@@ -1,6 +1,7 @@
 __all__ = [
     "MPOPolicy",
     "EqualWeightPolicy",
+    "Allocation",
     "PolicyProtocol",
     "PolicyDecision",
     "PolicyProjection",
@@ -8,6 +9,7 @@ __all__ = [
     "run_policy",
 ]
 
+from qraft.construction.policies.allocation import Allocation
 from qraft.construction.policies.policies import (
     EqualWeightPolicy,
     MPOPolicy,

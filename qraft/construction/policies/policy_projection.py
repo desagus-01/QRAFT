@@ -126,7 +126,9 @@ class PolicyProjection:
             criterion=criterion,
         )
 
-    def plot(self, type: Literal["value", "cum_performance"]) -> None:
+    def plot(
+        self, type: Literal["value", "cum_performance"] = "cum_performance"
+    ) -> None:
         value_to_plot = (
             self.forecast_values if type == "value" else self.cumulative_returns
         )

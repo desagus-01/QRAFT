@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Iterable, Protocol, runtime_checkable
+from typing import Any, Iterable, Mapping, Protocol, cast, runtime_checkable
 
 import numpy as np
 
@@ -77,7 +77,7 @@ def build_policy_input_table(
         ):
             return {}
 
-    forecasts = _forecast_run_for_source(market_snapshots, forecast_source)
+    forecasts = forecast_run_for_source(market_snapshots, forecast_source)
     forecast_paths = (
         [step.forecast for step in forecasts.steps]
         if isinstance(forecasts, ForecastRun)
@@ -96,7 +96,7 @@ def build_policy_input_table(
         asset_diagnostics = ()
         if diagnostics is not None:
             asset_diagnostics = tuple(
-                AssetDiagnostics(asset=asset, values=values)
+                AssetDiagnostics(asset=asset, values=cast(Mapping[str, Any], values))
                 for asset, values in diagnostics.items()
             )
         inputs = PolicyInputs.from_policy_sources(
@@ -120,7 +120,7 @@ def build_policy_input_table(
     return table
 
 
-def _forecast_run_for_source(
+def forecast_run_for_source(
     market_snapshots: list[MarketSnapshot],
     forecast_source: ForecastSource,
 ) -> ForecastRun | Iterable[ForecastPaths]:
@@ -157,3 +157,6 @@ def _forecast_run_for_source(
         seed=forecast_source.seed,
         simulation_config=forecast_source.simulation,
     )
+
+
+_forecast_run_for_source = forecast_run_for_source

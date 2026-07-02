@@ -22,6 +22,7 @@ from qraft import (
 )
 from qraft.backtest.configs import WalkForwardConfig
 from qraft.construction import FullyInvested, LongOnly, MinCashWeight
+from qraft.construction.policies.allocation import Allocation
 from qraft.core.scenarios.view_types import RankingView
 from qraft.core.schedule import RebalanceSchedule
 from qraft.utils.tiingo import import_tickers_and_factors
@@ -104,17 +105,24 @@ val = Validation(
 )
 
 # Walk-forward uses the cached grid.
-wf_report = val.walk_forward(WalkForwardConfig(metric="sharpe"))
+report = val.walk_forward(WalkForwardConfig(metric="sharpe"))
 
 # %%
 
-
 # tune() re-scores OOS windows with a different metric — no re-backtest.
-best_sharpe = val.tune(report=wf_report, metric="sharpe")
-best_sortino = val.tune(report=wf_report, metric="sortino")
+best_sharpe = val.tune(report=report, metric="sharpe")
+best_sortino = val.tune(report=report, metric="sortino")
 best_sharpe, best_sortino
 
 # %%
 # tuned_policy wraps tune() + apply_hyperparameters.
 policy = val.tuned_policy(metric="sortino")
-policy
+
+# %%
+live = Allocation(market, policy, source=forecaster, plan=plan)
+
+run = live.at()
+risk = live.risk()
+
+# %%
+run.projection.plot()

@@ -19,6 +19,7 @@ __all__ = [
     "SimulationForecastConfig",
     "BacktestConfig",
     "Backtest",
+    "Allocation",
     "CVConfig",
     "WalkForwardConfig",
     "CombinatorialCVConfig",
@@ -55,6 +56,7 @@ from qraft.construction.optimization.inputs import (
     RiskSource,
 )
 from qraft.construction.policies import (
+    Allocation,
     EqualWeightPolicy,
     MPOPolicy,
     PolicyDecision,

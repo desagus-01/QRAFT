@@ -5,7 +5,9 @@ import polars as pl
 import pytest
 
 from qraft.backtest.execution import execute_frictionless
+from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import (
+    Allocation,
     EqualWeightPolicy,
     PolicyDecision,
     PolicyProjection,
@@ -13,6 +15,8 @@ from qraft.construction.policies import (
     run_policy,
 )
 from qraft.construction.state import PortfolioState
+from qraft.core.market import MarketData
+from qraft.core.universe import AssetUniverse
 from qraft.forecast.forecast_paths import ForecastPaths
 
 
@@ -25,6 +29,7 @@ def _forecasts() -> ForecastPaths:
         dates=pl.Series("date", [datetime(2024, 1, 3), datetime(2024, 1, 4)]),
         path_probs=np.array([0.5, 0.5]),
         initial_prices={"A": 10.0, "B": 20.0},
+        universe=AssetUniverse.factors_free(["A", "B"]),
     )
 
 
@@ -92,8 +97,48 @@ def test_run_policy_orchestrates_decision_and_projection() -> None:
     assert isinstance(result, PolicyRun)
     assert isinstance(result.decision, PolicyDecision)
     assert isinstance(result.projection, PolicyProjection)
+    assert result.forecasts is not None
     assert result.projection.target_cash_weight == result.decision.target_cash_weight
     np.testing.assert_allclose(
         result.projection.target_weights_risk,
         result.decision.target_weights_risk,
     )
+
+
+def test_allocation_returns_run_with_same_forecasts(monkeypatch) -> None:
+    market = MarketData.from_prices(
+        pl.DataFrame(
+            {
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "A": [10.0, 10.0],
+                "B": [20.0, 20.0],
+            }
+        ),
+        AssetUniverse.factors_free(["A", "B"]),
+    )
+    forecasts = _forecasts()
+    captured = {}
+
+    def fake_build_policy_input_table(snapshots, source, **kwargs):
+        snapshots = list(snapshots)
+        captured["snapshot"] = snapshots[0]
+        captured["source"] = source
+        return {snapshots[0].t: None}
+
+    monkeypatch.setattr(
+        "qraft.construction.policies.allocation.build_policy_input_table",
+        fake_build_policy_input_table,
+    )
+
+    run = Allocation(
+        market,
+        EqualWeightPolicy(target_cash_weight=0.2),
+        source=forecasts,
+        plan=InputPlan(),
+    ).at()
+
+    assert run.forecasts is forecasts
+    assert run.projection is not None
+    assert captured["source"] == [forecasts]
+    assert captured["snapshot"].t == datetime(2024, 1, 2)
+    assert captured["snapshot"].t_next == datetime(2024, 1, 2)
