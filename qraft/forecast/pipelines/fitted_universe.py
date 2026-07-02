@@ -8,7 +8,7 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
-from qraft.core.configs import DEFAULT_PIPELINE_CONFIG, IIDConfig, PipelineConfig
+from qraft.core.configs import IIDConfig, PipelineConfig
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.forecast.forecast_paths import AssetUniverse
@@ -51,6 +51,24 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
+class InvarianceDrop:
+    asset: str
+    screen: str
+    protected: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class NonInvariantAssetsError(ValueError):
+    dropped_assets: tuple[InvarianceDrop, ...]
+
+    def __str__(self) -> str:
+        details = ", ".join(
+            f"{drop.asset} ({drop.screen})" for drop in self.dropped_assets
+        )
+        return f"Invariance screen dropped all assets: {details}"
+
+
+@dataclass(frozen=True, slots=True)
 class ForecastRecipe:
     detrend: dict[str, TransformDecision]
     deseason: dict[str, list[tuple[str, float]]]
@@ -64,6 +82,7 @@ class ForecastRecipe:
     fallback_reason: dict[str, str | None]
     variance_cap_diagnostics: dict[str, dict[str, float | int | bool | None]]
     survivors: list[str]
+    invariance_drops: tuple[InvarianceDrop, ...] = ()
 
 
 FitDiagnostics = dict[str, float | int | bool | str | ModelQuality | None]
@@ -133,6 +152,7 @@ class FittedUniverse:
                 for a in self.assets
             },
             survivors=list(self.assets),
+            invariance_drops=(),
         )
 
     def simulate(
@@ -220,10 +240,15 @@ def create_forecast_recipe(
     if pipeline_config.exclude_non_invariants:
         invariants = _remove_non_invariants(
             invariants_panel=invariants,
+            iid_config=pipeline_config.preprocess.iid,
             seed=seed,
             already_iid=preprocess.assets_already_iid,
             protected=set(universe.factors),
         )
+        invariance_drops = invariants.drops
+        invariants = invariants.panel
+    else:
+        invariance_drops = ()
 
     surviving = invariants.asset_names
     n_dropped = len(all_tickers) - len(surviving)
@@ -236,9 +261,10 @@ def create_forecast_recipe(
 
         n_asset_drops = len([a for a in universe.assets if a not in surviving])
         logger.warning(
-            "Removed %d non-invariant tradable asset(s) "
+            "Removed %d non-invariant tradable asset(s) via invariant iid screen: %s. "
             "(%d factors remain protected). Surviving tickers (%d): %s",
             n_asset_drops,
+            [drop.asset for drop in invariance_drops if not drop.protected],
             len(universe.factors),
             len(surviving),
             surviving,
@@ -251,7 +277,22 @@ def create_forecast_recipe(
         simulation_forecasts=simulation_forecasts,
         invariants=invariants,
     )
-    return fit.recipe()
+    recipe = fit.recipe()
+    return ForecastRecipe(
+        detrend=recipe.detrend,
+        deseason=recipe.deseason,
+        needs_modelling=recipe.needs_modelling,
+        mean_orders=recipe.mean_orders,
+        vol_orders=recipe.vol_orders,
+        mean_fallback_identity=recipe.mean_fallback_identity,
+        vol_distributions=recipe.vol_distributions,
+        quality=recipe.quality,
+        admissible=recipe.admissible,
+        fallback_reason=recipe.fallback_reason,
+        variance_cap_diagnostics=recipe.variance_cap_diagnostics,
+        survivors=recipe.survivors,
+        invariance_drops=invariance_drops,
+    )
 
 
 def _merge_inv(
@@ -465,17 +506,32 @@ def _test_invariants_iid(
     return non_iid_invariants
 
 
+@dataclass(frozen=True, slots=True)
+class InvarianceScreenResult:
+    panel: ScenarioPanel
+    drops: tuple[InvarianceDrop, ...]
+
+
 def _remove_non_invariants(
     invariants_panel: ScenarioPanel,
+    iid_config: IIDConfig,
     seed: int | None,
     already_iid: list[str],
     protected: set[str] | None = None,
-) -> ScenarioPanel:
+) -> InvarianceScreenResult:
     non_invariant_assets = _test_invariants_iid(
         invariants=invariants_panel,
-        iid_config=DEFAULT_PIPELINE_CONFIG.preprocess.iid,
+        iid_config=iid_config,
         seed=seed,
         already_iid_names=already_iid,
+    )
+    drops = tuple(
+        InvarianceDrop(
+            asset=a,
+            screen="invariant_iid",
+            protected=bool(protected and a in protected),
+        )
+        for a in non_invariant_assets
     )
     if protected:
         protected_failures = [a for a in non_invariant_assets if a in protected]
@@ -490,13 +546,19 @@ def _remove_non_invariants(
     else:
         to_drop = non_invariant_assets
 
+    if to_drop and len(to_drop) == invariants_panel.values.width:
+        raise NonInvariantAssetsError(tuple(d for d in drops if not d.protected))
+
     new_invariants_df = invariants_panel.values.drop(to_drop)
 
-    return ScenarioPanel(
-        values=new_invariants_df,
-        dates=invariants_panel.dates,
-        prob=invariants_panel.prob,
-        kind="invariant",
+    return InvarianceScreenResult(
+        panel=ScenarioPanel(
+            values=new_invariants_df,
+            dates=invariants_panel.dates,
+            prob=invariants_panel.prob,
+            kind="invariant",
+        ),
+        drops=tuple(d for d in drops if not d.protected),
     )
 
 

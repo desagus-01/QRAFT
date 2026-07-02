@@ -24,6 +24,7 @@ def run_iid_simple(
     assets: list[str],
     lags: int,
     arch_lags: tuple[int, ...],
+    significance_level: float,
 ) -> dict[str, TestResultByAsset]:
     """Cheaper iid screens: mean autocorrelation + second-moment (ARCH) clustering."""
     ellipsoid_test = ellipsoid_lag_test(
@@ -31,11 +32,13 @@ def run_iid_simple(
         prob=prob,
         lags=lags,
         assets=assets,
+        significance_level=significance_level,
     )
     arch_effects_test = univariate_arch_test(
         data=data,
         lags=arch_lags,
         assets=assets,
+        significance_level=significance_level,
     )
     return {
         "ellipsoid": ellipsoid_test,
@@ -116,6 +119,7 @@ def check_white_noise(
         assets=assets,
         lags=cfg.lags_simple,
         arch_lags=cfg.arch_lags,
+        significance_level=cfg.significance_level,
     )
 
     simple_pass = {

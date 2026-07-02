@@ -185,7 +185,9 @@ class ScenarioPanel:
         if len(dates) != values.height:
             raise ValueError(f"dates length {len(dates)} != rows {values.height}")
 
-        null_mask = values.select(pl.any_horizontal(pl.all().is_null())).to_series()
+        null_mask = values.select(
+            pl.any_horizontal(pl.all().is_null() | pl.all().is_nan())
+        ).to_series()
 
         if not null_mask.any():
             return values, dates, prob

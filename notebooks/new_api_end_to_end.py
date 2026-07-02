@@ -38,20 +38,21 @@ prices, factor_cols = import_tickers_and_factors(
 )
 cash = pl.read_csv("data/cash.csv", try_parse_dates=True)
 
-min_price = 15
+min_price = 12
 cols_to_keep = [
     col
     for col in prices.columns
     if col == "date"
     or (
-        prices[col].null_count() == 0
+        col != "DHIL"
+        and prices[col].null_count() == 0
         and prices[col].dtype.is_numeric()
         and float(prices[col].min()) >= np.log(min_price)  # type: ignore[arg-type]
     )
 ]
 prices = prices.select(cols_to_keep)
 
-assets = list(prices.columns[10:25])
+assets = list(prices.columns[10:90])
 universe = AssetUniverse(assets=assets, factors=list(factor_cols)[:4])
 prices = prices.select("date", *universe.all_tickers)
 
@@ -97,22 +98,13 @@ base_policy = MPOPolicy.preset(
 val = Validation(
     market=market,
     base_policy=base_policy,
-    grid={"risk_aversion": [0.01, 0.03, 0.10]},
+    grid={"risk_aversion": [0.05, 0.5, 1, 3, 5, 10]},
     source=forecaster,
     plan=plan,
     cv_config=WalkForwardConfig(),
     backtest_config=backtest_config,
 )
 
-# Walk-forward uses the cached grid.
-report = val.walk_forward(WalkForwardConfig(metric="sharpe"))
-
-# %%
-
-# tune() re-scores OOS windows with a different metric — no re-backtest.
-best_sharpe = val.tune(report=report, metric="sharpe")
-best_sortino = val.tune(report=report, metric="sortino")
-best_sharpe, best_sortino
 
 # %%
 # tuned_policy wraps tune() + apply_hyperparameters.
@@ -120,9 +112,8 @@ policy = val.tuned_policy(metric="sortino")
 
 # %%
 live = Allocation(market, policy, source=forecaster, plan=plan)
-
 run = live.at()
 risk = live.risk()
 
 # %%
-run.projection.plot()
+risk.effective_bets().plot()

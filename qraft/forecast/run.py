@@ -31,6 +31,7 @@ class RecipePeriod:
     universe: tuple[str, ...]
     selected_at_step: int
     diagnostics: Mapping[str, object] | None = None
+    invariance_drops: tuple[object, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +163,7 @@ def build_forecast_recipe_history_from_snapshots(
                 universe=current_period.universe,
                 selected_at_step=current_period.selected_at_step,
                 diagnostics=current_period.diagnostics,
+                invariance_drops=current_period.invariance_drops,
             )
         current_period = RecipePeriod(
             start=snapshot.as_of,
@@ -169,6 +171,7 @@ def build_forecast_recipe_history_from_snapshots(
             recipe=recipe,
             universe=universe_key,
             selected_at_step=step,
+            invariance_drops=recipe.invariance_drops,
         )
         periods.append(current_period)
         last_universe = universe_key
@@ -218,6 +221,7 @@ def simulate_forecast_paths_from_snapshots(
                     else "applied_recipe"
                 ),
                 diagnostics=diagnostics,
+                invariance_drops=period.invariance_drops,
             )
         )
 

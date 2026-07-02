@@ -177,6 +177,7 @@ class PolicyInputs:
     cov_factor: NDArray[np.floating] | None = None
     dropped_assets: tuple[DroppedAsset, ...] = ()
     asset_diagnostics: tuple[AssetDiagnostics, ...] = ()
+    invariance_drops: tuple[object, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.assets:
@@ -607,6 +608,7 @@ class PolicyInputs:
         periods_per_year: float | None = None,
         as_of: datetime | None = None,
         asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
+        invariance_drops: tuple[object, ...] = (),
     ) -> "PolicyInputs":
         """
         Build policy inputs from two simple choices: expected returns and risk.
@@ -712,6 +714,7 @@ class PolicyInputs:
             cov_factor=cov_factor,
             dropped_assets=dropped_assets,
             asset_diagnostics=asset_diagnostics,
+            invariance_drops=invariance_drops,
         )
 
     @classmethod
@@ -728,6 +731,7 @@ class PolicyInputs:
         cov_factor: NDArray[np.floating] | None = None,
         dropped_assets: tuple[DroppedAsset, ...] = (),
         asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
+        invariance_drops: tuple[object, ...] = (),
     ) -> "PolicyInputs":
         cash_array = (
             None if cash_return is None else np.asarray(cash_return, dtype=float)
@@ -747,6 +751,7 @@ class PolicyInputs:
             cov_factor=cov_factor,
             dropped_assets=dropped_assets,
             asset_diagnostics=asset_diagnostics,
+            invariance_drops=invariance_drops,
         )
 
 

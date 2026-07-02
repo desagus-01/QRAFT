@@ -83,15 +83,20 @@ def build_policy_input_table(
         if isinstance(forecasts, ForecastRun)
         else list(forecasts)
     )
-    forecast_diagnostics = (
-        [step.diagnostics for step in forecasts.steps]
-        if isinstance(forecasts, ForecastRun)
-        else [None] * len(forecast_paths)
-    )
+    if isinstance(forecasts, ForecastRun):
+        forecast_diagnostics = [step.diagnostics for step in forecasts.steps]
+        forecast_invariance_drops = [step.invariance_drops for step in forecasts.steps]
+    else:
+        forecast_diagnostics = [None] * len(forecast_paths)
+        forecast_invariance_drops = [()] * len(forecast_paths)
 
     table: dict[datetime, PolicyInputs] = {}
-    for snapshot, forecast, diagnostics in zip(
-        market_snapshots, forecast_paths, forecast_diagnostics, strict=True
+    for snapshot, forecast, diagnostics, invariance_drops in zip(
+        market_snapshots,
+        forecast_paths,
+        forecast_diagnostics,
+        forecast_invariance_drops,
+        strict=True,
     ):
         asset_diagnostics = ()
         if diagnostics is not None:
@@ -112,6 +117,7 @@ def build_policy_input_table(
             as_of=snapshot.t,
             cash_return=snapshot.cash_rate,
             asset_diagnostics=asset_diagnostics,
+            invariance_drops=invariance_drops,
         )
         if dtype != np.float64:
             inputs = inputs.astype(dtype)

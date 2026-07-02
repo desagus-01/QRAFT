@@ -371,4 +371,9 @@ def run_backtest(
         warnings_log=warnings_log,
         holding_costs=np.array(holding_costs, dtype=float),
         periods_per_year=market.config.periods_per_year,
+        invariance_drops=tuple(
+            drop
+            for inputs_at_bar in inputs.values()
+            for drop in getattr(inputs_at_bar, "invariance_drops", ())
+        ),
     )

@@ -142,6 +142,7 @@ def autocorrelation_pair_test(
     pair_np: np.ndarray,
     prob: ProbVector,
     assets: tuple[str, str],
+    significance_level: float = _DEFAULT_IID.significance_level,
 ) -> HypTestRes:
     """Test linear dependence between a series and one lag."""
     cov = _sample_meancov_np(pair_np, prob, assets).cov
@@ -162,7 +163,12 @@ def autocorrelation_pair_test(
 
     p_val = float(2 * (1 - st.norm.cdf(test_statistic)))
 
-    return format_hyp_test_result(stat=corr, p_val=p_val, null="Independence")
+    return format_hyp_test_result(
+        stat=corr,
+        p_val=p_val,
+        null="Independence",
+        sign_level=significance_level,
+    )
 
 
 def ellipsoid_lag_test(
@@ -170,6 +176,7 @@ def ellipsoid_lag_test(
     prob: ProbVector,
     lags: int = _DEFAULT_IID.lags_simple,
     assets: list[str] | None = None,
+    significance_level: float = _DEFAULT_IID.significance_level,
 ) -> TestResultByAsset:
     """Run the ellipsoid lag test for each asset and lag."""
     return run_lagged_tests(
@@ -178,6 +185,7 @@ def ellipsoid_lag_test(
         lags=lags,
         assets=assets,
         test_fn=autocorrelation_pair_test,
+        significance_level=significance_level,
     )
 
 
@@ -607,6 +615,7 @@ def arch_test(
     residual_array: NDArray[np.floating],
     lags_to_test: tuple[int, ...],
     degrees_of_freedom: int,
+    significance_level: float = _DEFAULT_IID.significance_level,
 ) -> PerAssetTestResult:
     """Run ARCH tests over the requested lags."""
     arch_lag_res: dict[str, HypTestRes] = {}
@@ -617,6 +626,7 @@ def arch_test(
             stat=arch_res[0],
             p_val=arch_res[1],
             null=f"no ARCH effects up to lag {lag}",
+            sign_level=significance_level,
         )
 
     rejected = [k for k, res in arch_lag_res.items() if res.reject_null]
@@ -627,6 +637,7 @@ def univariate_arch_test(
     data: pl.DataFrame,
     lags: tuple[int, ...] = _DEFAULT_IID.arch_lags,
     assets: list[str] | None = None,
+    significance_level: float = _DEFAULT_IID.significance_level,
 ) -> TestResultByAsset:
     """Test each asset for ARCH effects (conditional heteroskedasticity)."""
     sel_assets = get_assets_names(data, assets)
@@ -639,6 +650,7 @@ def univariate_arch_test(
             residual_array=x,
             lags_to_test=lags,
             degrees_of_freedom=0,
+            significance_level=significance_level,
         )
 
     return out
