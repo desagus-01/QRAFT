@@ -121,7 +121,7 @@ class PolicyProjection:
     ) -> PortfolioRisk:
         return PortfolioRisk.from_projection(
             policy_projection=self,
-            asset_forecasts=forecasts,
+            forecasts=forecasts,
             auto_select_factors=auto_select_factors,
             criterion=criterion,
         )

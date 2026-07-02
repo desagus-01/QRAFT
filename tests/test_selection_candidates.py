@@ -118,6 +118,15 @@ def test_expand_candidates_returns_policy_candidates_with_provenance():
     assert policy.problem.objective.terms[2].weight == 1.0
 
 
+def test_mpo_policy_preset_allows_risk_aversion_template_for_validation():
+    policy = MPOPolicy.preset("mean_covariance", name="template")
+
+    assert policy.problem.objective.terms[2].weight is None
+
+    candidate = expand_candidates(policy, {"risk_aversion": [2.0]})[0]
+    assert candidate.policy.problem.objective.terms[2].weight == 2.0
+
+
 def test_non_mpo_policy_with_empty_params_returns_original_policy():
     policy = EqualWeightPolicy(target_cash_weight=0.0)
 

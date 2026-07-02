@@ -15,9 +15,9 @@ from qraft.backtest.execution import (
     execute_frictionless,
 )
 from qraft.backtest.inputs import PolicyInputsProvider
-from qraft.backtest.market import MarketData
+from qraft.core.market import MarketData
 from qraft.construction.inputs import PolicyInputRequirements, build_policy_input_table
-from qraft.construction.optimization.moments import InputPlan, PolicyInputs
+from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
@@ -251,6 +251,7 @@ def precompute_inputs(
     step_size: int = 1,
 ) -> dict[datetime, PolicyInputs]:
     """Build and freeze policy inputs for the exact backtest decision schedule."""
+    market.assert_backtest_safe()
     points = decision_points(market, schedule, warmup, step_size=step_size)
     if isinstance(source, dict):
         table = source

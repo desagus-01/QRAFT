@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
-from qraft.construction.optimization.moments import PolicyInputs, RequiredPolicyInputs
+from qraft.construction.optimization.inputs import PolicyInputs, RequiredPolicyInputs
 from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     TransactionCost,
@@ -98,7 +98,7 @@ class MPOPolicy:
     def preset(
         cls,
         objective_type: PreMadeObjectives,
-        risk_aversion: float,
+        risk_aversion: float | None = None,
         *,
         name: str = "mpo",
         min_history: int = 0,

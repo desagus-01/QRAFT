@@ -2,7 +2,7 @@ from datetime import datetime
 
 import polars as pl
 
-from qraft.backtest.market import MarketData
+from qraft.core.market import MarketData
 from qraft.core.universe import AssetUniverse
 from qraft.forecast.run import (
     ForecastRecipeHistory,

@@ -35,20 +35,20 @@ class PortfolioRisk:
     def from_projection(
         cls,
         policy_projection: PolicyProjection,
-        asset_forecasts: ForecastPaths,
+        forecasts: ForecastPaths,
         auto_select_factors: bool = False,
         criterion: Criterion | None = None,
     ):
         if auto_select_factors and criterion is None:
             criterion = "bic"
 
-        horizon = asset_forecasts.n_horizons - 1
+        horizon = forecasts.n_horizons - 1
         performance_attribution = portfolio_factor_attribution(
             policy_projection=policy_projection,
-            factors_forecast=asset_forecasts.factor_paths,
-            initial_prices=asset_forecasts.initial_prices,
+            factors_forecast=forecasts.factor_paths,
+            initial_prices=forecasts.initial_prices,
             horizon=horizon,
-            date=asset_forecasts.dates[horizon],
+            date=forecasts.dates[horizon],
             auto_select_factors=auto_select_factors,
             criterion=criterion,
         )

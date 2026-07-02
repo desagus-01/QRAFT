@@ -1,4 +1,6 @@
-from dataclasses import dataclass
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Literal
 
@@ -10,6 +12,12 @@ from qraft.core.cadence import resolve_periods_per_year
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.distributions import state_smooth_probs, uniform_probs
 from qraft.core.probability.prob_vector import ProbVector
+from qraft.core.scenarios.views import (
+    ScenarioView,
+    ViewInput,
+    ViewState,
+    normalize_view_event,
+)
 from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecast_paths import AssetUniverse
 from qraft.utils.helpers import str_to_datetime
@@ -27,14 +35,14 @@ class MarketDataConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class WindowWeighting:
+class HistoryWeighting:
     scheme: WeightingScheme = "uniform"
     half_life: float | None = None
 
     def __post_init__(self) -> None:
         if self.scheme == "state_smooth" and self.half_life is None:
             raise ValueError(
-                "WindowWeighting(scheme='state_smooth') requires a half_life"
+                "HistoryWeighting(scheme='state_smooth') requires a half_life"
             )
 
     def probs(self, n: int) -> ProbVector:
@@ -52,7 +60,8 @@ class MarketData:
     universe: AssetUniverse
     cash: pl.DataFrame | None
     config: MarketDataConfig
-    weighting: WindowWeighting
+    history_weighting: HistoryWeighting
+    views: ViewState = ViewState()
 
     @classmethod
     def from_prices(
@@ -61,10 +70,10 @@ class MarketData:
         universe: AssetUniverse,
         *,
         cash: pl.DataFrame | None = None,
-        weighting: WindowWeighting = WindowWeighting(),
+        history_weighting: HistoryWeighting = HistoryWeighting(),
         config: MarketDataConfig = MarketDataConfig(),
     ) -> "MarketData":
-        return cls._from_frame(data, universe, "price", cash, weighting, config)
+        return cls._from_frame(data, universe, "price", cash, history_weighting, config)
 
     @classmethod
     def from_log_prices(
@@ -73,10 +82,12 @@ class MarketData:
         universe: AssetUniverse,
         *,
         cash: pl.DataFrame | None = None,
-        weighting: WindowWeighting = WindowWeighting(),
+        history_weighting: HistoryWeighting = HistoryWeighting(),
         config: MarketDataConfig = MarketDataConfig(),
     ) -> "MarketData":
-        return cls._from_frame(data, universe, "log_price", cash, weighting, config)
+        return cls._from_frame(
+            data, universe, "log_price", cash, history_weighting, config
+        )
 
     @classmethod
     def _from_frame(
@@ -85,7 +96,7 @@ class MarketData:
         universe: AssetUniverse,
         price_kind: PriceKind,
         cash: pl.DataFrame | None,
-        weighting: WindowWeighting,
+        history_weighting: HistoryWeighting,
         config: MarketDataConfig,
     ) -> "MarketData":
         if "date" not in data.columns:
@@ -120,8 +131,29 @@ class MarketData:
             universe=universe,
             cash=cash_sorted,
             config=resolved_config,
-            weighting=weighting,
+            history_weighting=history_weighting,
         )
+
+    def with_view_events(self, *events: ViewInput) -> "MarketData":
+        normalized = tuple(
+            sorted((normalize_view_event(e) for e in events), key=lambda e: e.as_of)
+        )
+        return replace(self, views=ViewState(events=normalized, current=None))
+
+    def with_current_views(self, views: ScenarioView) -> "MarketData":
+        return replace(self, views=replace(self.views, current=views))
+
+    def clear_views(self) -> "MarketData":
+        return replace(self, views=ViewState())
+
+    def assert_backtest_safe(self) -> None:
+        if self.views.has_current_only_views:
+            raise ValueError(
+                "MarketData has current-only views. They are only valid for live/latest "
+                "analysis and cannot be used in Backtest or Validation because they "
+                "would leak today's beliefs into historical decisions. Use "
+                "with_view_events(...) for causal historical views, or clear_views()."
+            )
 
     @property
     def trading_bars(self) -> list[datetime]:
@@ -138,10 +170,22 @@ class MarketData:
     def history_through(self, t: DateLike) -> ScenarioPanel:
         """Causal log-price window: rows with date <= t, weights from the window only."""
         t = self._as_datetime(t)
+        panel = self._raw_history_through(t)
+        event = self.views.latest_event_at(t)
+        return event.views.apply(panel) if event is not None else panel
+
+    def current_history(self) -> ScenarioPanel:
+        """Latest history, including current-only views when present."""
+        panel = self.history_through(self.trading_bars[-1])
+        if self.views.current is not None:
+            return self.views.current.apply(panel)
+        return panel
+
+    def _raw_history_through(self, t: datetime) -> ScenarioPanel:
         window = self.frame.filter(pl.col("date") <= t)
         if window.height == 0:
             raise ValueError(f"No history on or before {t!r}")
-        prob = self.weighting.probs(window.height)
+        prob = self.history_weighting.probs(window.height)
         if self.price_kind == "log_price":
             return ScenarioPanel.from_log_prices(window, prob=prob)
         return ScenarioPanel.from_prices(window, prob=prob)

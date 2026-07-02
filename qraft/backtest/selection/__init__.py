@@ -45,6 +45,7 @@ from qraft.backtest.selection.walkforward import (  # noqa: F401
     WalkForwardReport,
     walk_forward,
 )
+from qraft.backtest.selection.validation import Validation  # noqa: F401
 from qraft.backtest.configs import (  # noqa: F401
     BacktestConfig,
     CombinatorialCVConfig,
@@ -63,6 +64,7 @@ __all__ = [
     "WalkForwardReport",
     "CombinatorialFold",
     "CombinatorialReport",
+    "Validation",
     "CVConfig",
     "WalkForwardConfig",
     "CombinatorialCVConfig",
@@ -77,7 +79,7 @@ __all__ = [
     "walk_forward",
     "walk_forward_folds",
     "combinatorial_purged_folds",
-    "run_combinatorial_purged",
+    "combinatorial_purged",
     "returns_for_range",
     "returns_for_ranges",
     "summary_from_returns",

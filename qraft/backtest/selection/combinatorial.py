@@ -9,7 +9,8 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
-from qraft.backtest.market import MarketData
+from qraft.backtest.configs import BacktestConfig, CombinatorialCVConfig
+from qraft.core.market import MarketData
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.diagnostics import (
     compute_deflated_sharpe,
@@ -30,9 +31,8 @@ from qraft.backtest.selection.scoring import (
 )
 from qraft.backtest.selection.select import Scorer, select_candidate
 from qraft.backtest.selection.splits import combinatorial_purged_folds
+from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
-from qraft.backtest.configs import BacktestConfig, CombinatorialCVConfig
-from qraft.construction.optimization.moments import InputPlan
 from qraft.forecast.forecaster import Forecaster
 from qraft.utils.backtest_viz import plot_combinatorial_report
 

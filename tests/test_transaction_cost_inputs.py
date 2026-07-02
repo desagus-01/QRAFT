@@ -2,8 +2,7 @@ import numpy as np
 import pytest
 
 from qraft.construction.inputs import policy_risk_source
-from qraft.construction.optimization.moments import InputPlan
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.optimization.objectives.specs import TransactionCost
 from qraft.construction.policies import MPOPolicy
 from qraft.construction.state import PortfolioState
@@ -51,13 +50,20 @@ def test_transaction_cost_market_impact_requires_covariance() -> None:
         policy.optimize(_state(), _cvar_inputs_without_covariance())
 
 
+def test_policy_without_risk_aversion_fails_when_run_directly() -> None:
+    policy = MPOPolicy.preset("cvar_cuts")
+
+    with pytest.raises(ValueError, match="risk_aversion"):
+        policy.optimize(_state(), _cvar_inputs_without_covariance())
+
+
 def test_forecast_provider_infers_both_for_cvar_with_market_impact() -> None:
     policy = MPOPolicy.preset(
         objective_type="cvar_cuts",
         risk_aversion=0.01,
         transaction_cost=TransactionCost(cost=0.0005, market_impact=0.3),
     )
-    input_config = InputPlan(cash_return=0.0)
+    input_config = InputPlan()
 
     assert policy_risk_source(input_config, policy) == "both"
 
@@ -68,7 +74,7 @@ def test_forecast_provider_infers_cvar_for_cvar_without_market_impact() -> None:
         risk_aversion=0.01,
         transaction_cost=TransactionCost(cost=0.0005, market_impact=0.0),
     )
-    input_config = InputPlan(cash_return=0.0)
+    input_config = InputPlan()
 
     assert policy_risk_source(input_config, policy) == "cvar"
 
@@ -79,7 +85,7 @@ def test_forecast_provider_rejects_explicit_risk_missing_policy_requirements() -
         risk_aversion=0.01,
         transaction_cost=TransactionCost(cost=0.0005, market_impact=0.3),
     )
-    input_config = InputPlan(cash_return=0.0, risk="cvar")
+    input_config = InputPlan(risk="cvar")
 
     with pytest.raises(ValueError, match="missing covariances"):
         policy_risk_source(input_config, policy)

@@ -8,15 +8,16 @@ from qraft import (
     AssetUniverse,
     CMAConfig,
     Forecaster,
+    HistoryWeighting,
     LogConfig,
+    MarketData,
     MPOPolicy,
     PipelineConfig,
+    Validation,
     profile,
     setup_logging,
 )
 from qraft.backtest.configs import BacktestConfig, CombinatorialCVConfig, CVConfig
-from qraft.backtest.market import MarketData, WindowWeighting
-from qraft.backtest.selection import combinatorial_purged
 from qraft.construction import (
     FullyInvested,
     LongOnly,
@@ -24,7 +25,7 @@ from qraft.construction import (
     PortfolioConstraint,
     TurnoverLimit,
 )
-from qraft.construction.optimization.moments import InputPlan
+from qraft.construction.optimization.inputs import InputPlan
 from qraft.core.configs import SimulationForecastConfig
 from qraft.core.schedule import RebalanceSchedule
 from qraft.utils.tiingo import import_tickers_and_factors
@@ -65,7 +66,7 @@ market = MarketData.from_log_prices(
     data,
     universe,
     cash=cash,
-    weighting=WindowWeighting("state_smooth", half_life=35),
+    history_weighting=HistoryWeighting("state_smooth", half_life=35),
 )
 
 # %%
@@ -93,8 +94,7 @@ grid = {
     # "transaction_cost_weight": [0.5, 1.0],
 }
 
-input_config = InputPlan(
-    cash_return=0.0,
+plan = InputPlan(
     expected_returns="forecast",
 )
 forecaster = Forecaster(
@@ -110,17 +110,17 @@ forecaster = Forecaster(
 
 # %%
 with profile():
-    results = combinatorial_purged(
-        market,
-        base_policy,
-        grid,
-        forecaster=forecaster,
-        plan=input_config,
+    results = Validation(
+        market=market,
+        base_policy=base_policy,
+        grid=grid,
+        source=forecaster,
+        plan=plan,
         cv_config=CombinatorialCVConfig(
             cv_config=CVConfig(),
         ),
         backtest_config=BacktestConfig(schedule=RebalanceSchedule("quarter_end")),
-    )
+    ).run()
 
 
 # %%

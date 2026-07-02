@@ -6,17 +6,18 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
+    Backtest,
+    BacktestConfig,
     CMAConfig,
-    LogConfig,
-    MPOPolicy,
     Forecaster,
+    HistoryWeighting,
+    LogConfig,
+    MarketData,
+    MPOPolicy,
     PipelineConfig,
     ScenarioPanel,
     setup_logging,
 )
-from qraft.backtest.inputs import PrecomputedInputsProvider
-from qraft.backtest.market import MarketData, WindowWeighting
-from qraft.backtest.simulator import precompute_inputs, run_backtest
 from qraft.construction import (
     FullyInvested,
     LongOnly,
@@ -24,7 +25,7 @@ from qraft.construction import (
     PortfolioConstraint,
     TurnoverLimit,
 )
-from qraft.construction.optimization.moments import InputPlan
+from qraft.construction.optimization.inputs import InputPlan
 from qraft.core import state_smooth_probs
 from qraft.core.configs import SimulationForecastConfig
 from qraft.core.schedule import RebalanceSchedule
@@ -80,7 +81,10 @@ posterior_panel = ScenarioPanel.from_log_prices(
 # %%
 
 mkt_dt = MarketData.from_log_prices(
-    data, universe, cash=cash, weighting=WindowWeighting("state_smooth", half_life=60)
+    data,
+    universe,
+    cash=cash,
+    history_weighting=HistoryWeighting("state_smooth", half_life=60),
 )
 
 # %%
@@ -98,18 +102,16 @@ policy = MPOPolicy.preset(
     min_history=250,
 )
 
-input_config = InputPlan(
-    cash_return=0.0,
+plan = InputPlan(
     expected_returns="forecast",
     risk="both",
 )
 schedule = RebalanceSchedule("year_end")
-input_table = precompute_inputs(
-    mkt_dt,
-    schedule,
-    warmup=policy.min_history,
-    plan=input_config,
-    forecaster=Forecaster(
+
+result = Backtest(
+    market=mkt_dt,
+    policy=policy,
+    source=Forecaster(
         simulation=SimulationForecastConfig(
             horizon=15,
             method="cma",
@@ -119,14 +121,9 @@ input_table = precompute_inputs(
         pipeline=PipelineConfig(exclude_non_invariants=False),
         refit_every=int(data.height / 3),
     ),
-)
-
-result = run_backtest(
-    mkt_dt,
-    policy,
-    inputs=PrecomputedInputsProvider(input_table),
-    schedule=schedule,
-)
+    plan=plan,
+    config=BacktestConfig(schedule=schedule),
+).run()
 
 # %%
 

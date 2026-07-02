@@ -4,7 +4,7 @@ import cvxpy as cp
 import numpy as np
 from numpy.typing import NDArray
 
-from qraft.construction.optimization.moments import PolicyInputs, psd_sqrt_factor
+from qraft.construction.optimization.inputs import PolicyInputs, psd_sqrt_factor
 from qraft.construction.optimization.objectives.protocol import register_objective
 from qraft.construction.optimization.objectives.specs import (
     CashReturn,

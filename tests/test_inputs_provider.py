@@ -3,23 +3,26 @@ from datetime import datetime
 import numpy as np
 import polars as pl
 
+from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.inputs import (
     DateCache,
     PrecomputedInputsProvider,
 )
-from qraft.construction.market_snapshot import MarketSnapshot
-from qraft.construction.inputs import build_policy_input_table
-from qraft.construction.optimization.moments import InputPlan
-from qraft.construction.optimization.moments import PolicyInputs, RequiredPolicyInputs
-from qraft.core.panel import ScenarioPanel
-from qraft.backtest.market import MarketData
+from qraft.core.market import MarketData
+from qraft.backtest.selection.evaluate import evaluate_candidate_grid
 from qraft.backtest.simulator import (
     precompute_inputs,
 )
-from qraft.backtest.selection.evaluate import evaluate_candidate_grid
-from qraft.backtest.configs import BacktestConfig
-from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
+from qraft.construction.inputs import build_policy_input_table
+from qraft.construction.market_snapshot import MarketSnapshot
+from qraft.construction.optimization.inputs import (
+    InputPlan,
+    PolicyInputs,
+    RequiredPolicyInputs,
+)
+from qraft.core.panel import ScenarioPanel
 from qraft.core.schedule import RebalanceSchedule
+from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 
 
 def _snap(t: datetime, cash_rate: float = 0.0) -> MarketSnapshot:
@@ -120,7 +123,7 @@ def test_precompute_inputs_uses_snapshot_cash_rate(monkeypatch):
         market,
         RebalanceSchedule("every_bar"),
         warmup=1,
-        plan=InputPlan(cash_return=0.0),
+        plan=InputPlan(),
         forecaster=object(),
     )
     inputs = table[datetime(2024, 1, 2)]
@@ -154,7 +157,7 @@ def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
     table = build_policy_input_table(
         [snapshot],
         [forecast],
-        plan=InputPlan(cash_return=0.0, risk="both"),
+        plan=InputPlan(risk="both"),
     )
 
     assert table.keys() == {snapshot.t}
@@ -191,7 +194,7 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
         market,
         RebalanceSchedule("every_bar"),
         warmup=2,
-        plan=InputPlan(cash_return=0.0),
+        plan=InputPlan(),
         source=recipe_history,
     )
 
@@ -238,7 +241,7 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         BacktestConfig(),
         risk_free_rate=0.0,
         source=recipe_history,
-        plan=InputPlan(cash_return=0.0),
+        plan=InputPlan(),
     )
 
     assert results == ()

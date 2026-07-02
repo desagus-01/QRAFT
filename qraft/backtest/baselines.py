@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.construction.policies import PolicyDecision
 from qraft.construction.state import PortfolioState
 

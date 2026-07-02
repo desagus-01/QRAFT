@@ -1,20 +1,28 @@
 __all__ = [
     "ScenarioPanel",
+    "MarketData",
+    "MarketDataConfig",
+    "HistoryWeighting",
     "Views",
+    "ViewEvent",
+    "ViewState",
     "CMA",
     "CMAConfig",
     "AssetUniverse",
     "ForecastPaths",
     "Forecaster",
+    "ForecastSource",
     "forecast_from_fit",
     "run_forecast",
     "LogConfig",
     "PipelineConfig",
     "SimulationForecastConfig",
     "BacktestConfig",
+    "Backtest",
     "CVConfig",
     "WalkForwardConfig",
     "CombinatorialCVConfig",
+    "Validation",
     "MPOPolicy",
     "EqualWeightPolicy",
     "PolicyProtocol",
@@ -40,7 +48,7 @@ from qraft.construction.optimization.problem import (
     MPOProblem,
     MPOProblemBuilder,
 )
-from qraft.construction.optimization.moments import (
+from qraft.construction.optimization.inputs import (
     ExpectedReturnSource,
     InputPlan,
     PolicyInputs,
@@ -62,16 +70,20 @@ from qraft.backtest.configs import (
     CVConfig,
     WalkForwardConfig,
 )
+from qraft.backtest.backtest import Backtest
+from qraft.backtest.selection import Validation
 from qraft.core.configs import (
     CMAConfig,
     PipelineConfig,
     SimulationForecastConfig,
 )
 from qraft.core.panel import ScenarioPanel
+from qraft.core.market import HistoryWeighting, MarketData, MarketDataConfig
 from qraft.core.scenarios.transforms import CMA, Views
+from qraft.core.scenarios.views import ViewEvent, ViewState
 from qraft.core.universe import AssetUniverse
 from qraft.forecast.forecast_paths import ForecastPaths
-from qraft.forecast.forecaster import Forecaster
+from qraft.forecast.forecaster import ForecastSource, Forecaster
 from qraft.forecast.pipelines.forecasting import forecast_from_fit, run_forecast
 from qraft.helper import profile
 from qraft.core.metrics import cvar, var

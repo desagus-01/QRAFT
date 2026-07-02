@@ -2,16 +2,16 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
+from qraft.construction.optimization.inputs import RequiredPolicyInputs
 from qraft.construction.optimization.objectives.specs import (
+    CovarianceRisk,
     CVaRCuttingPlane,
     CVaRRisk,
-    CovarianceRisk,
     HoldingCost,
     ObjectiveSpec,
     TransactionCost,
     WeightedTerm,
 )
-from qraft.construction.optimization.moments import RequiredPolicyInputs
 from qraft.construction.optimization.optimization import (
     MultiPeriodOptimizer,
 )
@@ -36,7 +36,7 @@ class MPOProblem:
     def preset(
         cls,
         objective_type: PreMadeObjectives,
-        risk_aversion: float,
+        risk_aversion: float | None,
         *,
         alpha: float | None = 0.05,
         constraints: Sequence[PortfolioConstraint] = (),
@@ -107,6 +107,7 @@ class MPOProblem:
         Allocate CVXPY variables and return a compiled
         :class:`MultiPeriodOptimizer` ready to be solved.
         """
+        self._validate_objective_weights()
         objective = (
             resolve_cvar_auto(self.objective, horizons, n_scenarios)
             if self.cvar_auto
@@ -120,6 +121,19 @@ class MPOProblem:
             constraints=self.constraints,
             allow_borrow=self.allow_borrow,
         )
+
+    def _validate_objective_weights(self) -> None:
+        missing = [
+            term.spec.__class__.__name__
+            for term in self.objective.terms
+            if term.weight is None
+        ]
+        if missing:
+            raise ValueError(
+                "MPOPolicy requires concrete objective weights before running; "
+                f"missing weight for {', '.join(missing)}. Pass risk_aversion=... "
+                "or run through validation with a risk_aversion grid."
+            )
 
 
 @dataclass(frozen=True, slots=True)

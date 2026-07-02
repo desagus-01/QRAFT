@@ -4,13 +4,14 @@ import numpy as np
 import polars as pl
 import pytest
 
-from qraft.backtest.market import (
+from qraft.core.market import (
     MarketData,
     MarketDataConfig,
-    MarketSnapshot,
-    WindowWeighting,
+    HistoryWeighting,
 )
 from qraft.core.panel import ScenarioPanel
+from qraft.core.scenarios.views import ViewEvent
+from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecast_paths import AssetUniverse
 
 
@@ -47,6 +48,15 @@ def _cash_frame() -> pl.DataFrame:
 
 def _market_data() -> MarketData:
     return MarketData.from_prices(_price_frame(), _universe(), cash=_cash_frame())
+
+
+class _ScaleProbView:
+    def __init__(self, factor: float) -> None:
+        self.factor = factor
+
+    def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
+        weights = np.arange(1, panel.values.height + 1, dtype=float) ** self.factor
+        return panel.with_prob(weights / weights.sum())
 
 
 # ---------------------------------------------------------------------------
@@ -94,35 +104,35 @@ def test_market_data_rejects_non_finite_cash_rates() -> None:
 
 
 # ---------------------------------------------------------------------------
-# WindowWeighting
+# HistoryWeighting
 # ---------------------------------------------------------------------------
 
 
 def test_weighting_default_scheme_is_uniform() -> None:
-    w = WindowWeighting()
+    w = HistoryWeighting()
     assert w.scheme == "uniform"
     assert w.half_life is None
 
 
 def test_weighting_state_smooth_requires_half_life() -> None:
     with pytest.raises(ValueError, match="half_life"):
-        WindowWeighting(scheme="state_smooth")
+        HistoryWeighting(scheme="state_smooth")
 
 
 def test_weighting_state_smooth_accepted_with_half_life() -> None:
-    w = WindowWeighting(scheme="state_smooth", half_life=60)
+    w = HistoryWeighting(scheme="state_smooth", half_life=60)
     assert w.scheme == "state_smooth"
     assert w.half_life == 60
 
 
 def test_weighting_uniform_probs() -> None:
-    probs = WindowWeighting().probs(5)
+    probs = HistoryWeighting().probs(5)
     assert len(probs) == 5
     np.testing.assert_allclose(probs, np.full(5, 0.2))
 
 
 def test_weighting_state_smooth_probs_sums_to_one() -> None:
-    probs = WindowWeighting(scheme="state_smooth", half_life=60).probs(10)
+    probs = HistoryWeighting(scheme="state_smooth", half_life=60).probs(10)
     assert len(probs) == 10
     np.testing.assert_allclose(probs.sum(), 1.0)
 
@@ -233,6 +243,46 @@ def test_history_through_raises_on_no_data() -> None:
     md = _market_data()
     with pytest.raises(ValueError, match="No history"):
         md.history_through(datetime(2020, 1, 1))
+
+
+def test_with_view_events_applies_latest_causal_event_only() -> None:
+    md = _market_data().with_view_events(
+        (datetime(2024, 1, 2), _ScaleProbView(1.0)),
+        ViewEvent(datetime(2024, 1, 3), _ScaleProbView(2.0)),
+    )
+
+    before = md.history_through(datetime(2024, 1, 1))
+    first = md.history_through(datetime(2024, 1, 2))
+    second = md.history_through(datetime(2024, 1, 3))
+
+    np.testing.assert_allclose(before.prob, [1.0])
+    np.testing.assert_allclose(first.prob, [1 / 3, 2 / 3])
+    np.testing.assert_allclose(second.prob, [1 / 14, 4 / 14, 9 / 14])
+
+
+def test_current_views_only_apply_to_current_history() -> None:
+    md = _market_data().with_current_views(_ScaleProbView(2.0))
+
+    causal = md.history_through(datetime(2024, 1, 3))
+    current = md.current_history()
+
+    np.testing.assert_allclose(causal.prob, [1 / 3, 1 / 3, 1 / 3])
+    np.testing.assert_allclose(current.prob, [1 / 14, 4 / 14, 9 / 14])
+
+
+def test_current_views_are_not_backtest_safe() -> None:
+    md = _market_data().with_current_views(_ScaleProbView(1.0))
+
+    with pytest.raises(ValueError, match="current-only views"):
+        md.assert_backtest_safe()
+
+
+def test_clear_views_removes_view_state() -> None:
+    md = _market_data().with_current_views(_ScaleProbView(1.0)).clear_views()
+
+    md.assert_backtest_safe()
+    assert md.views.events == ()
+    assert md.views.current is None
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.core.panel import ScenarioPanel
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 

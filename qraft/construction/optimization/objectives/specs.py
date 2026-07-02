@@ -161,7 +161,7 @@ def transaction_cost_value(
 
 @dataclass(frozen=True)
 class WeightedTerm:
-    weight: float
+    weight: float | None
     spec: (
         ExpectedReturn
         | CashReturn

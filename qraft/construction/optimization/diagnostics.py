@@ -4,9 +4,9 @@ import math
 
 import numpy as np
 
-from qraft.core.metrics import cvar
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.construction.optimization.optimization import MPOResult
+from qraft.core.metrics import cvar
 
 
 def _cash_return_by_horizon(moments: PolicyInputs) -> np.ndarray:

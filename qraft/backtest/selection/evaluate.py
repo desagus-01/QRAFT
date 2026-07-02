@@ -7,7 +7,7 @@ from typing import Any, TypeAlias
 
 from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvider
-from qraft.backtest.market import MarketData
+from qraft.core.market import MarketData
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.candidates import expand_candidates
 from qraft.backtest.selection.results import (
@@ -19,10 +19,10 @@ from qraft.backtest.simulator import (
     precompute_inputs,
     run_backtest,
 )
-from qraft.construction.optimization.moments import InputPlan, PolicyInputs
+from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.schedule import RebalanceSchedule
-from qraft.forecast.forecaster import ForecastSource, Forecaster
+from qraft.forecast.forecaster import Forecaster, ForecastSource
 
 SelectionInputSource: TypeAlias = (
     "ForecastSource | PolicyInputsProvider | dict[datetime, PolicyInputs]"

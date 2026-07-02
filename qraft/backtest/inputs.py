@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Mapping, Protocol, runtime_checkable
 
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.core.snapshot import (
     MarketSnapshot,
 )
-
-logger = logging.getLogger(__name__)
 
 
 @runtime_checkable

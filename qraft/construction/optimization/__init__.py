@@ -7,11 +7,11 @@ __all__ = [
     "RiskSource",
 ]
 
-from qraft.construction.optimization.moments import (  # noqa: F401
-    ExpectedReturnSource,
+from qraft.construction.optimization.inputs import (  # noqa: F401
     DroppedAsset,
-    PnL_OPTIONS,
+    ExpectedReturnSource,
     InputPlan,
+    PnL_OPTIONS,
     PolicyInputs,
     RiskSource,
 )

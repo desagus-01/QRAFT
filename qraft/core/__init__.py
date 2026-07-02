@@ -1,5 +1,8 @@
 __all__ = [
     "ScenarioPanel",
+    "MarketData",
+    "MarketDataConfig",
+    "HistoryWeighting",
     "AssetUniverse",
     "ForecastSnapshot",
     "ProbVector",
@@ -12,6 +15,9 @@ __all__ = [
     "CorrView",
     "RankingView",
     "QuantileView",
+    "ScenarioView",
+    "ViewEvent",
+    "ViewState",
     "uniform_probs",
     "state_smooth_probs",
     "state_crisp_probs",
@@ -28,6 +34,7 @@ __all__ = [
 ]
 
 from qraft.core.panel import ScenarioPanel  # noqa: F401
+from qraft.core.market import HistoryWeighting, MarketData, MarketDataConfig  # noqa: F401
 from qraft.core.snapshot import ForecastSnapshot  # noqa: F401
 from qraft.core.universe import AssetUniverse  # noqa: F401
 from qraft.core.probability.prob_vector import ProbVector  # noqa: F401
@@ -40,6 +47,7 @@ from qraft.core.scenarios.view_types import (  # noqa: F401
     RankingView,
     QuantileView,
 )
+from qraft.core.scenarios.views import ScenarioView, ViewEvent, ViewState  # noqa: F401
 from qraft.core.probability.distributions import (  # noqa: F401
     uniform_probs,
     state_smooth_probs,

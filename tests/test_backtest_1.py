@@ -9,13 +9,14 @@ import pytest
 
 from qraft.backtest.baselines import AllCashPolicy, NoTradePolicy
 from qraft.backtest.execution import BacktestResult
-from qraft.backtest.market import MarketData, MarketSnapshot, WindowWeighting
-from qraft.core.schedule import RebalanceSchedule
+from qraft.core.market import HistoryWeighting, MarketData
+from qraft.core.snapshot import MarketSnapshot
 from qraft.backtest.simulator import run_backtest
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.construction.optimization.optimization import MPOFailure, OptimizationFailure
 from qraft.construction.policies import EqualWeightPolicy, PolicyDecision
 from qraft.construction.state import PortfolioState
+from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.forecast_paths import AssetUniverse
 
 # ---------------------------------------------------------------------------
@@ -653,7 +654,7 @@ def test_16_forecaster_receives_correct_universe() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 17. WindowWeighting with state_smooth does not break backtest
+# 17. HistoryWeighting with state_smooth does not break backtest
 # ---------------------------------------------------------------------------
 
 
@@ -671,7 +672,7 @@ def test_17_state_smooth_weighting() -> None:
         _price_frame(dates, A=list(range(100, 100 + n)), B=list(range(200, 200 + n))),
         _universe("A", "B"),
         cash=_cash_frame(dates, [5.0] * n),
-        weighting=WindowWeighting(scheme="state_smooth", half_life=63),
+        history_weighting=HistoryWeighting(scheme="state_smooth", half_life=63),
     )
 
     # History must have enough points for weighting to work

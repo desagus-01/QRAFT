@@ -5,7 +5,7 @@ import polars as pl
 import pytest
 
 from qraft.construction.market_snapshot import MarketSnapshot
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.construction.optimization.objectives.specs import ExpectedReturn
 from qraft.construction.optimization.problem import MPOProblemBuilder
 from qraft.construction.policies import MPOPolicy

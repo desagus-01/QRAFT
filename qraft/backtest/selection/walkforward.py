@@ -8,7 +8,7 @@ import polars as pl
 from numpy.typing import NDArray
 
 from qraft.backtest.execution import BacktestResult
-from qraft.backtest.market import MarketData
+from qraft.core.market import MarketData
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.diagnostics import (
     compute_deflated_sharpe,
@@ -27,7 +27,7 @@ from qraft.backtest.selection.results import (
 from qraft.backtest.selection.scoring import find_candidate, score_candidate_range
 from qraft.backtest.selection.select import Scorer, select_candidate
 from qraft.backtest.selection.splits import Fold, walk_forward_folds
-from qraft.construction.optimization.moments import InputPlan
+from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.core import metrics
 from qraft.backtest.configs import BacktestConfig, WalkForwardConfig

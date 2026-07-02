@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any, Mapping, Literal
+from typing import Any, Literal, Mapping
 
 import numpy as np
 import polars as pl
@@ -752,7 +752,6 @@ class PolicyInputs:
 
 @dataclass(frozen=True, slots=True)
 class InputPlan:
-    cash_return: NDArray[np.floating] | float | None = None
     expected_returns: ExpectedReturnSource = "forecast"
     risk: RiskSource | None = None
     max_horizons: int | None = None
@@ -760,5 +759,3 @@ class InputPlan:
     pnl_type: PnL_OPTIONS = "relative"
     expectation_tolerance: float | None = None
     mean_decay: float = 1.0
-    step_size: int = 1
-    periods_per_year: float | None = None

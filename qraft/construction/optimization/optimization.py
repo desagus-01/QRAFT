@@ -10,7 +10,7 @@ from cvxpy import Constraint, Expression
 from numpy.typing import NDArray
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.construction.optimization.objectives import (
     handlers as _objective_handlers,  # noqa: F401
 )

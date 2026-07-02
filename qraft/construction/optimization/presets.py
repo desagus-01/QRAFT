@@ -37,7 +37,7 @@ def _default_holding_cost() -> HoldingCost:
 
 
 def _mean_covariance_objectives(
-    risk_aversion: float,
+    risk_aversion: float | None,
     *,
     transaction_cost: TransactionCost | None = None,
     transaction_cost_weight: float = 1.0,
@@ -59,7 +59,7 @@ def _mean_covariance_objectives(
 
 
 def _cvar_classical_objectives(
-    cvar_aversion: float,
+    cvar_aversion: float | None,
     alpha: float = 0.05,
     *,
     transaction_cost: TransactionCost | None = None,
@@ -82,7 +82,7 @@ def _cvar_classical_objectives(
 
 
 def _cvar_cuts_objectives(
-    cvar_aversion: float,
+    cvar_aversion: float | None,
     alpha: float = 0.05,
     *,
     transaction_cost: TransactionCost | None = None,
@@ -113,7 +113,7 @@ def cvar_scale_requires_cuts(
 
 def build_preset_objective(
     objective_type: PreMadeObjectives,
-    risk_aversion: float,
+    risk_aversion: float | None,
     *,
     alpha: float | None = 0.05,
     transaction_cost: TransactionCost | None = None,

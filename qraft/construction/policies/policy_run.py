@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from qraft.construction.optimization.moments import PolicyInputs
+from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.construction.policies.policies import PolicyProtocol
 from qraft.construction.policies.policy_decision import PolicyDecision
 from qraft.construction.policies.policy_projection import PolicyProjection

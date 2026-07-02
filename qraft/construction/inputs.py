@@ -5,15 +5,15 @@ from typing import Iterable, Protocol, runtime_checkable
 
 import numpy as np
 
-from qraft.construction.optimization.moments import (
+from qraft.construction.optimization.inputs import (
     AssetDiagnostics,
     InputPlan,
     PolicyInputs,
     RequiredPolicyInputs,
 )
-from qraft.forecast.forecaster import ForecastSource, Forecaster
 from qraft.core.snapshot import MarketSnapshot, forecast_snapshot_from_decision_snapshot
 from qraft.forecast.forecast_paths import ForecastPaths
+from qraft.forecast.forecaster import Forecaster, ForecastSource
 from qraft.forecast.run import (
     ForecastRecipeHistory,
     ForecastRun,
@@ -109,8 +109,6 @@ def build_policy_input_table(
             pnl_type=plan.pnl_type,
             expectation_tolerance=plan.expectation_tolerance,
             mean_decay=plan.mean_decay,
-            step_size=plan.step_size,
-            periods_per_year=plan.periods_per_year,
             as_of=snapshot.t,
             cash_return=snapshot.cash_rate,
             asset_diagnostics=asset_diagnostics,
