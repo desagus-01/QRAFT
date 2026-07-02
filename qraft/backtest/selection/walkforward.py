@@ -8,7 +8,6 @@ import polars as pl
 from numpy.typing import NDArray
 
 from qraft.backtest.execution import BacktestResult
-from qraft.backtest.inputs import PolicyInputsProvider
 from qraft.backtest.market import MarketData
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.diagnostics import (
@@ -17,7 +16,10 @@ from qraft.backtest.selection.diagnostics import (
     resolve_selection_periods_per_year,
     trial_sharpes,
 )
-from qraft.backtest.selection.evaluate import evaluate_candidate_grid
+from qraft.backtest.selection.evaluate import (
+    SelectionInputSource,
+    evaluate_candidate_grid,
+)
 from qraft.backtest.selection.results import (
     CandidateResult,
     SelectionReport,
@@ -27,11 +29,9 @@ from qraft.backtest.selection.select import Scorer, select_candidate
 from qraft.backtest.selection.splits import Fold, walk_forward_folds
 from qraft.construction.optimization.moments import InputPlan
 from qraft.construction.policies import PolicyProtocol
-from qraft.core.configs import DEFAULT_SIMULATION_CONFIG, SimulationForecastConfig
 from qraft.core import metrics
 from qraft.backtest.configs import BacktestConfig, WalkForwardConfig
 from qraft.forecast.forecaster import Forecaster
-from qraft.forecast.run import ForecastRecipeHistory
 from qraft.utils.backtest_viz import plot_walk_forward_report
 
 
@@ -235,13 +235,9 @@ def walk_forward(
     base_policy: PolicyProtocol,
     grid: Mapping[str, Sequence[Any]],
     *,
-    provider: PolicyInputsProvider | None = None,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
-    source: ForecastRecipeHistory | None = None,
-    recipe_history: ForecastRecipeHistory | None = None,
-    input_config: InputPlan | None = None,
-    simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
+    source: SelectionInputSource | None = None,
     walk_config: WalkForwardConfig,
     backtest_config: BacktestConfig = BacktestConfig(),
     score: Scorer | None = None,
@@ -253,22 +249,12 @@ def walk_forward(
     causal results by slicing (no re-running). The stitched OOS curve is the
     realised, look-ahead-free track record of the rolling selection.
     """
-    if recipe_history is not None:
-        source = recipe_history
-    if input_config is not None:
-        plan = input_config
-    if simulation_config != DEFAULT_SIMULATION_CONFIG:
-        raise TypeError(
-            "Pass simulation settings through forecaster, not simulation_config"
-        )
-
     full, dates = evaluate_candidate_grid(
         market,
         base_policy,
         grid,
         backtest_config,
         walk_config.risk_free_rate,
-        provider=provider,
         forecaster=forecaster,
         source=source,
         plan=plan,

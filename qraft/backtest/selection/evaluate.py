@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeAlias
 
 from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvider
@@ -19,11 +19,14 @@ from qraft.backtest.simulator import (
     precompute_inputs,
     run_backtest,
 )
-from qraft.construction.optimization.moments import InputPlan
+from qraft.construction.optimization.moments import InputPlan, PolicyInputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.schedule import RebalanceSchedule
-from qraft.forecast.forecaster import Forecaster
-from qraft.forecast.run import ForecastRecipeHistory
+from qraft.forecast.forecaster import ForecastSource, Forecaster
+
+SelectionInputSource: TypeAlias = (
+    "ForecastSource | PolicyInputsProvider | dict[datetime, PolicyInputs]"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +89,7 @@ def run_selection_window(
     base_policy: PolicyProtocol,
     grid: Mapping[str, Sequence[Any]],
     *,
-    provider: PolicyInputsProvider | None = None,
+    source: SelectionInputSource | None = None,
     schedule: RebalanceSchedule = RebalanceSchedule(),
     step_size: int = 1,
     initial_cash: float = 100.0,
@@ -94,11 +97,10 @@ def run_selection_window(
     risk_free_rate: float = 0.0,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
-    source: ForecastRecipeHistory | None = None,
 ) -> tuple[CandidateResult, ...]:
     """Expand candidates, precompute moments ONCE, then evaluate them all."""
-    if provider is None and source is None and forecaster is None:
-        raise TypeError("run_selection_window requires provider, source, or forecaster")
+    if source is None and forecaster is None:
+        raise TypeError("run_selection_window requires source or forecaster")
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
     table = precompute_inputs(
@@ -107,7 +109,7 @@ def run_selection_window(
         warmup,
         forecaster=forecaster,
         plan=plan,
-        source=provider if provider is not None else source,
+        source=source,
         policy=base_policy,
         step_size=step_size,
     )
@@ -130,16 +132,13 @@ def evaluate_candidate_grid(
     grid: Mapping[str, Sequence[Any]],
     backtest_config: BacktestConfig,
     risk_free_rate: float,
-    provider: PolicyInputsProvider | None = None,
+    source: SelectionInputSource | None = None,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
-    source: ForecastRecipeHistory | None = None,
 ) -> tuple[tuple[CandidateResult, ...], list[datetime]]:
     """Expand a candidate grid, precompute shared inputs, and evaluate once."""
-    if provider is None and source is None and forecaster is None:
-        raise TypeError(
-            "evaluate_candidate_grid requires provider, source, or forecaster"
-        )
+    if source is None and forecaster is None:
+        raise TypeError("evaluate_candidate_grid requires source or forecaster")
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
     table = precompute_inputs(
@@ -148,7 +147,7 @@ def evaluate_candidate_grid(
         warmup,
         forecaster=forecaster,
         plan=plan,
-        source=provider if provider is not None else source,
+        source=source,
         policy=base_policy,
     )
     shared = PrecomputedInputsProvider(table)

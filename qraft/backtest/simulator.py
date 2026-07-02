@@ -14,20 +14,16 @@ from qraft.backtest.execution import (
     BacktestWarning,
     execute_frictionless,
 )
-from qraft.backtest.inputs import (
-    PolicyInputRequirements,
-    PolicyInputsProvider,
-)
+from qraft.backtest.inputs import PolicyInputsProvider
 from qraft.backtest.market import MarketData
-from qraft.core.schedule import RebalanceSchedule
-from qraft.construction.inputs import build_policy_input_table
+from qraft.construction.inputs import PolicyInputRequirements, build_policy_input_table
 from qraft.construction.optimization.moments import InputPlan, PolicyInputs
 from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
-from qraft.forecast.forecaster import Forecaster
-from qraft.forecast.run import ForecastRecipeHistory
+from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import MarketSnapshot
+from qraft.forecast.forecaster import Forecaster, ForecastSource
 
 logger = logging.getLogger(__name__)
 
@@ -246,8 +242,8 @@ def precompute_inputs(
     *,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
-    source: PolicyInputsProvider
-    | ForecastRecipeHistory
+    source: ForecastSource
+    | PolicyInputsProvider
     | dict[datetime, PolicyInputs]
     | None = None,
     policy: PolicyInputRequirements | None = None,

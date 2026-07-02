@@ -11,7 +11,7 @@ from qraft.construction.optimization.moments import (
     PolicyInputs,
     RequiredPolicyInputs,
 )
-from qraft.forecast.forecaster import Forecaster
+from qraft.forecast.forecaster import ForecastSource, Forecaster
 from qraft.core.snapshot import MarketSnapshot, forecast_snapshot_from_decision_snapshot
 from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.run import (
@@ -60,10 +60,7 @@ def validate_policy_risk_source(risk, policy: PolicyInputRequirements | None) ->
 
 def build_policy_input_table(
     snapshots: Iterable[MarketSnapshot],
-    forecast_source: Forecaster
-    | ForecastRun
-    | ForecastRecipeHistory
-    | Iterable[ForecastPaths],
+    forecast_source: ForecastSource,
     *,
     plan: InputPlan,
     policy=None,
@@ -127,10 +124,7 @@ def build_policy_input_table(
 
 def _forecast_run_for_source(
     market_snapshots: list[MarketSnapshot],
-    forecast_source: Forecaster
-    | ForecastRun
-    | ForecastRecipeHistory
-    | Iterable[ForecastPaths],
+    forecast_source: ForecastSource,
 ) -> ForecastRun | Iterable[ForecastPaths]:
     if isinstance(forecast_source, ForecastRun):
         return forecast_source
