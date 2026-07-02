@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 import polars as pl
@@ -22,6 +22,7 @@ from qraft.backtest.selection.evaluate import (
     SelectionInputSource,
     evaluate_candidate_grid,
 )
+from qraft.backtest.selection.evaluation import CandidateEvaluation
 from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.scoring import (
     find_candidate,
@@ -30,18 +31,24 @@ from qraft.backtest.selection.scoring import (
     summary_from_returns,
 )
 from qraft.backtest.selection.select import Scorer, select_candidate
-from qraft.backtest.selection.splits import combinatorial_purged_folds
+from qraft.backtest.selection.splits import (
+    CombinatorialFold,
+    combinatorial_purged_folds,
+)
 from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.forecast.forecaster import Forecaster
 from qraft.utils.backtest_viz import plot_combinatorial_report
 
 
+T = TypeVar("T")
+
+
 def _assign_paths(
     n_groups: int,
     n_test_groups: int,
-    fold_test_group_returns: Sequence[Mapping[int, NDArray[np.floating] | None]],
-) -> list[list[NDArray[np.floating] | None]]:
+    fold_test_group_values: Sequence[Mapping[int, T | None]],
+) -> list[list[T | None]]:
     """Recombine fold-level held-out group returns into complete CPCV paths.
 
     Each date group appears in ``C(n_groups - 1, n_test_groups - 1)`` folds.
@@ -51,15 +58,15 @@ def _assign_paths(
     in chronological group order.
     """
     n_paths = math.comb(n_groups - 1, n_test_groups - 1)
-    path_segments_by_group: list[list[NDArray[np.floating] | None]] = [
+    path_segments_by_group: list[list[T | None]] = [
         [None] * n_groups for _ in range(n_paths)
     ]
     next_path_by_group = [0] * n_groups
-    for test_group_returns in fold_test_group_returns:
-        for group_id, returns in test_group_returns.items():
+    for test_group_values in fold_test_group_values:
+        for group_id, value in test_group_values.items():
             path_index = next_path_by_group[group_id]
             if path_index < n_paths:
-                path_segments_by_group[path_index][group_id] = returns
+                path_segments_by_group[path_index][group_id] = value
             next_path_by_group[group_id] += 1
     return path_segments_by_group
 
@@ -75,6 +82,8 @@ class CombinatorialReport:
     purge: int
     embargo: int
     n_trials: int
+    evaluation: CandidateEvaluation | None = None
+    folds: tuple[CombinatorialFold, ...] = ()
     path_returns: tuple[NDArray[np.floating], ...] = ()
     selected_params: PolicyParams | None = None
     pbo: float | None = None
@@ -170,7 +179,21 @@ def combinatorial_purged(
         source=source,
         plan=plan,
     )
+    return combinatorial_from_evaluation(
+        evaluation,
+        cv_config=cv_config,
+        score=score,
+    )
+
+
+def combinatorial_from_evaluation(
+    evaluation: CandidateEvaluation,
+    *,
+    cv_config: CombinatorialCVConfig,
+    score: Scorer | None = None,
+) -> CombinatorialReport:
     candidate_results = evaluation.candidate_results
+    backtest_config = evaluation.backtest_config
     folds = combinatorial_purged_folds(
         evaluation.dates,
         n_groups=cv_config.n_groups,
@@ -253,6 +276,8 @@ def combinatorial_purged(
         purge=cv_config.purge,
         embargo=cv_config.embargo,
         n_trials=n_trials,
+        evaluation=evaluation,
+        folds=tuple(folds),
         path_returns=tuple(r for r, _ in valid),
         selected_params=_most_common_params(selected_params_by_fold),
         pbo=pbo_value,

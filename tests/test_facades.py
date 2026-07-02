@@ -14,6 +14,7 @@ from qraft.backtest.inputs import PrecomputedInputsProvider
 from qraft.core.market import MarketData
 from qraft.backtest.selection import __all__ as selection_all
 from qraft.backtest.selection.combinatorial import CombinatorialReport
+from qraft.backtest.selection.evaluation import CandidateEvaluation
 from qraft.backtest.selection.validation import Validation as SelectionValidation
 from qraft.backtest.selection.walkforward import WalkForwardReport
 from qraft.backtest.simulator import run_backtest
@@ -104,19 +105,20 @@ def test_validation_dispatches_by_concrete_config(monkeypatch):
     policy = EqualWeightPolicy(target_cash_weight=0.0)
     seen = {}
 
-    def fake_walk_forward(*args, **kwargs):
-        seen["walk"] = (args, kwargs)
+    def fake_walk_forward(self, cfg):
+        seen["walk"] = cfg
         return _FakeWalkReport()
 
-    def fake_combinatorial(*args, **kwargs):
-        seen["cpcv"] = (args, kwargs)
+    def fake_combinatorial(self, cfg):
+        seen["cpcv"] = cfg
         return _FakeCpcvReport()
 
     monkeypatch.setattr(
-        "qraft.backtest.selection.validation.walk_forward", fake_walk_forward
+        "qraft.backtest.selection.validation.Validation.walk_forward", fake_walk_forward
     )
     monkeypatch.setattr(
-        "qraft.backtest.selection.validation.combinatorial_purged", fake_combinatorial
+        "qraft.backtest.selection.validation.Validation.combinatorial",
+        fake_combinatorial,
     )
 
     assert isinstance(
@@ -132,8 +134,8 @@ def test_validation_dispatches_by_concrete_config(monkeypatch):
         _FakeCpcvReport,
     )
 
-    assert isinstance(seen["walk"][1]["walk_config"], WalkForwardConfig)
-    assert isinstance(seen["cpcv"][1]["cv_config"], CombinatorialCVConfig)
+    assert isinstance(seen["walk"], WalkForwardConfig)
+    assert isinstance(seen["cpcv"], CombinatorialCVConfig)
 
 
 def test_validation_rejects_current_only_views():
@@ -142,6 +144,50 @@ def test_validation_rejects_current_only_views():
 
     with pytest.raises(ValueError, match="current-only views"):
         SelectionValidation(market, policy, {}, cv_config=WalkForwardConfig()).run()
+
+
+def test_validation_reuses_candidate_evaluation(monkeypatch):
+    market = _market()
+    policy = EqualWeightPolicy(target_cash_weight=0.0)
+    evaluation = CandidateEvaluation(
+        candidate_results=(),
+        dates=[],
+        backtest_config=BacktestConfig(),
+        metric="sharpe",
+    )
+    calls = []
+
+    def fake_evaluate(*args, **kwargs):
+        calls.append((args, kwargs))
+        return evaluation
+
+    def fake_walk_from_evaluation(evaluation_arg, **kwargs):
+        assert evaluation_arg is evaluation
+        return _FakeWalkReport()
+
+    def fake_cpcv_from_evaluation(evaluation_arg, **kwargs):
+        assert evaluation_arg is evaluation
+        return _FakeCpcvReport()
+
+    monkeypatch.setattr(
+        "qraft.backtest.selection.validation.evaluate_candidate_grid", fake_evaluate
+    )
+    monkeypatch.setattr(
+        "qraft.backtest.selection.validation.walk_forward_from_evaluation",
+        fake_walk_from_evaluation,
+    )
+    monkeypatch.setattr(
+        "qraft.backtest.selection.validation.combinatorial_from_evaluation",
+        fake_cpcv_from_evaluation,
+    )
+
+    validation = SelectionValidation(market, policy, {}, source={})
+
+    assert isinstance(validation.walk_forward(WalkForwardConfig()), _FakeWalkReport)
+    assert isinstance(
+        validation.combinatorial(CombinatorialCVConfig()), _FakeCpcvReport
+    )
+    assert len(calls) == 1
 
 
 def test_validation_result_selected_policy_applies_selected_params():

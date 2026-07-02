@@ -5,6 +5,7 @@ from qraft.backtest.selection.candidates import (  # noqa: F401
 )
 from qraft.backtest.selection.combinatorial import (  # noqa: F401
     CombinatorialReport,
+    combinatorial_from_evaluation,
     combinatorial_purged,
 )
 from qraft.backtest.selection.diagnostics import (  # noqa: F401
@@ -46,6 +47,7 @@ from qraft.backtest.selection.splits import (  # noqa: F401
 from qraft.backtest.selection.walkforward import (  # noqa: F401
     FoldResult,
     WalkForwardReport,
+    walk_forward_from_evaluation,
     walk_forward,
 )
 from qraft.backtest.selection.validation import Validation, ValidationResult  # noqa: F401
@@ -82,9 +84,11 @@ __all__ = [
     "evaluate_candidate_grid",
     "run_selection_window",
     "walk_forward",
+    "walk_forward_from_evaluation",
     "walk_forward_folds",
     "combinatorial_purged_folds",
     "combinatorial_purged",
+    "combinatorial_from_evaluation",
     "returns_for_range",
     "returns_for_ranges",
     "summary_from_returns",

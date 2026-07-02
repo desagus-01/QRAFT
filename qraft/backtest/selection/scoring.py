@@ -7,12 +7,12 @@ from typing import Callable, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.execution import BacktestResult
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.splits import DateRange
 from qraft.core import metrics
-from qraft.backtest.configs import BacktestConfig
 from qraft.core.configs import SelectionMetric
 
 Agg = Literal["mean", "median"]

@@ -22,6 +22,7 @@ from qraft.backtest.selection.evaluate import (
     SelectionInputSource,
     evaluate_candidate_grid,
 )
+from qraft.backtest.selection.evaluation import CandidateEvaluation
 from qraft.backtest.selection.results import (
     CandidateResult,
     SelectionReport,
@@ -50,6 +51,7 @@ class WalkForwardReport:
     oos_summary: PerformanceSummary | None
     oos_nav_dates: list[datetime]
     oos_nav: NDArray[np.floating]
+    evaluation: CandidateEvaluation | None = None
     n_trials: int = 0
     deflated_sharpe: float | None = None
     pbo: float | None = None
@@ -263,7 +265,21 @@ def walk_forward(
         source=source,
         plan=plan,
     )
+    return walk_forward_from_evaluation(
+        evaluation,
+        walk_config=walk_config,
+        score=score,
+    )
+
+
+def walk_forward_from_evaluation(
+    evaluation: CandidateEvaluation,
+    *,
+    walk_config: WalkForwardConfig,
+    score: Scorer | None = None,
+) -> WalkForwardReport:
     full = evaluation.candidate_results
+    backtest_config = evaluation.backtest_config
 
     folds = walk_forward_folds(
         evaluation.dates,
@@ -303,6 +319,7 @@ def walk_forward(
         oos_summary=summary,
         oos_nav_dates=nav_dates,
         oos_nav=nav,
+        evaluation=evaluation,
         n_trials=n_trials,
         deflated_sharpe=dsr,
         pbo=pbo_value,
