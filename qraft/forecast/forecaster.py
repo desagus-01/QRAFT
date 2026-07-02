@@ -15,10 +15,6 @@ from qraft.forecast.run import (
     simulate_forecast_paths,
 )
 
-ForecastSource: TypeAlias = (
-    "Forecaster | ForecastRun | ForecastRecipeHistory | Iterable[ForecastPaths]"
-)
-
 
 @dataclass(frozen=True, slots=True)
 class Forecaster:
@@ -67,3 +63,8 @@ class Forecaster:
             seed=self.seed,
             simulation_config=self.simulation,
         )
+
+
+ForecastSource: TypeAlias = (
+    Forecaster | ForecastRun | ForecastRecipeHistory | Iterable[ForecastPaths]
+)

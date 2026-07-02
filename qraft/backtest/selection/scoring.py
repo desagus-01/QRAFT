@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timedelta
+from typing import Callable, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -12,6 +13,36 @@ from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.splits import DateRange
 from qraft.core import metrics
 from qraft.backtest.configs import BacktestConfig
+from qraft.core.configs import SelectionMetric
+
+Agg = Literal["mean", "median"]
+Scorer = Callable[[PerformanceSummary], float]
+
+_LOWER_IS_BETTER: frozenset[SelectionMetric] = frozenset({"cvar"})
+
+
+def score_summary(
+    summary: PerformanceSummary,
+    metric: SelectionMetric,
+    scorer: Scorer | None = None,
+) -> float:
+    """Signed score so the best candidate is always the maximum."""
+    if scorer is not None:
+        return float(scorer(summary))
+    value = float(getattr(summary, metric))
+    return -value if metric in _LOWER_IS_BETTER else value
+
+
+def aggregate_scores(scores: Sequence[float], agg: Agg) -> float:
+    if not scores:
+        return float("nan")
+    values = np.asarray(scores, dtype=float)
+    match agg:
+        case "mean":
+            return float(np.mean(values))
+        case "median":
+            return float(np.median(values))
+    raise ValueError(f"unsupported aggregation: {agg}")
 
 
 def returns_for_range(

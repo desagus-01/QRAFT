@@ -158,18 +158,21 @@ def combinatorial_purged(
     ``cv_config`` supplies selection and CPCV settings. ``backtest_config``
     supplies execution settings.
     """
-    candidate_results, dates = evaluate_candidate_grid(
+    evaluation = evaluate_candidate_grid(
         market,
         base_policy,
         grid,
         backtest_config,
         cv_config.cv_config.risk_free_rate,
+        metric=cv_config.cv_config.metric,
+        score=score,
         forecaster=forecaster,
         source=source,
         plan=plan,
     )
+    candidate_results = evaluation.candidate_results
     folds = combinatorial_purged_folds(
-        dates,
+        evaluation.dates,
         n_groups=cv_config.n_groups,
         n_test_groups=cv_config.n_test_groups,
         purge=cv_config.purge,

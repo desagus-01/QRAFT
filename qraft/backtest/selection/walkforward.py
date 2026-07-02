@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -249,19 +251,22 @@ def walk_forward(
     causal results by slicing (no re-running). The stitched OOS curve is the
     realised, look-ahead-free track record of the rolling selection.
     """
-    full, dates = evaluate_candidate_grid(
+    evaluation = evaluate_candidate_grid(
         market,
         base_policy,
         grid,
         backtest_config,
         walk_config.risk_free_rate,
+        metric=walk_config.metric,
+        score=score,
         forecaster=forecaster,
         source=source,
         plan=plan,
     )
+    full = evaluation.candidate_results
 
     folds = walk_forward_folds(
-        dates,
+        evaluation.dates,
         train_size=walk_config.train_size,
         test_size=walk_config.test_size,
         step=walk_config.fold_step,

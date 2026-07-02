@@ -59,13 +59,14 @@ assets = list(prices.columns[10:25])
 universe = AssetUniverse(assets=assets, factors=list(factor_cols)[:4])
 prices = prices.select("date", *universe.all_tickers)
 
-views = Views([RankingView(order=assets[:3])], confidence=0.35)
+views = Views([RankingView(order=assets[:1])], confidence=0.35)
 market = MarketData.from_log_prices(
     prices,
     universe,
     cash=cash,
     history_weighting=HistoryWeighting("state_smooth", half_life=45),
 ).with_view_events((prices["date"][-120], views))
+
 
 # %%
 # Forecast, input, and policy configuration.
@@ -161,4 +162,4 @@ if policy_run.projection is None:
     raise RuntimeError("Policy projection was not created.")
 
 risk_report = PortfolioRisk.from_projection(policy_run.projection, forecast_paths)
-risk_report.risk_contribution("cvar")
+# %%

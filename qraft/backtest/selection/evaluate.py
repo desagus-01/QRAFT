@@ -10,11 +10,13 @@ from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvide
 from qraft.core.market import MarketData
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.candidates import expand_candidates
+from qraft.backtest.selection.evaluation import CandidateEvaluation
 from qraft.backtest.selection.results import (
     CandidateFailure,
     CandidateResult,
     PolicyCandidate,
 )
+from qraft.backtest.selection.scoring import Scorer
 from qraft.backtest.simulator import (
     precompute_inputs,
     run_backtest,
@@ -22,10 +24,11 @@ from qraft.backtest.simulator import (
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.schedule import RebalanceSchedule
+from qraft.core.configs import SelectionMetric
 from qraft.forecast.forecaster import Forecaster, ForecastSource
 
 SelectionInputSource: TypeAlias = (
-    "ForecastSource | PolicyInputsProvider | dict[datetime, PolicyInputs]"
+    ForecastSource | PolicyInputsProvider | dict[datetime, PolicyInputs]
 )
 
 logger = logging.getLogger(__name__)
@@ -132,10 +135,12 @@ def evaluate_candidate_grid(
     grid: Mapping[str, Sequence[Any]],
     backtest_config: BacktestConfig,
     risk_free_rate: float,
+    metric: SelectionMetric = "sharpe",
+    score: Scorer | None = None,
     source: SelectionInputSource | None = None,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
-) -> tuple[tuple[CandidateResult, ...], list[datetime]]:
+) -> CandidateEvaluation:
     """Expand a candidate grid, precompute shared inputs, and evaluate once."""
     if source is None and forecaster is None:
         raise TypeError("evaluate_candidate_grid requires source or forecaster")
@@ -160,7 +165,14 @@ def evaluate_candidate_grid(
         periods_per_year=backtest_config.periods_per_year,
         risk_free_rate=risk_free_rate,
     )
-    return candidate_results, sorted(table)
+    return CandidateEvaluation(
+        candidate_results=candidate_results,
+        dates=sorted(table),
+        backtest_config=backtest_config,
+        metric=metric,
+        risk_free_rate=risk_free_rate,
+        scorer=score,
+    )
 
 
 def _shared_warmup(candidates: Sequence[PolicyCandidate]) -> int:

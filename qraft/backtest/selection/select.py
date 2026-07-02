@@ -1,32 +1,8 @@
 from collections.abc import Sequence
-from typing import Callable, Literal
 
-from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.results import CandidateResult, SelectionReport
-
-_METRIC = Literal[
-    "total_return",
-    "annualised_return",
-    "annualised_vol",
-    "sharpe",
-    "sortino",
-    "max_drawdown",
-    "calmar",
-    "cvar",
-    "hit_rate",
-    "avg_turnover",
-    "total_cost",
-]
-
-_LOWER_IS_BETTER: frozenset[_METRIC] = frozenset({"cvar", "annualised_vol"})
-
-Scorer = Callable[[PerformanceSummary], float]
-
-
-def _score(summary: PerformanceSummary, metric: _METRIC) -> float:
-    """Signed score so the best candidate is always the maximum."""
-    value = float(getattr(summary, metric))
-    return -value if metric in _LOWER_IS_BETTER else value
+from qraft.backtest.selection.scoring import Scorer, score_summary
+from qraft.core.configs import SelectionMetric
 
 
 def _eligible(result: CandidateResult, max_held_fraction: float) -> bool:
@@ -43,17 +19,19 @@ def _conservatism(result: CandidateResult) -> float:
     return float(result.params.as_dict().get("risk_aversion", 0.0))
 
 
-def _objective(result: CandidateResult, metric: _METRIC, score: Scorer | None) -> float:
+def _objective(
+    result: CandidateResult, metric: SelectionMetric, score: Scorer | None
+) -> float:
     """Score one eligible candidate: the custom scorer if given, else the metric."""
     summary = result.summary
     assert summary is not None
-    return score(summary) if score is not None else _score(summary, metric)
+    return score_summary(summary, metric, score)
 
 
 def select_candidate(
     results: Sequence[CandidateResult],
     *,
-    metric: _METRIC = "sharpe",
+    metric: SelectionMetric = "sharpe",
     max_held_fraction: float = 0.5,
     score: Scorer | None = None,
 ) -> SelectionReport:

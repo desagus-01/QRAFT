@@ -234,7 +234,7 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         fake_evaluate,
     )
 
-    results, cached_dates = evaluate_candidate_grid(
+    evaluation = evaluate_candidate_grid(
         market,
         policy,
         {},
@@ -244,8 +244,8 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         plan=InputPlan(),
     )
 
-    assert results == ()
-    assert cached_dates == [dates[1]]
+    assert evaluation.candidate_results == ()
+    assert evaluation.dates == [dates[1]]
     assert captured["recipe_history"] is recipe_history
     assert isinstance(captured["inputs"], PrecomputedInputsProvider)
 

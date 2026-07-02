@@ -15,7 +15,7 @@ from qraft.construction.policies import PolicyProtocol
 from qraft.forecast.forecaster import ForecastSource
 
 BacktestSource: TypeAlias = (
-    "ForecastSource | PolicyInputsProvider | dict[datetime, PolicyInputs]"
+    ForecastSource | PolicyInputsProvider | dict[datetime, PolicyInputs]
 )
 
 

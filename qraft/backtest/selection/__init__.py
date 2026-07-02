@@ -18,6 +18,7 @@ from qraft.backtest.selection.evaluate import (  # noqa: F401
     evaluate_candidates,
     run_selection_window,
 )
+from qraft.backtest.selection.evaluation import CandidateEvaluation  # noqa: F401
 from qraft.backtest.selection.results import (  # noqa: F401
     CandidateFailure,
     CandidateResult,
@@ -26,9 +27,11 @@ from qraft.backtest.selection.results import (  # noqa: F401
     SelectionReport,
 )
 from qraft.backtest.selection.scoring import (  # noqa: F401
+    aggregate_scores,
     find_candidate,
     returns_for_range,
     returns_for_ranges,
+    score_summary,
     score_candidate_range,
     score_candidate_ranges,
     summary_from_returns,
@@ -59,6 +62,7 @@ __all__ = [
     "CandidateResult",
     "CandidateFailure",
     "SelectionReport",
+    "CandidateEvaluation",
     "Fold",
     "FoldResult",
     "WalkForwardReport",
@@ -84,6 +88,8 @@ __all__ = [
     "returns_for_range",
     "returns_for_ranges",
     "summary_from_returns",
+    "score_summary",
+    "aggregate_scores",
     "score_candidate_range",
     "score_candidate_ranges",
     "find_candidate",
