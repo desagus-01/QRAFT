@@ -68,8 +68,11 @@ def test_walk_forward_validates() -> None:
 
 
 def test_walk_forward_config_validates() -> None:
-    with pytest.raises(ValueError, match="train_size and test_size"):
+    with pytest.raises(ValueError, match="train_size"):
         WalkForwardConfig(train_size=0, test_size=2)
+
+    with pytest.raises(ValueError, match="test_size must be >= 2"):
+        WalkForwardConfig(train_size=3, test_size=1)
 
 
 def test_walk_forward_config_constructs_with_inherited_slots() -> None:

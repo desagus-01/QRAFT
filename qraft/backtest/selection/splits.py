@@ -142,8 +142,12 @@ def _validate_walk_forward_params(
     step: int | None,
     embargo: int,
 ) -> int:
-    if train_size < 1 or test_size < 1:
-        raise ValueError("train_size and test_size must be >= 1")
+    if train_size < 1:
+        raise ValueError("train_size must be >= 1")
+    if test_size < 2:
+        raise ValueError(
+            "test_size must be >= 2 so each validation window can produce returns"
+        )
     if embargo < 0:
         raise ValueError("embargo must be >= 0")
     advance = test_size if step is None else step

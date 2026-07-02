@@ -153,7 +153,6 @@ def test_validation_reuses_candidate_evaluation(monkeypatch):
         candidate_results=(),
         dates=[],
         backtest_config=BacktestConfig(),
-        metric="sharpe",
     )
     calls = []
 

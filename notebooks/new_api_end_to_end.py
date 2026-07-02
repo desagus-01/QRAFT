@@ -6,7 +6,6 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
-    Backtest,
     BacktestConfig,
     CMAConfig,
     Forecaster,
@@ -16,17 +15,13 @@ from qraft import (
     MarketData,
     MPOPolicy,
     PipelineConfig,
-    PortfolioRisk,
     SimulationForecastConfig,
     Validation,
     Views,
-    run_policy,
     setup_logging,
 )
 from qraft.backtest.configs import WalkForwardConfig
 from qraft.construction import FullyInvested, LongOnly, MinCashWeight
-from qraft.construction.optimization.inputs import PolicyInputs
-from qraft.construction.state import PortfolioState
 from qraft.core.scenarios.view_types import RankingView
 from qraft.core.schedule import RebalanceSchedule
 from qraft.utils.tiingo import import_tickers_and_factors
@@ -73,15 +68,15 @@ market = MarketData.from_log_prices(
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),
     simulation=SimulationForecastConfig(
-        horizon=6,
+        horizon=10,
         method="cma",
-        n_sims=1_000,
+        n_sims=10_000,
         cma_config=CMAConfig(target_copula="t"),
     ),
     refit_every=max(12, int(prices.height / 4)),
     seed=7,
 )
-plan = InputPlan(expected_returns="forecast", risk="both", max_horizons=6)
+plan = InputPlan(expected_returns="forecast", risk="both")
 backtest_config = BacktestConfig(schedule=RebalanceSchedule("quarter_end"))
 
 base_policy = MPOPolicy.preset(
@@ -96,70 +91,30 @@ base_policy = MPOPolicy.preset(
 )
 
 # %%
-# Validate risk_aversion, then take the selected params/policy from ValidationResult.
-validation_result = Validation(
+# --- Phase 4: tune / tuned_policy --------------------------------------------------
+# The same Validation object can tune with any metric — the grid is evaluated once.
+val = Validation(
     market=market,
     base_policy=base_policy,
     grid={"risk_aversion": [0.01, 0.03, 0.10]},
     source=forecaster,
     plan=plan,
-    cv_config=WalkForwardConfig(
-        train_size=4,
-        test_size=1,
-        fold_step=1,
-        metric="sharpe",
-    ),
+    cv_config=WalkForwardConfig(),
     backtest_config=backtest_config,
-).run()
+)
 
-selected_params = validation_result.selected_params
-selected_policy = validation_result.selected_policy
-selected_params.as_dict(), validation_result.report.summary_df
+# Walk-forward uses the cached grid.
+wf_report = val.walk_forward(WalkForwardConfig(metric="sharpe"))
 
 # %%
-# Backtest the selected policy.
-backtest_result = Backtest(
-    market=market,
-    policy=selected_policy,
-    source=forecaster,
-    plan=plan,
-    config=backtest_config,
-).run()
 
-backtest_result.nav[-1]
+
+# tune() re-scores OOS windows with a different metric — no re-backtest.
+best_sharpe = val.tune(report=wf_report, metric="sharpe")
+best_sortino = val.tune(report=wf_report, metric="sortino")
+best_sharpe, best_sortino
 
 # %%
-# Risk report for the selected policy using the latest causal snapshot.
-decision_bar = market.trading_bars[-2]
-execution_bar = market.trading_bars[-1]
-snapshot = market.snapshot_at(decision_bar, execution_bar)
-forecast_paths = forecaster.forecast(snapshot.history, snapshot.universe)
-policy_inputs = PolicyInputs.from_policy_sources(
-    forecasts=forecast_paths,
-    expected_returns=plan.expected_returns,
-    risk="both",
-    history=snapshot.history,
-    max_horizons=plan.max_horizons,
-    subset=plan.subset,
-    pnl_type=plan.pnl_type,
-    expectation_tolerance=plan.expectation_tolerance,
-    mean_decay=plan.mean_decay,
-    as_of=snapshot.t,
-    cash_return=snapshot.cash_rate,
-)
-state = PortfolioState.from_cash(
-    cash=backtest_config.initial_cash,
-    assets=assets,
-    asset_forecasts=forecast_paths,
-)
-policy_run = run_policy(
-    selected_policy,
-    state,
-    forecast_paths,
-    policy_inputs=policy_inputs,
-)
-if policy_run.projection is None:
-    raise RuntimeError("Policy projection was not created.")
-
-risk_report = PortfolioRisk.from_projection(policy_run.projection, forecast_paths)
-# %%
+# tuned_policy wraps tune() + apply_hyperparameters.
+policy = val.tuned_policy(metric="sortino")
+policy

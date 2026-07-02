@@ -51,8 +51,12 @@ class WalkForwardConfig(CVConfig):
         CVConfig.__post_init__(self)
         if self.train_size is None or self.test_size is None:
             raise ValueError("train_size and test_size are required")
-        if self.train_size < 1 or self.test_size < 1:
-            raise ValueError("train_size and test_size must be >= 1")
+        if self.train_size < 1:
+            raise ValueError("train_size must be >= 1")
+        if self.test_size < 2:
+            raise ValueError(
+                "test_size must be >= 2 so each validation window can produce returns"
+            )
         if self.fold_step is not None and self.fold_step < 1:
             raise ValueError("fold_step must be >= 1")
         if self.embargo < 0:

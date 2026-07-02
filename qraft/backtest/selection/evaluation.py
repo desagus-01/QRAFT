@@ -20,18 +20,23 @@ from qraft.core.configs import SelectionMetric
 
 @dataclass(frozen=True, slots=True)
 class CandidateEvaluation:
-    """Full-grid backtest artifact reused by reports and tuning."""
+    """Full-grid backtest artifact reused by reports and tuning.
+
+    Stores only what the grid backtest actually needs (raw results + config).
+    Scoring parameters (metric, scorer) are supplied at query time so the
+    same artifact serves every metric without cache invalidation.
+    """
 
     candidate_results: tuple[CandidateResult, ...]
     dates: list[datetime]
     backtest_config: BacktestConfig
-    metric: SelectionMetric
     risk_free_rate: float = 0.0
-    scorer: Scorer | None = None
 
     def oos_scores(
         self,
         windows_per_candidate: Mapping[PolicyParams, Sequence[DateRange]],
+        metric: SelectionMetric = "sharpe",
+        scorer: Scorer | None = None,
         agg: Agg = "mean",
     ) -> dict[PolicyParams, float]:
         scores: dict[PolicyParams, float] = {}
@@ -50,16 +55,18 @@ class CandidateEvaluation:
                     self.risk_free_rate,
                 )
                 if summary is not None:
-                    window_scores.append(
-                        score_summary(summary, self.metric, self.scorer)
-                    )
+                    window_scores.append(score_summary(summary, metric, scorer))
             if window_scores:
                 scores[candidate.params] = aggregate_scores(window_scores, agg)
         return scores
 
-    def full_sample_scores(self) -> dict[PolicyParams, float]:
+    def full_sample_scores(
+        self,
+        metric: SelectionMetric = "sharpe",
+        scorer: Scorer | None = None,
+    ) -> dict[PolicyParams, float]:
         return {
-            candidate.params: score_summary(candidate.summary, self.metric, self.scorer)
+            candidate.params: score_summary(candidate.summary, metric, scorer)
             for candidate in self.candidate_results
             if candidate.failure is None and candidate.summary is not None
         }

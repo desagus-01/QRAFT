@@ -86,6 +86,7 @@ class CombinatorialReport:
     folds: tuple[CombinatorialFold, ...] = ()
     path_returns: tuple[NDArray[np.floating], ...] = ()
     selected_params: PolicyParams | None = None
+    fold_selected_params: tuple[PolicyParams | None, ...] = ()
     pbo: float | None = None
     deflated_sharpe: float | None = None
 
@@ -202,7 +203,7 @@ def combinatorial_from_evaluation(
         embargo=cv_config.embargo,
     )
     fold_test_group_returns: list[dict[int, NDArray[np.floating] | None]] = []
-    selected_params_by_fold: list[PolicyParams] = []
+    fold_selected_params: list[PolicyParams | None] = []
     for fold in folds:
         train_scores = [
             score_candidate_ranges(
@@ -219,13 +220,12 @@ def combinatorial_from_evaluation(
             max_held_fraction=cv_config.cv_config.max_held_fraction,
             score=score,
         )
+        fold_selected_params.append(selection.selected_params)
         winner = (
             find_candidate(candidate_results, selection.selected_params)
             if selection.selected_params is not None
             else None
         )
-        if selection.selected_params is not None:
-            selected_params_by_fold.append(selection.selected_params)
         test_group_returns: dict[int, NDArray[np.floating] | None] = {}
         for group_id, (start, end) in zip(fold.test_groups, fold.test, strict=True):
             if winner is not None and winner.backtest is not None:
@@ -279,7 +279,10 @@ def combinatorial_from_evaluation(
         evaluation=evaluation,
         folds=tuple(folds),
         path_returns=tuple(r for r, _ in valid),
-        selected_params=_most_common_params(selected_params_by_fold),
+        selected_params=_most_common_params(
+            [p for p in fold_selected_params if p is not None]
+        ),
+        fold_selected_params=tuple(fold_selected_params),
         pbo=pbo_value,
         deflated_sharpe=dsr,
     )

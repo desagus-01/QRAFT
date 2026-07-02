@@ -7,7 +7,6 @@ from typing import Any, TypeAlias
 
 from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvider
-from qraft.core.market import MarketData
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.candidates import expand_candidates
 from qraft.backtest.selection.evaluation import CandidateEvaluation
@@ -16,15 +15,14 @@ from qraft.backtest.selection.results import (
     CandidateResult,
     PolicyCandidate,
 )
-from qraft.backtest.selection.scoring import Scorer
 from qraft.backtest.simulator import (
     precompute_inputs,
     run_backtest,
 )
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.policies import PolicyProtocol
+from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
-from qraft.core.configs import SelectionMetric
 from qraft.forecast.forecaster import Forecaster, ForecastSource
 
 SelectionInputSource: TypeAlias = (
@@ -135,8 +133,6 @@ def evaluate_candidate_grid(
     grid: Mapping[str, Sequence[Any]],
     backtest_config: BacktestConfig,
     risk_free_rate: float,
-    metric: SelectionMetric = "sharpe",
-    score: Scorer | None = None,
     source: SelectionInputSource | None = None,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
@@ -169,9 +165,7 @@ def evaluate_candidate_grid(
         candidate_results=candidate_results,
         dates=sorted(table),
         backtest_config=backtest_config,
-        metric=metric,
         risk_free_rate=risk_free_rate,
-        scorer=score,
     )
 
 

@@ -19,8 +19,10 @@ from qraft.backtest.selection.evaluate import (
     evaluate_candidate_grid,
 )
 from qraft.backtest.selection.evaluation import CandidateEvaluation
-from qraft.backtest.selection.results import PolicyParams
-from qraft.backtest.selection.select import Scorer
+from qraft.backtest.selection.results import CandidateResult, PolicyParams
+from qraft.backtest.selection.scoring import Agg
+from qraft.backtest.selection.select import Scorer, _conservatism, _eligible
+from qraft.backtest.selection.splits import DateRange
 from qraft.backtest.selection.walkforward import (
     WalkForwardReport,
     walk_forward_from_evaluation,
@@ -44,9 +46,6 @@ class ValidationResult:
         if self.selected_params is None:
             raise ValueError("Validation did not select a policy candidate.")
         return apply_hyperparameters(self.base_policy, self.selected_params)
-
-    def __getattr__(self, name: str):
-        return getattr(self.report, name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +84,7 @@ class Validation:
     def walk_forward(self, cfg: WalkForwardConfig) -> WalkForwardReport:
         self.market.assert_backtest_safe()
         return walk_forward_from_evaluation(
-            self._evaluation(metric=cfg.metric, risk_free_rate=cfg.risk_free_rate),
+            self._evaluation(risk_free_rate=cfg.risk_free_rate),
             walk_config=cfg,
             score=self.score,
         )
@@ -93,21 +92,102 @@ class Validation:
     def combinatorial(self, cfg: CombinatorialCVConfig) -> CombinatorialReport:
         self.market.assert_backtest_safe()
         return combinatorial_from_evaluation(
-            self._evaluation(
-                metric=cfg.cv_config.metric,
-                risk_free_rate=cfg.cv_config.risk_free_rate,
-            ),
+            self._evaluation(risk_free_rate=cfg.cv_config.risk_free_rate),
             cv_config=cfg,
             score=self.score,
         )
 
+    def tune(
+        self,
+        report: WalkForwardReport | CombinatorialReport | None = None,
+        *,
+        metric: SelectionMetric | None = None,
+        scorer: Scorer | None = None,
+        agg: Agg = "mean",
+    ) -> PolicyParams:
+        if metric is None:
+            metric = self._resolve_metric()
+        if scorer is None:
+            scorer = self.score
+        if report is None:
+            risk_free_rate = self._resolve_risk_free_rate()
+            evaluation = self._evaluation(risk_free_rate=risk_free_rate)
+            scores = evaluation.full_sample_scores(metric=metric, scorer=scorer)
+            candidates = evaluation.candidate_results
+        elif isinstance(report, WalkForwardReport):
+            evaluation = report.evaluation or self._evaluation(
+                risk_free_rate=self._resolve_risk_free_rate()
+            )
+            windows: dict[PolicyParams, list[DateRange]] = {}
+            for fold_result in report.folds:
+                params = fold_result.selection.selected_params
+                if params is not None:
+                    windows.setdefault(params, []).append(fold_result.fold.test)
+            scores = evaluation.oos_scores(
+                windows, metric=metric, scorer=scorer, agg=agg
+            )
+            candidates = evaluation.candidate_results
+        elif isinstance(report, CombinatorialReport):
+            evaluation = report.evaluation or self._evaluation(
+                risk_free_rate=self._resolve_risk_free_rate()
+            )
+            windows = {}
+            for fold, params in zip(report.folds, report.fold_selected_params):
+                if params is not None:
+                    windows.setdefault(params, []).extend(fold.test)
+            scores = evaluation.oos_scores(
+                windows, metric=metric, scorer=scorer, agg=agg
+            )
+            candidates = evaluation.candidate_results
+        else:
+            raise TypeError(
+                f"Expected None, WalkForwardReport, or CombinatorialReport, "
+                f"got {type(report).__name__}"
+            )
+
+        max_held_fraction = self._resolve_max_held_fraction()
+        return _tune_select(scores, candidates, max_held_fraction)
+
+    def tuned_policy(
+        self,
+        report: WalkForwardReport | CombinatorialReport | None = None,
+        *,
+        metric: SelectionMetric | None = None,
+        scorer: Scorer | None = None,
+        agg: Agg = "mean",
+    ) -> PolicyProtocol:
+        return apply_hyperparameters(
+            self.base_policy,
+            self.tune(report=report, metric=metric, scorer=scorer, agg=agg),
+        )
+
+    def _resolve_metric(self) -> SelectionMetric:
+        if isinstance(self.cv_config, WalkForwardConfig):
+            return self.cv_config.metric
+        if isinstance(self.cv_config, CombinatorialCVConfig):
+            return self.cv_config.cv_config.metric
+        raise TypeError(f"Unexpected cv_config type: {type(self.cv_config).__name__}")
+
+    def _resolve_risk_free_rate(self) -> float:
+        if isinstance(self.cv_config, WalkForwardConfig):
+            return self.cv_config.risk_free_rate
+        if isinstance(self.cv_config, CombinatorialCVConfig):
+            return self.cv_config.cv_config.risk_free_rate
+        raise TypeError(f"Unexpected cv_config type: {type(self.cv_config).__name__}")
+
+    def _resolve_max_held_fraction(self) -> float:
+        if isinstance(self.cv_config, WalkForwardConfig):
+            return self.cv_config.max_held_fraction
+        if isinstance(self.cv_config, CombinatorialCVConfig):
+            return self.cv_config.cv_config.max_held_fraction
+        raise TypeError(f"Unexpected cv_config type: {type(self.cv_config).__name__}")
+
     def _evaluation(
         self,
         *,
-        metric: SelectionMetric,
         risk_free_rate: float,
     ) -> CandidateEvaluation:
-        key = self._evaluation_cache_key(metric, risk_free_rate)
+        key = self._evaluation_cache_key(risk_free_rate)
         if key not in self._evaluation_cache:
             self._evaluation_cache[key] = evaluate_candidate_grid(
                 self.market,
@@ -115,8 +195,6 @@ class Validation:
                 self.grid,
                 self.backtest_config,
                 risk_free_rate,
-                metric=metric,
-                score=self.score,
                 source=self.source,
                 plan=self.plan,
             )
@@ -124,7 +202,6 @@ class Validation:
 
     def _evaluation_cache_key(
         self,
-        metric: SelectionMetric,
         risk_free_rate: float,
     ) -> tuple[Any, ...]:
         return (
@@ -134,10 +211,28 @@ class Validation:
             id(self.source),
             self.plan,
             self.backtest_config,
-            metric,
             risk_free_rate,
-            id(self.score),
         )
+
+
+def _tune_select(
+    scores: dict[PolicyParams, float],
+    candidates: tuple[CandidateResult, ...],
+    max_held_fraction: float,
+) -> PolicyParams:
+    candidate_map = {c.params: c for c in candidates}
+    eligible: dict[PolicyParams, float] = {}
+    for params, score in scores.items():
+        c = candidate_map.get(params)
+        if c is None or not _eligible(c, max_held_fraction):
+            continue
+        eligible[params] = score
+    if not eligible:
+        raise ValueError("No eligible candidate found for tuning.")
+    return max(
+        eligible,
+        key=lambda p: (eligible[p], _conservatism(candidate_map[p])),
+    )
 
 
 def _walk_forward_selected_params(report: WalkForwardReport) -> PolicyParams | None:
