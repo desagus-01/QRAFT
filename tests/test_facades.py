@@ -18,14 +18,24 @@ from qraft.backtest.selection.validation import Validation as SelectionValidatio
 from qraft.backtest.selection.walkforward import WalkForwardReport
 from qraft.backtest.simulator import run_backtest
 from qraft.construction.optimization.inputs import PolicyInputs
-from qraft.construction.policies import EqualWeightPolicy
+from qraft.construction.policies import EqualWeightPolicy, MPOPolicy
 from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.forecast_paths import AssetUniverse
+from qraft.backtest.selection.results import PolicyParams
+from qraft.backtest.selection.validation import ValidationResult
 
 
 class _NoopView:
     def apply(self, panel):
         return panel
+
+
+class _FakeWalkReport:
+    folds = ()
+
+
+class _FakeCpcvReport:
+    selected_params = None
 
 
 def _market() -> MarketData:
@@ -96,11 +106,11 @@ def test_validation_dispatches_by_concrete_config(monkeypatch):
 
     def fake_walk_forward(*args, **kwargs):
         seen["walk"] = (args, kwargs)
-        return "walk"
+        return _FakeWalkReport()
 
     def fake_combinatorial(*args, **kwargs):
         seen["cpcv"] = (args, kwargs)
-        return "cpcv"
+        return _FakeCpcvReport()
 
     monkeypatch.setattr(
         "qraft.backtest.selection.validation.walk_forward", fake_walk_forward
@@ -109,13 +119,17 @@ def test_validation_dispatches_by_concrete_config(monkeypatch):
         "qraft.backtest.selection.validation.combinatorial_purged", fake_combinatorial
     )
 
-    assert (
-        SelectionValidation(market, policy, {}, cv_config=WalkForwardConfig()).run()
-        == "walk"
+    assert isinstance(
+        SelectionValidation(market, policy, {}, cv_config=WalkForwardConfig())
+        .run()
+        .report,
+        _FakeWalkReport,
     )
-    assert (
-        SelectionValidation(market, policy, {}, cv_config=CombinatorialCVConfig()).run()
-        == "cpcv"
+    assert isinstance(
+        SelectionValidation(market, policy, {}, cv_config=CombinatorialCVConfig())
+        .run()
+        .report,
+        _FakeCpcvReport,
     )
 
     assert isinstance(seen["walk"][1]["walk_config"], WalkForwardConfig)
@@ -128,6 +142,31 @@ def test_validation_rejects_current_only_views():
 
     with pytest.raises(ValueError, match="current-only views"):
         SelectionValidation(market, policy, {}, cv_config=WalkForwardConfig()).run()
+
+
+def test_validation_result_selected_policy_applies_selected_params():
+    policy = MPOPolicy.preset("mean_covariance", name="template")
+    result = ValidationResult(
+        report=object(),
+        base_policy=policy,
+        selected_params=PolicyParams.of(risk_aversion=2.0),
+    )
+
+    selected = result.selected_policy
+
+    assert isinstance(selected, MPOPolicy)
+    assert selected.problem.objective.terms[2].weight == 2.0
+
+
+def test_validation_result_selected_policy_raises_without_selection():
+    result = ValidationResult(
+        report=object(),
+        base_policy=EqualWeightPolicy(target_cash_weight=0.0),
+        selected_params=None,
+    )
+
+    with pytest.raises(ValueError, match="did not select"):
+        result.selected_policy
 
 
 def test_public_facade_exports():

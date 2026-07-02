@@ -22,7 +22,7 @@ from qraft.backtest.selection.evaluate import (
     SelectionInputSource,
     evaluate_candidate_grid,
 )
-from qraft.backtest.selection.results import CandidateResult
+from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.scoring import (
     find_candidate,
     returns_for_range,
@@ -76,6 +76,7 @@ class CombinatorialReport:
     embargo: int
     n_trials: int
     path_returns: tuple[NDArray[np.floating], ...] = ()
+    selected_params: PolicyParams | None = None
     pbo: float | None = None
     deflated_sharpe: float | None = None
 
@@ -175,6 +176,7 @@ def combinatorial_purged(
         embargo=cv_config.embargo,
     )
     fold_test_group_returns: list[dict[int, NDArray[np.floating] | None]] = []
+    selected_params_by_fold: list[PolicyParams] = []
     for fold in folds:
         train_scores = [
             score_candidate_ranges(
@@ -196,6 +198,8 @@ def combinatorial_purged(
             if selection.selected_params is not None
             else None
         )
+        if selection.selected_params is not None:
+            selected_params_by_fold.append(selection.selected_params)
         test_group_returns: dict[int, NDArray[np.floating] | None] = {}
         for group_id, (start, end) in zip(fold.test_groups, fold.test, strict=True):
             if winner is not None and winner.backtest is not None:
@@ -247,9 +251,16 @@ def combinatorial_purged(
         embargo=cv_config.embargo,
         n_trials=n_trials,
         path_returns=tuple(r for r, _ in valid),
+        selected_params=_most_common_params(selected_params_by_fold),
         pbo=pbo_value,
         deflated_sharpe=dsr,
     )
+
+
+def _most_common_params(params: Sequence[PolicyParams]) -> PolicyParams | None:
+    if not params:
+        return None
+    return max(set(params), key=params.count)
 
 
 def _diagnostics(
