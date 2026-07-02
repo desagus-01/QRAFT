@@ -14,13 +14,11 @@ from qraft.construction.optimization.moments import PolicyInputs, RequiredPolicy
 from qraft.core.panel import ScenarioPanel
 from qraft.backtest.market import MarketData
 from qraft.backtest.simulator import (
-    precompute_forecast_inputs,
-    precompute_inputs_from_recipe_history,
+    precompute_inputs,
 )
 from qraft.backtest.selection.evaluate import evaluate_candidate_grid
 from qraft.backtest.configs import BacktestConfig
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
-from qraft.forecast.run import ForecastRun
 from qraft.core.schedule import RebalanceSchedule
 
 
@@ -84,10 +82,10 @@ def test_astype_downcasts_only_heavy_arrays():
     assert c.mean.dtype == np.float64  # small arrays preserved
 
 
-def test_precompute_forecast_inputs_uses_snapshot_cash_rate(monkeypatch):
+def test_precompute_inputs_uses_snapshot_cash_rate(monkeypatch):
     captured = {}
 
-    def fake_build(snapshots, **kwargs):
+    def fake_build(snapshots, forecast_source, **kwargs):
         snapshots = list(snapshots)
         target = next(snapshot for snapshot in snapshots if snapshot.t.day == 2)
         captured["cash_return"] = target.cash_rate
@@ -99,7 +97,7 @@ def test_precompute_forecast_inputs_uses_snapshot_cash_rate(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "qraft.backtest.simulator.forecast_policy_input_table",
+        "qraft.backtest.simulator.build_policy_input_table",
         fake_build,
     )
 
@@ -118,11 +116,12 @@ def test_precompute_forecast_inputs_uses_snapshot_cash_rate(monkeypatch):
             }
         ),
     )
-    table = precompute_forecast_inputs(
+    table = precompute_inputs(
         market,
         RebalanceSchedule("every_bar"),
-        InputPlan(cash_return=0.0),
         warmup=1,
+        plan=InputPlan(cash_return=0.0),
+        forecaster=object(),
     )
     inputs = table[datetime(2024, 1, 2)]
 
@@ -155,8 +154,7 @@ def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
     table = build_policy_input_table(
         [snapshot],
         [forecast],
-        input_config=InputPlan(cash_return=0.0),
-        risk_source="both",
+        plan=InputPlan(cash_return=0.0, risk="both"),
     )
 
     assert table.keys() == {snapshot.t}
@@ -172,16 +170,11 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
         AssetUniverse.factors_free(["A"]),
     )
     recipe_history = object()
-    forecast_run = ForecastRun(recipe_history=recipe_history, steps=())
     captured = {}
 
-    def fake_simulate(market_arg, history_arg, **kwargs):
-        captured["simulate"] = (market_arg, history_arg, kwargs)
-        return forecast_run
-
-    def fake_build(snapshots, run_arg, **kwargs):
+    def fake_build(snapshots, source_arg, **kwargs):
         snapshots = list(snapshots)
-        captured["build"] = (snapshots, run_arg, kwargs)
+        captured["build"] = (snapshots, source_arg, kwargs)
         return {
             snapshot.t: PolicyInputs.from_arrays(
                 assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
@@ -190,27 +183,19 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
         }
 
     monkeypatch.setattr(
-        "qraft.backtest.simulator.simulate_forecast_paths", fake_simulate
-    )
-    monkeypatch.setattr(
-        "qraft.backtest.simulator.build_policy_input_table_from_forecast_run",
+        "qraft.backtest.simulator.build_policy_input_table",
         fake_build,
     )
 
-    table = precompute_inputs_from_recipe_history(
+    table = precompute_inputs(
         market,
         RebalanceSchedule("every_bar"),
-        InputPlan(cash_return=0.0),
-        recipe_history,
         warmup=2,
+        plan=InputPlan(cash_return=0.0),
+        source=recipe_history,
     )
 
-    assert captured["simulate"][0] is market
-    assert captured["simulate"][1] is recipe_history
-    assert captured["simulate"][2]["min_history"] == 2
-    assert captured["simulate"][2]["forecast_cadence"] == "every_bar"
-    assert captured["simulate"][2]["seed"] is None
-    assert captured["build"][1] is forecast_run
+    assert captured["build"][1] is recipe_history
     assert [snapshot.t for snapshot in captured["build"][0]] == dates[1:-1]
     assert table.keys() == set(dates[1:-1])
 
@@ -226,7 +211,7 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
     captured = {}
 
     def fake_precompute(*args, **kwargs):
-        captured["recipe_history"] = args[3]
+        captured["recipe_history"] = kwargs["source"]
         return {
             dates[1]: PolicyInputs.from_arrays(
                 assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
@@ -238,7 +223,7 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         return ()
 
     monkeypatch.setattr(
-        "qraft.backtest.selection.evaluate.precompute_inputs_from_recipe_history",
+        "qraft.backtest.selection.evaluate.precompute_inputs",
         fake_precompute,
     )
     monkeypatch.setattr(
@@ -252,8 +237,8 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         {},
         BacktestConfig(),
         risk_free_rate=0.0,
-        recipe_history=recipe_history,
-        input_config=InputPlan(cash_return=0.0),
+        source=recipe_history,
+        plan=InputPlan(cash_return=0.0),
     )
 
     assert results == ()

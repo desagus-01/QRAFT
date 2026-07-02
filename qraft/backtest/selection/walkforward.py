@@ -30,6 +30,7 @@ from qraft.construction.policies import PolicyProtocol
 from qraft.core.configs import DEFAULT_SIMULATION_CONFIG, SimulationForecastConfig
 from qraft.core import metrics
 from qraft.backtest.configs import BacktestConfig, WalkForwardConfig
+from qraft.forecast.forecaster import Forecaster
 from qraft.forecast.run import ForecastRecipeHistory
 from qraft.utils.backtest_viz import plot_walk_forward_report
 
@@ -235,6 +236,9 @@ def walk_forward(
     grid: Mapping[str, Sequence[Any]],
     *,
     provider: PolicyInputsProvider | None = None,
+    forecaster: Forecaster | None = None,
+    plan: InputPlan | None = None,
+    source: ForecastRecipeHistory | None = None,
     recipe_history: ForecastRecipeHistory | None = None,
     input_config: InputPlan | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
@@ -249,6 +253,15 @@ def walk_forward(
     causal results by slicing (no re-running). The stitched OOS curve is the
     realised, look-ahead-free track record of the rolling selection.
     """
+    if recipe_history is not None:
+        source = recipe_history
+    if input_config is not None:
+        plan = input_config
+    if simulation_config != DEFAULT_SIMULATION_CONFIG:
+        raise TypeError(
+            "Pass simulation settings through forecaster, not simulation_config"
+        )
+
     full, dates = evaluate_candidate_grid(
         market,
         base_policy,
@@ -256,9 +269,9 @@ def walk_forward(
         backtest_config,
         walk_config.risk_free_rate,
         provider=provider,
-        recipe_history=recipe_history,
-        input_config=input_config,
-        simulation_config=simulation_config,
+        forecaster=forecaster,
+        source=source,
+        plan=plan,
     )
 
     folds = walk_forward_folds(

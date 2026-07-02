@@ -17,13 +17,12 @@ from qraft.backtest.selection.results import (
 )
 from qraft.backtest.simulator import (
     precompute_inputs,
-    precompute_inputs_from_recipe_history,
     run_backtest,
 )
 from qraft.construction.optimization.moments import InputPlan
 from qraft.construction.policies import PolicyProtocol
-from qraft.core.configs import DEFAULT_SIMULATION_CONFIG, SimulationForecastConfig
 from qraft.core.schedule import RebalanceSchedule
+from qraft.forecast.forecaster import Forecaster
 from qraft.forecast.run import ForecastRecipeHistory
 
 logger = logging.getLogger(__name__)
@@ -93,33 +92,25 @@ def run_selection_window(
     initial_cash: float = 100.0,
     periods_per_year: float | None = None,
     risk_free_rate: float = 0.0,
-    recipe_history: ForecastRecipeHistory | None = None,
-    input_config: InputPlan | None = None,
-    simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
+    forecaster: Forecaster | None = None,
+    plan: InputPlan | None = None,
+    source: ForecastRecipeHistory | None = None,
 ) -> tuple[CandidateResult, ...]:
     """Expand candidates, precompute moments ONCE, then evaluate them all."""
-    if provider is None and recipe_history is None:
-        raise TypeError("run_selection_window requires provider or recipe_history")
+    if provider is None and source is None and forecaster is None:
+        raise TypeError("run_selection_window requires provider, source, or forecaster")
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
-    if recipe_history is None:
-        assert provider is not None
-        table = precompute_inputs(
-            market, schedule, provider, warmup, step_size=step_size
-        )
-    else:
-        if input_config is None:
-            raise TypeError("recipe_history requires input_config")
-        table = precompute_inputs_from_recipe_history(
-            market,
-            schedule,
-            input_config,
-            recipe_history,
-            warmup,
-            policy=base_policy,
-            simulation_config=simulation_config,
-            step_size=step_size,
-        )
+    table = precompute_inputs(
+        market,
+        schedule,
+        warmup,
+        forecaster=forecaster,
+        plan=plan,
+        source=provider if provider is not None else source,
+        policy=base_policy,
+        step_size=step_size,
+    )
     shared = PrecomputedInputsProvider(table)
     return evaluate_candidates(
         candidates,
@@ -140,35 +131,26 @@ def evaluate_candidate_grid(
     backtest_config: BacktestConfig,
     risk_free_rate: float,
     provider: PolicyInputsProvider | None = None,
-    recipe_history: ForecastRecipeHistory | None = None,
-    input_config: InputPlan | None = None,
-    simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
+    forecaster: Forecaster | None = None,
+    plan: InputPlan | None = None,
+    source: ForecastRecipeHistory | None = None,
 ) -> tuple[tuple[CandidateResult, ...], list[datetime]]:
     """Expand a candidate grid, precompute shared inputs, and evaluate once."""
-    if provider is None and recipe_history is None:
-        raise TypeError("evaluate_candidate_grid requires provider or recipe_history")
+    if provider is None and source is None and forecaster is None:
+        raise TypeError(
+            "evaluate_candidate_grid requires provider, source, or forecaster"
+        )
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
-    if recipe_history is None:
-        assert provider is not None
-        table = precompute_inputs(
-            market,
-            backtest_config.schedule,
-            provider,
-            warmup,
-        )
-    else:
-        if input_config is None:
-            raise TypeError("recipe_history requires input_config")
-        table = precompute_inputs_from_recipe_history(
-            market,
-            backtest_config.schedule,
-            input_config,
-            recipe_history,
-            warmup,
-            policy=base_policy,
-            simulation_config=simulation_config,
-        )
+    table = precompute_inputs(
+        market,
+        backtest_config.schedule,
+        warmup,
+        forecaster=forecaster,
+        plan=plan,
+        source=provider if provider is not None else source,
+        policy=base_policy,
+    )
     shared = PrecomputedInputsProvider(table)
     candidate_results = evaluate_candidates(
         candidates,

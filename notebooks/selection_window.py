@@ -7,6 +7,7 @@ import polars as pl
 from qraft import (
     AssetUniverse,
     CMAConfig,
+    Forecaster,
     LogConfig,
     MPOPolicy,
     PipelineConfig,
@@ -26,7 +27,6 @@ from qraft.construction import (
 from qraft.construction.optimization.moments import InputPlan
 from qraft.core.configs import SimulationForecastConfig
 from qraft.core.schedule import RebalanceSchedule
-from qraft.forecast.run import build_forecast_recipe_history
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
@@ -97,11 +97,15 @@ input_config = InputPlan(
     cash_return=0.0,
     expected_returns="forecast",
 )
-recipe_history = build_forecast_recipe_history(
-    market,
-    pipeline_config=PipelineConfig(exclude_non_invariants=False),
-    min_history=base_policy.min_history,
-    refit_every=int(data.height / 5),
+forecaster = Forecaster(
+    pipeline=PipelineConfig(exclude_non_invariants=False),
+    simulation=SimulationForecastConfig(
+        horizon=15,
+        method="cma",
+        n_sims=10_000,
+        cma_config=CMAConfig(target_copula="t"),
+    ),
+    refit_every=int(data.height / 3),
 )
 
 # %%
@@ -110,14 +114,8 @@ with profile():
         market,
         base_policy,
         grid,
-        recipe_history=recipe_history,
-        input_config=input_config,
-        simulation_config=SimulationForecastConfig(
-            horizon=15,
-            method="cma",
-            n_sims=10_000,
-            cma_config=CMAConfig(target_copula="t"),
-        ),
+        forecaster=forecaster,
+        plan=input_config,
         cv_config=CombinatorialCVConfig(
             cv_config=CVConfig(),
         ),

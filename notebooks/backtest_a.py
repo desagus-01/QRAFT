@@ -16,7 +16,7 @@ from qraft import (
 )
 from qraft.backtest.inputs import PrecomputedInputsProvider
 from qraft.backtest.market import MarketData, WindowWeighting
-from qraft.backtest.simulator import precompute_forecast_inputs, run_backtest
+from qraft.backtest.simulator import precompute_inputs, run_backtest
 from qraft.construction import (
     FullyInvested,
     LongOnly,
@@ -104,11 +104,11 @@ input_config = InputPlan(
     risk="both",
 )
 schedule = RebalanceSchedule("year_end")
-input_table = precompute_forecast_inputs(
+input_table = precompute_inputs(
     mkt_dt,
     schedule,
-    input_config,
     warmup=policy.min_history,
+    plan=input_config,
     forecaster=Forecaster(
         simulation=SimulationForecastConfig(
             horizon=15,

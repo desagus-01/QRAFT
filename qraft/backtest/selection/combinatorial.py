@@ -32,6 +32,7 @@ from qraft.construction.policies import PolicyProtocol
 from qraft.backtest.configs import BacktestConfig, CombinatorialCVConfig
 from qraft.construction.optimization.moments import InputPlan
 from qraft.core.configs import DEFAULT_SIMULATION_CONFIG, SimulationForecastConfig
+from qraft.forecast.forecaster import Forecaster
 from qraft.forecast.run import ForecastRecipeHistory
 from qraft.utils.backtest_viz import plot_combinatorial_report
 
@@ -144,6 +145,9 @@ def combinatorial_purged(
     grid: Mapping[str, Sequence[Any]],
     *,
     provider: PolicyInputsProvider | None = None,
+    forecaster: Forecaster | None = None,
+    plan: InputPlan | None = None,
+    source: ForecastRecipeHistory | None = None,
     recipe_history: ForecastRecipeHistory | None = None,
     input_config: InputPlan | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
@@ -157,6 +161,15 @@ def combinatorial_purged(
     ``cv_config`` supplies selection and CPCV settings. ``backtest_config``
     supplies execution settings.
     """
+    if recipe_history is not None:
+        source = recipe_history
+    if input_config is not None:
+        plan = input_config
+    if simulation_config != DEFAULT_SIMULATION_CONFIG:
+        raise TypeError(
+            "Pass simulation settings through forecaster, not simulation_config"
+        )
+
     candidate_results, dates = evaluate_candidate_grid(
         market,
         base_policy,
@@ -164,9 +177,9 @@ def combinatorial_purged(
         backtest_config,
         cv_config.cv_config.risk_free_rate,
         provider=provider,
-        recipe_history=recipe_history,
-        input_config=input_config,
-        simulation_config=simulation_config,
+        forecaster=forecaster,
+        source=source,
+        plan=plan,
     )
     folds = combinatorial_purged_folds(
         dates,

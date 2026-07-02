@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Iterable
+from typing import Iterable, Protocol, runtime_checkable
 
 import numpy as np
 
@@ -9,27 +9,78 @@ from qraft.construction.optimization.moments import (
     AssetDiagnostics,
     InputPlan,
     PolicyInputs,
+    RequiredPolicyInputs,
 )
 from qraft.forecast.forecaster import Forecaster
 from qraft.core.snapshot import MarketSnapshot, forecast_snapshot_from_decision_snapshot
 from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.run import (
+    ForecastRecipeHistory,
     ForecastRun,
     build_forecast_recipe_history_from_snapshots,
     simulate_forecast_paths_from_snapshots,
 )
 
 
+@runtime_checkable
+class PolicyInputRequirements(Protocol):
+    def required_inputs(self) -> RequiredPolicyInputs: ...
+
+
+def policy_risk_source(
+    plan: InputPlan,
+    policy: PolicyInputRequirements | None = None,
+):
+    if plan.risk is not None:
+        validate_policy_risk_source(plan.risk, policy)
+        return plan.risk
+    if policy is None:
+        return "both"
+    return policy.required_inputs().risk_source
+
+
+def validate_policy_risk_source(risk, policy: PolicyInputRequirements | None) -> None:
+    if policy is None:
+        return
+    required = policy.required_inputs()
+    has_covariance = risk in {"covariance", "both"}
+    has_scenarios = risk in {"cvar", "both"}
+    missing: list[str] = []
+    if required.covariances and not has_covariance:
+        missing.append("covariances")
+    if required.scenarios and not has_scenarios:
+        missing.append("scenario_returns")
+    if missing:
+        raise ValueError(
+            f"plan.risk={risk!r} does not satisfy policy requirements: "
+            f"missing {', '.join(missing)}. Omit risk to infer it from the "
+            "policy, or use risk='both'."
+        )
+
+
 def build_policy_input_table(
     snapshots: Iterable[MarketSnapshot],
-    forecasts: ForecastRun | Iterable[ForecastPaths],
+    forecast_source: Forecaster
+    | ForecastRun
+    | ForecastRecipeHistory
+    | Iterable[ForecastPaths],
     *,
-    input_config: InputPlan,
-    risk_source,
+    plan: InputPlan,
+    policy=None,
     dtype: type = np.float64,
 ) -> dict[datetime, PolicyInputs]:
-    """Build ``{date: PolicyInputs}`` from decision snapshots and forecasts."""
+    """Build ``{date: PolicyInputs}`` from decision snapshots and a forecast source."""
     market_snapshots = list(snapshots)
+    if policy is not None:
+        required = policy.required_inputs()
+        if (
+            not required.covariances
+            and not required.scenarios
+            and plan.expected_returns != "forecast"
+        ):
+            return {}
+
+    forecasts = _forecast_run_for_source(market_snapshots, forecast_source)
     forecast_paths = (
         [step.forecast for step in forecasts.steps]
         if isinstance(forecasts, ForecastRun)
@@ -53,16 +104,16 @@ def build_policy_input_table(
             )
         inputs = PolicyInputs.from_policy_sources(
             forecasts=forecast,
-            expected_returns=input_config.expected_returns,
-            risk=risk_source,
+            expected_returns=plan.expected_returns,
+            risk=policy_risk_source(plan, policy),
             history=snapshot.history,
-            max_horizons=input_config.max_horizons,
-            subset=input_config.subset,
-            pnl_type=input_config.pnl_type,
-            expectation_tolerance=input_config.expectation_tolerance,
-            mean_decay=input_config.mean_decay,
-            step_size=input_config.step_size,
-            periods_per_year=input_config.periods_per_year,
+            max_horizons=plan.max_horizons,
+            subset=plan.subset,
+            pnl_type=plan.pnl_type,
+            expectation_tolerance=plan.expectation_tolerance,
+            mean_decay=plan.mean_decay,
+            step_size=plan.step_size,
+            periods_per_year=plan.periods_per_year,
             as_of=snapshot.t,
             cash_return=snapshot.cash_rate,
             asset_diagnostics=asset_diagnostics,
@@ -74,56 +125,43 @@ def build_policy_input_table(
     return table
 
 
-def build_policy_input_table_from_forecast_run(
-    snapshots: Iterable[MarketSnapshot],
-    forecast_run: ForecastRun,
-    *,
-    input_config: InputPlan,
-    risk_source,
-    dtype: type = np.float64,
-) -> dict[datetime, PolicyInputs]:
-    """Build ``{date: PolicyInputs}`` from a pre-simulated forecast run."""
-    return build_policy_input_table(
-        snapshots,
-        forecast_run,
-        input_config=input_config,
-        risk_source=risk_source,
-        dtype=dtype,
-    )
+def _forecast_run_for_source(
+    market_snapshots: list[MarketSnapshot],
+    forecast_source: Forecaster
+    | ForecastRun
+    | ForecastRecipeHistory
+    | Iterable[ForecastPaths],
+) -> ForecastRun | Iterable[ForecastPaths]:
+    if isinstance(forecast_source, ForecastRun):
+        return forecast_source
+    if isinstance(forecast_source, ForecastRecipeHistory):
+        forecast_snapshots = [
+            forecast_snapshot_from_decision_snapshot(snapshot)
+            for snapshot in market_snapshots
+        ]
+        return simulate_forecast_paths_from_snapshots(
+            forecast_snapshots,
+            forecast_source,
+            pipeline_config=forecast_source.pipeline_config,
+        )
+    if not isinstance(forecast_source, Forecaster):
+        return forecast_source
 
-
-def forecast_policy_input_table(
-    snapshots: Iterable[MarketSnapshot],
-    *,
-    input_config: InputPlan,
-    risk_source,
-    forecaster: Forecaster,
-    dtype: type = np.float64,
-) -> dict[datetime, PolicyInputs]:
-    """Forecast decision snapshots, then build ``{date: PolicyInputs}``."""
-    market_snapshots = list(snapshots)
     forecast_snapshots = [
         forecast_snapshot_from_decision_snapshot(snapshot)
         for snapshot in market_snapshots
     ]
     recipe_history = build_forecast_recipe_history_from_snapshots(
         forecast_snapshots,
-        refit_every=forecaster.refit_every,
-        reselect_on_universe_change=forecaster.reselect_on_universe_change,
-        seed=forecaster.seed,
-        pipeline_config=forecaster.pipeline,
+        refit_every=forecast_source.refit_every,
+        reselect_on_universe_change=forecast_source.reselect_on_universe_change,
+        seed=forecast_source.seed,
+        pipeline_config=forecast_source.pipeline,
     )
-    run = simulate_forecast_paths_from_snapshots(
+    return simulate_forecast_paths_from_snapshots(
         forecast_snapshots,
         recipe_history,
-        pipeline_config=forecaster.pipeline,
-        seed=forecaster.seed,
-        simulation_config=forecaster.simulation,
-    )
-    return build_policy_input_table(
-        market_snapshots,
-        run,
-        input_config=input_config,
-        risk_source=risk_source,
-        dtype=dtype,
+        pipeline_config=forecast_source.pipeline,
+        seed=forecast_source.seed,
+        simulation_config=forecast_source.simulation,
     )

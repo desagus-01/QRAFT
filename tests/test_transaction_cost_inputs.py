@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from qraft.backtest.inputs import policy_risk_source
+from qraft.construction.inputs import policy_risk_source
 from qraft.construction.optimization.moments import InputPlan
 from qraft.construction.optimization.moments import PolicyInputs
 from qraft.construction.optimization.objectives.specs import TransactionCost
