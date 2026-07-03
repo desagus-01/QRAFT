@@ -12,3 +12,4 @@ class PolicyDecision:
     target_cash_weight: float
     cash_return: NDArray[np.floating] | None = None
     diagnostics: Any | None = None
+    hold: bool = False

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import warnings
 import logging
 from typing import Literal
 
@@ -66,53 +65,35 @@ def cvar(
     *,
     distribution_type: Literal["pnl", "loss"] = "loss",
 ) -> NDArray[np.floating]:
+    """Rockafellar-Uryasev CVaR of losses.
+
+    For losses ``L`` this reports ``zeta + alpha^-1 E[(L - zeta)+]`` where
+    ``zeta`` is the loss VaR. PnL inputs are converted to losses via ``-PnL``.
+    """
     axis = normalize_axis_index(axis, distribution.ndim)
     if distribution.shape[axis] == 0:
         out_shape = distribution.shape[:axis] + distribution.shape[axis + 1 :]
         return np.full(out_shape, np.nan, dtype=float)
 
-    cutoff = tail_cutoff(
-        distribution=distribution,
+    losses = -distribution if distribution_type == "pnl" else distribution
+    zeta = tail_cutoff(
+        distribution=losses,
         prob=prob,
         alpha=alpha,
         axis=axis,
-        distribution_type=distribution_type,
+        distribution_type="loss",
     )
-
-    expanded_cutoff = np.expand_dims(cutoff, axis=axis)
-
-    if distribution_type == "pnl":
-        tail_mask = distribution <= expanded_cutoff
-    else:
-        tail_mask = distribution >= expanded_cutoff
+    excess = np.maximum(losses - np.expand_dims(zeta, axis=axis), 0.0)
 
     if prob is not None:
         shape = [1] * distribution.ndim
         shape[axis] = prob.shape[0]
         prob_reshaped = prob.reshape(shape)
-
-        weighted_sum = np.sum(prob_reshaped * distribution * tail_mask, axis=axis)
-        weight_sum = np.sum(prob_reshaped * tail_mask, axis=axis)
-
-        if np.any(weight_sum == 0):
-            warnings.warn(
-                "Tail has zero probability mass for some samples; returning NaN.",
-                RuntimeWarning,
-            )
-
-        result = np.where(weight_sum > 0, weighted_sum / weight_sum, np.nan)
+        expected_excess = np.sum(prob_reshaped * excess, axis=axis)
     else:
-        tail_values = np.where(tail_mask, distribution, np.nan)
+        expected_excess = np.mean(excess, axis=axis)
 
-        if np.any(np.all(~tail_mask, axis=axis)):
-            warnings.warn(
-                "Tail is empty for some samples; returning NaN.",
-                RuntimeWarning,
-            )
-
-        result = np.nanmean(tail_values, axis=axis)
-
-    return -result if distribution_type == "pnl" else result
+    return zeta + expected_excess / alpha
 
 
 def returns_from_nav(nav: NDArray[np.floating]) -> NDArray[np.floating]:

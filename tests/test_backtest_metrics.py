@@ -88,6 +88,40 @@ def test_cvar_empty_series_returns_nan_without_raising() -> None:
     assert np.isnan(value)
 
 
+def test_cvar_uses_rockafellar_uryasev_loss_definition() -> None:
+    losses = np.array([0.0, 1.0, 2.0, 3.0, 10.0], dtype=float)
+    alpha = 0.4
+    zeta = np.quantile(losses, 1.0 - alpha)
+    expected = zeta + np.mean(np.maximum(losses - zeta, 0.0)) / alpha
+
+    assert metrics.cvar(losses, prob=None, alpha=alpha) == pytest.approx(expected)
+
+
+def test_cvar_uses_rockafellar_uryasev_weighted_loss_definition() -> None:
+    losses = np.array([0.0, 1.0, 2.0, 10.0], dtype=float)
+    prob = np.array([0.1, 0.2, 0.3, 0.4], dtype=float)
+    alpha = 0.4
+    zeta = np.quantile(losses, 1.0 - alpha, method="inverted_cdf", weights=prob)
+    expected = zeta + np.sum(prob * np.maximum(losses - zeta, 0.0)) / alpha
+
+    assert metrics.cvar(losses, prob=prob, alpha=alpha) == pytest.approx(expected)
+    tail_average = np.sum(prob[losses >= zeta] * losses[losses >= zeta]) / np.sum(
+        prob[losses >= zeta]
+    )
+    assert expected != pytest.approx(tail_average)
+
+
+def test_cvar_converts_pnl_to_losses_before_rockafellar_uryasev() -> None:
+    pnl = np.array([0.0, -1.0, -2.0, -10.0], dtype=float)
+    losses = -pnl
+
+    assert metrics.cvar(
+        pnl, prob=None, alpha=0.25, distribution_type="pnl"
+    ) == pytest.approx(
+        metrics.cvar(losses, prob=None, alpha=0.25, distribution_type="loss")
+    )
+
+
 def test_var_empty_series_returns_nan_without_raising() -> None:
     value = metrics.var(np.array([], dtype=float), prob=None, distribution_type="pnl")
 

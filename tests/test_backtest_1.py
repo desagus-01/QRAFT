@@ -295,6 +295,8 @@ def test_7_solver_fallback_on_policy_failure() -> None:
     # All periods should have solver_status indicating error
     for p in result.periods:
         assert p.solver_status == "solver_error"
+        np.testing.assert_allclose(p.executed_share_trades, [0.0, 0.0], atol=1e-12)
+    np.testing.assert_allclose(result.period_turnovers, 0.0, atol=1e-12)
 
 
 def test_optimizer_failure_status_is_preserved_when_holding() -> None:
@@ -315,6 +317,35 @@ def test_optimizer_failure_status_is_preserved_when_holding() -> None:
     assert {p.solver_status for p in result.periods} == {
         "cvar_cutting_plane_nonconverged"
     }
+    for p in result.periods:
+        np.testing.assert_allclose(p.executed_share_trades, [0.0, 0.0], atol=1e-12)
+
+
+def test_period_turnover_includes_cash_leg() -> None:
+    market = MarketData.from_prices(
+        _price_frame(DATES_4, A=[10.0, 10.0, 10.0, 10.0], B=[20.0, 20.0, 20.0, 20.0]),
+        _universe("A", "B"),
+    )
+
+    result = run_backtest(
+        market=market,
+        schedule=RebalanceSchedule(cadence="every_bar"),
+        inputs=RecordingForecaster(),
+        policy=EqualWeightPolicy(target_cash_weight=0.0),
+        initial_cash=100.0,
+    )
+
+    first = result.periods[0]
+    risky_trade = float(
+        np.abs(first.executed_share_trades * first.state_before.initial_prices).sum()
+    )
+    cash_trade = float(first.state_after.cash - first.state_before.cash)
+    expected = (
+        0.5 * (risky_trade + abs(cash_trade)) / first.state_before.portfolio_value
+    )
+
+    assert result.period_turnovers[0] == pytest.approx(expected)
+    assert result.period_turnovers[0] == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------

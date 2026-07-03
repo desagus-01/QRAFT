@@ -114,9 +114,8 @@ class BacktestResult:
     def period_turnovers(self) -> NDArray[np.floating]:
         """One-way turnover fraction at each rebalance.
 
-        Defined as half the total absolute trade value divided by portfolio
-        value immediately before the trade — the standard convention in
-        portfolio optimisation (e.g. cvxportfolio).
+        Defined as half the total absolute trade value, including the cash leg,
+        divided by portfolio value immediately before the trade.
         """
         if not self.periods:
             return np.array([], dtype=float)
@@ -126,7 +125,8 @@ class BacktestResult:
             trade_value = float(
                 np.abs(p.executed_share_trades * p.state_before.initial_prices).sum()
             )
-            turnovers[i] = 0.5 * trade_value / pv if pv > 0 else 0.0
+            cash_trade = float(p.state_after.cash - p.state_before.cash)
+            turnovers[i] = 0.5 * (trade_value + abs(cash_trade)) / pv if pv > 0 else 0.0
         return turnovers
 
     @property
@@ -205,6 +205,8 @@ def execute_frictionless(
     nav = float(asset_value.sum() + cash)
     if not np.isfinite(nav) or nav <= 0:
         raise ValueError("NAV before execution must be finite and strictly positive")
+    if decision.hold:
+        return np.zeros_like(shares), shares.copy(), float(cash)
     target_value = _target_weights_full(decision, asset_order) * nav
     trade_value = target_value - asset_value
     executed = trade_value / prices

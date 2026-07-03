@@ -75,7 +75,7 @@ def decide_or_hold(
             exception=exc_str,
         )
         decision = PolicyDecision(
-            asset_order, state.asset_weights, float(state.cash_weight)
+            asset_order, state.asset_weights, float(state.cash_weight), hold=True
         )
         status = getattr(exc, "status", "solver_error")
         return DecideOrHoldResult(decision, status, None, exc_str, warning, None)

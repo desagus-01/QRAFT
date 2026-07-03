@@ -43,4 +43,5 @@ class NoTradePolicy:
             asset_order=state.asset_order,
             target_weights_risk=state.asset_weights,
             target_cash_weight=float(state.cash_weight),
+            hold=True,
         )
