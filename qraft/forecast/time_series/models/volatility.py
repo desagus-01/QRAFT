@@ -1,5 +1,4 @@
 import logging
-import re
 from itertools import product
 
 import numpy as np
@@ -76,38 +75,6 @@ def _garch_persistence_calc(params: dict[str, float]) -> float:
     beta_sum = sum(v for k, v in params.items() if k.startswith("beta"))
     gamma_sum = sum(v for k, v in params.items() if k.startswith("gamma"))
     return alpha_sum + beta_sum + 0.5 * gamma_sum
-
-
-def _garch_boundaries_check(
-    params: dict[str, float],
-    cfg: VolatilityModelConfig,
-) -> bool:
-    vals = {k: v for k, v in params.items()}
-
-    def _lag_num(name: str) -> int:
-        m = re.search(r"\[(\d+)\]$", name)
-        return int(m.group(1)) if m else 1
-
-    for k, v in vals.items():
-        if (
-            (k.startswith("alpha") or k.startswith("beta") or k.startswith("gamma"))
-            and (_lag_num(k) > 1)
-            and abs(v) < cfg.tolerance_zero
-        ):
-            return True
-
-    beta_items = sorted(
-        [(k, v) for k, v in vals.items() if k.startswith("beta")],
-        key=lambda kv: _lag_num(kv[0]),
-    )
-    if len(beta_items) >= 2:
-        betas = [v for _, v in beta_items]
-        for i in range(len(betas)):
-            for j in range(i + 1, len(betas)):
-                if abs(betas[i] - betas[j]) < cfg.tolerance_dups:
-                    return True
-
-    return False
 
 
 def _admissable_garch_model(

@@ -1,6 +1,5 @@
 import logging
 from dataclasses import dataclass, replace
-from datetime import datetime
 from typing import Any, Literal, Mapping
 
 import numpy as np
@@ -573,8 +572,10 @@ class PolicyInputs:
     ) -> NDArray[np.floating]:
         if history.kind == "log_price":
             returns = history.diff().drop_nulls()
+            is_log_return = True
         elif history.kind == "return":
             returns = history.drop_nulls()
+            is_log_return = False
         else:
             raise ValueError(
                 "historical expected returns require history.kind "
@@ -586,7 +587,13 @@ class PolicyInputs:
             raise ValueError(f"Assets not present in history: {sorted(missing)}.")
 
         data = returns.values.select(assets).to_numpy()
-        base_mean = weighted_mean(data=data, prob=returns.prob)
+        if is_log_return:
+            log_mean = weighted_mean(data=data, prob=returns.prob)
+            log_cov = weighted_covariance(data=data, prob=returns.prob)
+            log_var = np.diag(log_cov)
+            base_mean = np.exp(log_mean + 0.5 * log_var) - 1.0
+        else:
+            base_mean = weighted_mean(data=data, prob=returns.prob)
         decay = np.asarray([mean_decay**h for h in range(horizons)], dtype=float)
         return decay[:, None] * base_mean[None, :]
 
@@ -604,9 +611,6 @@ class PolicyInputs:
         pnl_type: PnL_OPTIONS = "relative",
         expectation_tolerance: float | None = None,
         mean_decay: float = 1.0,
-        step_size: int = 1,
-        periods_per_year: float | None = None,
-        as_of: datetime | None = None,
         asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
         invariance_drops: tuple[object, ...] = (),
     ) -> "PolicyInputs":
@@ -623,6 +627,11 @@ class PolicyInputs:
             )
         if risk not in {"covariance", "cvar", "both"}:
             raise ValueError("risk must be one of 'covariance', 'cvar', or 'both'.")
+        if pnl_type == "log":
+            raise ValueError(
+                "pnl_type='log' is not supported for optimizer inputs; use "
+                "'relative' or 'absolute'."
+            )
         if expected_returns == "historical" and history is None:
             raise ValueError("history is required when expected_returns='historical'.")
         pnl_by_asset = incremental_returns_from_forecast_paths(
@@ -764,3 +773,10 @@ class InputPlan:
     pnl_type: PnL_OPTIONS = "relative"
     expectation_tolerance: float | None = None
     mean_decay: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.pnl_type == "log":
+            raise ValueError(
+                "InputPlan.pnl_type='log' is not supported by the optimizer; use "
+                "'relative' or 'absolute'."
+            )

@@ -114,7 +114,6 @@ def build_policy_input_table(
             pnl_type=plan.pnl_type,
             expectation_tolerance=plan.expectation_tolerance,
             mean_decay=plan.mean_decay,
-            as_of=snapshot.t,
             cash_return=snapshot.cash_rate,
             asset_diagnostics=asset_diagnostics,
             invariance_drops=invariance_drops,

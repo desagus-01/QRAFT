@@ -35,8 +35,8 @@ def test_core_metrics_known_sharpe_fixture() -> None:
 
 
 def test_core_metrics_per_period_sharpe_handles_degenerate_series() -> None:
-    assert metrics.per_period_sharpe(np.array([0.01], dtype=float)) == 0.0
-    assert metrics.per_period_sharpe(np.array([0.01, 0.01], dtype=float)) == 0.0
+    assert np.isnan(metrics.per_period_sharpe(np.array([0.01], dtype=float)))
+    assert np.isnan(metrics.per_period_sharpe(np.array([0.01, 0.01], dtype=float)))
 
 
 def test_returns_from_nav_rejects_non_positive_nav() -> None:
@@ -103,5 +103,14 @@ def test_performance_summary_degenerate_nav_does_not_raise_or_emit_nan(
     values = summary.to_dict()
 
     assert values["annualised_vol"] == 0.0
-    assert values["sharpe"] == 0.0
+    assert np.isnan(values["sharpe"])
+    assert np.isnan(values["sortino"])
+    assert np.isnan(values["calmar"])
     assert np.isfinite(values["cvar"])
+
+
+def test_score_metrics_return_nan_for_degenerate_inputs() -> None:
+    assert np.isnan(metrics.annualised_return(np.array([100.0], dtype=float), 252.0))
+    assert np.isnan(metrics.sharpe(np.array([0.0, 0.0], dtype=float), 0.0, 252.0))
+    assert np.isnan(metrics.sortino(np.array([0.01, 0.01], dtype=float), 0.0, 252.0))
+    assert np.isnan(metrics.calmar(np.array([100.0, 100.0], dtype=float), 252.0))

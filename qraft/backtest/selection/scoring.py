@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timedelta
+import logging
 from typing import Callable, Literal
 
 import numpy as np
@@ -19,6 +20,7 @@ Agg = Literal["mean", "median"]
 Scorer = Callable[[PerformanceSummary], float]
 
 _LOWER_IS_BETTER: frozenset[SelectionMetric] = frozenset({"cvar"})
+logger = logging.getLogger(__name__)
 
 
 def score_summary(
@@ -33,10 +35,27 @@ def score_summary(
     return -value if metric in _LOWER_IS_BETTER else value
 
 
+def finite_score_summary(
+    summary: PerformanceSummary,
+    metric: SelectionMetric,
+    scorer: Scorer | None = None,
+) -> float | None:
+    score = score_summary(summary, metric, scorer)
+    if np.isfinite(score):
+        return score
+    logger.warning("Excluding non-finite selection score for metric=%s", metric)
+    return None
+
+
 def aggregate_scores(scores: Sequence[float], agg: Agg) -> float:
     if not scores:
         return float("nan")
-    values = np.asarray(scores, dtype=float)
+    values = np.asarray([score for score in scores if np.isfinite(score)], dtype=float)
+    if values.size == 0:
+        logger.warning(
+            "aggregate_scores is NaN: all candidate/window scores are non-finite."
+        )
+        return float("nan")
     match agg:
         case "mean":
             return float(np.mean(values))

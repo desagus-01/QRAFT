@@ -4,6 +4,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
+
 from qraft.backtest.configs import (
     BacktestConfig,
     CombinatorialCVConfig,
@@ -53,35 +55,17 @@ class Validation:
     market: MarketData
     base_policy: PolicyProtocol
     grid: Mapping[str, Sequence[Any]]
-    source: SelectionInputSource | None = None
-    plan: InputPlan | None = None
-    cv_config: WalkForwardConfig | CombinatorialCVConfig = field(
-        default_factory=WalkForwardConfig
-    )
+    source: SelectionInputSource
+    plan: InputPlan
     backtest_config: BacktestConfig = field(default_factory=BacktestConfig)
     score: Scorer | None = None
     _evaluation_cache: dict[tuple[Any, ...], CandidateEvaluation] = field(
         default_factory=dict, init=False, compare=False, repr=False
     )
 
-    def run(self) -> ValidationResult:
-        if isinstance(self.cv_config, WalkForwardConfig):
-            report = self.walk_forward(self.cv_config)
-            return ValidationResult(
-                report=report,
-                base_policy=self.base_policy,
-                selected_params=_walk_forward_selected_params(report),
-            )
-        if isinstance(self.cv_config, CombinatorialCVConfig):
-            report = self.combinatorial(self.cv_config)
-            return ValidationResult(
-                report=report,
-                base_policy=self.base_policy,
-                selected_params=getattr(report, "selected_params", None),
-            )
-        raise ValueError("cv_config must be WalkForwardConfig or CombinatorialCVConfig")
-
-    def walk_forward(self, cfg: WalkForwardConfig) -> WalkForwardReport:
+    def walk_forward(self, cfg: WalkForwardConfig | None = None) -> WalkForwardReport:
+        if cfg is None:
+            cfg = WalkForwardConfig()
         self.market.assert_backtest_safe()
         return walk_forward_from_evaluation(
             self._evaluation(risk_free_rate=cfg.risk_free_rate),
@@ -89,7 +73,11 @@ class Validation:
             score=self.score,
         )
 
-    def combinatorial(self, cfg: CombinatorialCVConfig) -> CombinatorialReport:
+    def combinatorial(
+        self, cfg: CombinatorialCVConfig | None = None
+    ) -> CombinatorialReport:
+        if cfg is None:
+            cfg = CombinatorialCVConfig()
         self.market.assert_backtest_safe()
         return combinatorial_from_evaluation(
             self._evaluation(risk_free_rate=cfg.cv_config.risk_free_rate),
@@ -99,24 +87,24 @@ class Validation:
 
     def tune(
         self,
-        report: WalkForwardReport | CombinatorialReport | None = None,
+        report: ValidationReport,
         *,
+        cfg: WalkForwardConfig | CombinatorialCVConfig | None = None,
         metric: SelectionMetric | None = None,
         scorer: Scorer | None = None,
         agg: Agg = "mean",
-    ) -> PolicyParams:
+    ) -> ValidationResult:
+        if cfg is None:
+            cfg = _default_config_for_report(report)
         if metric is None:
-            metric = self._resolve_metric()
+            metric = _config_metric(cfg)
         if scorer is None:
             scorer = self.score
-        if report is None:
-            risk_free_rate = self._resolve_risk_free_rate()
-            evaluation = self._evaluation(risk_free_rate=risk_free_rate)
-            scores = evaluation.full_sample_scores(metric=metric, scorer=scorer)
-            candidates = evaluation.candidate_results
-        elif isinstance(report, WalkForwardReport):
+        if isinstance(report, WalkForwardReport):
+            if not isinstance(cfg, WalkForwardConfig):
+                raise TypeError("cfg must be WalkForwardConfig for WalkForwardReport")
             evaluation = report.evaluation or self._evaluation(
-                risk_free_rate=self._resolve_risk_free_rate()
+                risk_free_rate=cfg.risk_free_rate
             )
             windows: dict[PolicyParams, list[DateRange]] = {}
             for fold_result in report.folds:
@@ -128,8 +116,12 @@ class Validation:
             )
             candidates = evaluation.candidate_results
         elif isinstance(report, CombinatorialReport):
+            if not isinstance(cfg, CombinatorialCVConfig):
+                raise TypeError(
+                    "cfg must be CombinatorialCVConfig for CombinatorialReport"
+                )
             evaluation = report.evaluation or self._evaluation(
-                risk_free_rate=self._resolve_risk_free_rate()
+                risk_free_rate=cfg.cv_config.risk_free_rate
             )
             windows = {}
             for fold, params in zip(report.folds, report.fold_selected_params):
@@ -141,46 +133,16 @@ class Validation:
             candidates = evaluation.candidate_results
         else:
             raise TypeError(
-                f"Expected None, WalkForwardReport, or CombinatorialReport, "
+                f"Expected WalkForwardReport or CombinatorialReport, "
                 f"got {type(report).__name__}"
             )
 
-        max_held_fraction = self._resolve_max_held_fraction()
-        return _tune_select(scores, candidates, max_held_fraction)
-
-    def tuned_policy(
-        self,
-        report: WalkForwardReport | CombinatorialReport | None = None,
-        *,
-        metric: SelectionMetric | None = None,
-        scorer: Scorer | None = None,
-        agg: Agg = "mean",
-    ) -> PolicyProtocol:
-        return apply_hyperparameters(
-            self.base_policy,
-            self.tune(report=report, metric=metric, scorer=scorer, agg=agg),
+        max_held_fraction = _config_max_held_fraction(cfg)
+        return ValidationResult(
+            report=report,
+            base_policy=self.base_policy,
+            selected_params=_tune_select(scores, candidates, max_held_fraction),
         )
-
-    def _resolve_metric(self) -> SelectionMetric:
-        if isinstance(self.cv_config, WalkForwardConfig):
-            return self.cv_config.metric
-        if isinstance(self.cv_config, CombinatorialCVConfig):
-            return self.cv_config.cv_config.metric
-        raise TypeError(f"Unexpected cv_config type: {type(self.cv_config).__name__}")
-
-    def _resolve_risk_free_rate(self) -> float:
-        if isinstance(self.cv_config, WalkForwardConfig):
-            return self.cv_config.risk_free_rate
-        if isinstance(self.cv_config, CombinatorialCVConfig):
-            return self.cv_config.cv_config.risk_free_rate
-        raise TypeError(f"Unexpected cv_config type: {type(self.cv_config).__name__}")
-
-    def _resolve_max_held_fraction(self) -> float:
-        if isinstance(self.cv_config, WalkForwardConfig):
-            return self.cv_config.max_held_fraction
-        if isinstance(self.cv_config, CombinatorialCVConfig):
-            return self.cv_config.cv_config.max_held_fraction
-        raise TypeError(f"Unexpected cv_config type: {type(self.cv_config).__name__}")
 
     def _evaluation(
         self,
@@ -224,7 +186,7 @@ def _tune_select(
     eligible: dict[PolicyParams, float] = {}
     for params, score in scores.items():
         c = candidate_map.get(params)
-        if c is None or not _eligible(c, max_held_fraction):
+        if c is None or not _eligible(c, max_held_fraction) or not np.isfinite(score):
             continue
         eligible[params] = score
     if not eligible:
@@ -244,6 +206,30 @@ def _walk_forward_selected_params(report: WalkForwardReport) -> PolicyParams | N
     if not selected:
         return None
     return max(set(selected), key=selected.count)
+
+
+def _default_config_for_report(
+    report: ValidationReport,
+) -> WalkForwardConfig | CombinatorialCVConfig:
+    if isinstance(report, WalkForwardReport):
+        return WalkForwardConfig()
+    if isinstance(report, CombinatorialReport):
+        return CombinatorialCVConfig()
+    raise TypeError(
+        f"Expected WalkForwardReport or CombinatorialReport, got {type(report).__name__}"
+    )
+
+
+def _config_metric(cfg: WalkForwardConfig | CombinatorialCVConfig) -> SelectionMetric:
+    if isinstance(cfg, WalkForwardConfig):
+        return cfg.metric
+    return cfg.cv_config.metric
+
+
+def _config_max_held_fraction(cfg: WalkForwardConfig | CombinatorialCVConfig) -> float:
+    if isinstance(cfg, WalkForwardConfig):
+        return cfg.max_held_fraction
+    return cfg.cv_config.max_held_fraction
 
 
 def _freeze_mapping(

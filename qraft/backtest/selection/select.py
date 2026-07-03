@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 
 from qraft.backtest.selection.results import CandidateResult, SelectionReport
-from qraft.backtest.selection.scoring import Scorer, score_summary
+from qraft.backtest.selection.scoring import Scorer, finite_score_summary
 from qraft.core.configs import SelectionMetric
 
 
@@ -25,7 +25,8 @@ def _objective(
     """Score one eligible candidate: the custom scorer if given, else the metric."""
     summary = result.summary
     assert summary is not None
-    return score_summary(summary, metric, score)
+    value = finite_score_summary(summary, metric, score)
+    return float("-inf") if value is None else value
 
 
 def select_candidate(
@@ -35,7 +36,12 @@ def select_candidate(
     max_held_fraction: float = 0.5,
     score: Scorer | None = None,
 ) -> SelectionReport:
-    eligible = [r for r in results if _eligible(r, max_held_fraction)]
+    eligible = [
+        r
+        for r in results
+        if _eligible(r, max_held_fraction)
+        and _objective(r, metric, score) != float("-inf")
+    ]
     selected = None
     if eligible:
         selected = max(

@@ -4,7 +4,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from qraft.construction.optimization.inputs import PolicyInputs
+from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.core.panel import ScenarioPanel
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 
@@ -150,6 +150,47 @@ def test_policy_inputs_from_policy_sources_historical_mean_and_cvar_risk() -> No
     assert inputs.require_mean().shape == (2, 2)
 
 
+def test_historical_log_price_mean_is_arithmetic_simple_return() -> None:
+    history = ScenarioPanel.from_prices(
+        pl.DataFrame(
+            {
+                "date": [
+                    datetime(2024, 1, 1),
+                    datetime(2024, 1, 2),
+                    datetime(2024, 1, 3),
+                ],
+                "A": [100.0, 110.0, 99.0],
+                "B": [50.0, 55.0, 49.5],
+            }
+        )
+    )
+
+    inputs = PolicyInputs.from_policy_sources(
+        forecasts=_forecast_paths(),
+        cash_return=0.0,
+        expected_returns="historical",
+        history=history,
+        risk="covariance",
+    )
+
+    log_returns = history.diff().drop_nulls()
+    data = log_returns.values.select(["A", "B"]).to_numpy()
+    expected = np.exp(data.mean(axis=0) + 0.5 * data.var(axis=0)) - 1.0
+    np.testing.assert_allclose(inputs.require_mean()[0], expected)
+
+
+def test_log_pnl_rejected_for_optimizer_inputs() -> None:
+    with pytest.raises(ValueError, match="pnl_type='log'"):
+        InputPlan(pnl_type="log")
+
+    with pytest.raises(ValueError, match="pnl_type='log'"):
+        PolicyInputs.from_policy_sources(
+            forecasts=_forecast_paths(),
+            cash_return=0.0,
+            pnl_type="log",
+        )
+
+
 def test_policy_inputs_from_policy_sources_covariance_risk_only() -> None:
     inputs = PolicyInputs.from_policy_sources(
         forecasts=_forecast_paths(),
@@ -157,8 +198,6 @@ def test_policy_inputs_from_policy_sources_covariance_risk_only() -> None:
         expected_returns="forecast",
         risk="covariance",
         expectation_tolerance=None,
-        periods_per_year=252,
-        as_of=datetime(2024, 1, 3),
     )
 
     assert inputs.scenario_returns is None
@@ -185,8 +224,6 @@ def test_policy_inputs_drops_degenerate_forecast_asset() -> None:
         cash_return=0.0,
         expected_returns="forecast",
         risk="both",
-        periods_per_year=252,
-        as_of=datetime(2024, 1, 3),
     )
 
     assert inputs.assets == ["A"]

@@ -116,11 +116,12 @@ with profile():
         grid=grid,
         source=forecaster,
         plan=plan,
-        cv_config=CombinatorialCVConfig(
-            cv_config=CVConfig(),
-        ),
         backtest_config=BacktestConfig(schedule=RebalanceSchedule("quarter_end")),
-    ).run()
+    ).combinatorial(
+        CombinatorialCVConfig(
+            cv_config=CVConfig(),
+        )
+    )
 
 
 # %%

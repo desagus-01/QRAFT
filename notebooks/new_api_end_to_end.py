@@ -20,7 +20,6 @@ from qraft import (
     Views,
     setup_logging,
 )
-from qraft.backtest.configs import WalkForwardConfig
 from qraft.construction import FullyInvested, LongOnly, MinCashWeight
 from qraft.construction.policies.allocation import Allocation
 from qraft.core.scenarios.view_types import RankingView
@@ -93,7 +92,7 @@ base_policy = MPOPolicy.preset(
 )
 
 # %%
-# --- Phase 4: tune / tuned_policy --------------------------------------------------
+# --- Phase 4: tune --------------------------------------------------
 # The same Validation object can tune with any metric — the grid is evaluated once.
 val = Validation(
     market=market,
@@ -101,15 +100,14 @@ val = Validation(
     grid={"risk_aversion": [0.05, 0.5, 1, 3, 5, 10]},
     source=forecaster,
     plan=plan,
-    cv_config=WalkForwardConfig(),
     backtest_config=backtest_config,
 )
 
 
 # %%
-# tuned_policy wraps tune() + apply_hyperparameters.
-policy = val.tuned_policy(metric="sortino")
-
+report = val.walk_forward()
+tuned = val.tune(report, metric="sortino")
+policy = tuned.selected_policy
 # %%
 live = Allocation(market, policy, source=forecaster, plan=plan)
 run = live.at()

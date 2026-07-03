@@ -4,13 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Literal, Mapping
 
-from qraft.core.schedule import Cadence, RebalanceSchedule
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
     PipelineConfig,
     SimulationForecastConfig,
 )
+from qraft.core.schedule import Cadence, RebalanceSchedule
 from qraft.core.snapshot import ForecastSnapshot, forecast_snapshot_at
 from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.pipelines.fitted_universe import (
@@ -60,6 +60,7 @@ class ForecastStep:
     forecast: ForecastPaths
     action: Literal["selected_recipe", "applied_recipe"]
     diagnostics: Mapping[str, object] | None = None
+    invariance_drops: tuple[object, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,7 +172,7 @@ def build_forecast_recipe_history_from_snapshots(
             recipe=recipe,
             universe=universe_key,
             selected_at_step=step,
-            invariance_drops=recipe.invariance_drops,
+            invariance_drops=getattr(recipe, "invariance_drops", ()),
         )
         periods.append(current_period)
         last_universe = universe_key

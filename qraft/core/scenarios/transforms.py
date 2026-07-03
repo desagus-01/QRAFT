@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Any, Protocol, Sequence
 
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.entropy_pooling import entropy_pooling_probs
@@ -21,6 +21,8 @@ class Views:
 
     specs: list[ViewSpec]
     confidence: float = 1.0
+    solver: str = "SCS"
+    solver_kwargs: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.confidence <= 1.0:
@@ -30,7 +32,11 @@ class Views:
 
     def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
         posterior = entropy_pooling_probs(
-            panel=panel, specs=self.specs, confidence=self.confidence
+            panel=panel,
+            specs=self.specs,
+            confidence=self.confidence,
+            solver=self.solver,
+            **(self.solver_kwargs or {}),
         )
         return panel.with_prob(posterior)
 

@@ -207,6 +207,41 @@ def get_var_row(
     return var_data
 
 
+def get_var_window(
+    panel: ScenarioPanel,
+    alpha: float,
+    min_prob_mass: float | None = None,
+) -> DataFrame:
+    """
+    Return scenarios around the VaR cutoff for more stable Euler contributions.
+    """
+    validate_alpha(alpha)
+    if min_prob_mass is None:
+        min_prob_mass = min(alpha, 0.01)
+    if min_prob_mass <= 0.0:
+        raise ValueError("min_prob_mass must be positive")
+
+    panel_with_prob = with_prob(panel)
+    loss_array = panel_with_prob["loss"].to_numpy()
+    prob_array = panel_with_prob["prob"].to_numpy()
+    cutoff = float(
+        var(
+            loss_array,
+            prob=prob_array,
+            alpha=alpha,
+            distribution_type="loss",
+        )
+    )
+    ordered = panel_with_prob.with_columns(
+        (pl.col("loss") - cutoff).abs().alias("_var_distance")
+    ).sort(["_var_distance", "loss"])
+
+    prob_cumsum = np.cumsum(ordered["prob"].to_numpy())
+    take = int(np.searchsorted(prob_cumsum, min_prob_mass, side="left") + 1)
+    take = max(1 if ordered.height == 1 else 2, min(take, ordered.height))
+    return ordered.head(take).drop("_var_distance")
+
+
 def cvar_contribution(
     panel: ScenarioPanel,
     exposures: dict[str, float],
@@ -254,6 +289,9 @@ def var_contribution(
     """
     Compute VaR contribution decomposition from a risk attribution panel.
 
+    Driver values are probability-weighted over a small window around the VaR
+    cutoff instead of read from a single Monte Carlo row.
+
     Parameters
     ----------
     panel
@@ -266,15 +304,33 @@ def var_contribution(
         Tail probability. alpha=0.05 computes the 95% loss-tail VaR.
     """
     driver_cols = validate_exposures_for_panel(panel, exposures)
-    var_row = get_var_row(panel, alpha)
+    var_window = get_var_window(panel, alpha)
 
-    contributions = {
-        c: float(var_row.select(c).item()) * exposures[c] for c in driver_cols
+    prob_sum = float(var_window["prob"].sum())
+    if prob_sum <= 0.0:
+        raise ValueError("VaR window probability mass is zero")
+
+    weighted_driver_means = {
+        c: float(
+            var_window.select(
+                (pl.col(c) * pl.col("prob")).sum() / pl.col("prob").sum()
+            ).item()
+        )
+        for c in driver_cols
     }
+
+    contributions = {c: weighted_driver_means[c] * exposures[c] for c in driver_cols}
 
     return RiskContributions(
         risk_measure="var",
-        value=float(var_row.select("loss").item()),
+        value=float(
+            var(
+                panel.values["loss"].to_numpy(),
+                prob=panel.prob,
+                alpha=alpha,
+                distribution_type="loss",
+            )
+        ),
         contributions=contributions,
     )
 

@@ -44,6 +44,7 @@ class DecideOrHoldResult(NamedTuple):
     sigma: NDArray[np.floating] | None
     error_msg: str | None
     warning: BacktestWarning | None
+    policy_inputs: PolicyInputs | None
 
 
 def decide_or_hold(
@@ -60,7 +61,7 @@ def decide_or_hold(
         decision = policy.decide(state, policy_inputs)
         status = getattr(decision.diagnostics, "status", "ok")
         sigma = _aligned_sigma(policy_inputs, asset_order)
-        return DecideOrHoldResult(decision, status, sigma, None, None)
+        return DecideOrHoldResult(decision, status, sigma, None, None, policy_inputs)
     except (OptimizationFailure, RuntimeError, ValueError) as exc:
         bar = point.decision_bar
         logger.warning("decision at %s failed (%s); holding.", bar, exc)
@@ -77,7 +78,7 @@ def decide_or_hold(
             asset_order, state.asset_weights, float(state.cash_weight)
         )
         status = getattr(exc, "status", "solver_error")
-        return DecideOrHoldResult(decision, status, None, exc_str, warning)
+        return DecideOrHoldResult(decision, status, None, exc_str, warning, None)
 
 
 def _make_warning(
@@ -309,6 +310,7 @@ def run_backtest(
     holding_costs: list[float] = []
 
     warnings_log: list[BacktestWarning] = []
+    invariance_drops: list[object] = []
 
     prev: datetime | None = None
     for bar in bars:
@@ -346,9 +348,11 @@ def run_backtest(
         if bar in points_by_bar:
             point = points_by_bar[bar]
             state = PortfolioState(asset_order, point.snapshot.prices_t, shares, cash)
-            decision, status, sigma, error_msg, warning = decide_or_hold(
+            decision, status, sigma, error_msg, warning, policy_inputs = decide_or_hold(
                 policy, inputs, state, point, asset_order
             )
+            if policy_inputs is not None:
+                invariance_drops.extend(getattr(policy_inputs, "invariance_drops", ()))
             if warning is not None:
                 warnings_log.append(warning)
             pending = (bar, decision, status, error_msg, sigma)
@@ -371,9 +375,5 @@ def run_backtest(
         warnings_log=warnings_log,
         holding_costs=np.array(holding_costs, dtype=float),
         periods_per_year=market.config.periods_per_year,
-        invariance_drops=tuple(
-            drop
-            for inputs_at_bar in inputs.values()
-            for drop in getattr(inputs_at_bar, "invariance_drops", ())
-        ),
+        invariance_drops=tuple(invariance_drops),
     )

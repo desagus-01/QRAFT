@@ -24,6 +24,7 @@ from qraft.backtest.selection.results import (
     PolicyParams,
     SelectionReport,
 )
+from qraft.backtest.selection.select import select_candidate
 
 _block_returns = candidate_block_returns
 
@@ -228,6 +229,39 @@ def test_trial_sharpes_infers_periods_per_year_from_candidate_dates() -> None:
     values = trial_sharpes([candidate], None)
 
     assert values == pytest.approx([2.0 / np.sqrt(252.0)])
+
+
+def test_selection_excludes_nan_scores() -> None:
+    flat = CandidateResult(
+        params=PolicyParams.of(risk_aversion=0.0),
+        summary=PerformanceSummary.from_backtest(
+            BacktestResult(
+                policy_name="flat",
+                asset_order=[],
+                nav_dates=DATES[:3],
+                nav=np.array([100.0, 100.0, 100.0]),
+                periods=[],
+                periods_per_year=252.0,
+            )
+        ),
+    )
+    losing = CandidateResult(
+        params=PolicyParams.of(risk_aversion=1.0),
+        summary=PerformanceSummary.from_backtest(
+            BacktestResult(
+                policy_name="losing",
+                asset_order=[],
+                nav_dates=DATES[:4],
+                nav=np.array([100.0, 99.0, 98.5, 98.0]),
+                periods=[],
+                periods_per_year=252.0,
+            )
+        ),
+    )
+
+    report = select_candidate([flat, losing], metric="sharpe")
+
+    assert report.selected_params == losing.params
 
 
 def _candidate_result(value: int, dates: list[datetime]) -> CandidateResult:

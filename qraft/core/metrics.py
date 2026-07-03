@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+import logging
 from typing import Literal
 
 import numpy as np
@@ -8,6 +9,8 @@ from numpy.lib.array_utils import normalize_axis_index
 from numpy.typing import NDArray
 
 from qraft.core.probability.prob_vector import ProbVector
+
+logger = logging.getLogger(__name__)
 
 
 def tail_cutoff(
@@ -131,10 +134,16 @@ def max_drawdown(nav: NDArray[np.floating]) -> float:
 def annualised_return(nav: NDArray[np.floating], periods_per_year: float) -> float:
     _validate_nav(nav)
     if len(nav) < 2:
-        return 0.0
+        logger.warning("annualised_return is NaN: NAV has fewer than 2 points.")
+        return float("nan")
     total_return = nav[-1] / nav[0]
     n_years = (len(nav) - 1) / periods_per_year
-    return float(total_return ** (1.0 / n_years) - 1.0) if n_years > 0 else 0.0
+    if n_years <= 0:
+        logger.warning(
+            "annualised_return is NaN: periods_per_year produced n_years<=0."
+        )
+        return float("nan")
+    return float(total_return ** (1.0 / n_years) - 1.0)
 
 
 def annualised_vol(
@@ -151,11 +160,13 @@ def per_period_sharpe(
     rf_per_period: float = 0.0,
 ) -> float:
     if returns.size < 2:
-        return 0.0
+        logger.warning("sharpe is NaN: fewer than 2 return observations.")
+        return float("nan")
     excess = returns - rf_per_period
     std = np.std(excess, ddof=1)
     if std == 0:
-        return 0.0
+        logger.warning("sharpe is NaN: excess returns have zero sample volatility.")
+        return float("nan")
     return float(np.mean(excess) / std)
 
 
@@ -173,19 +184,24 @@ def sortino(
     periods_per_year: float,
 ) -> float:
     if returns.size < 1:
-        return 0.0
+        logger.warning("sortino is NaN: no return observations.")
+        return float("nan")
     excess = returns - rf_per_period
     downside = np.minimum(excess, 0.0)
     downside_dev = np.sqrt(np.mean(np.square(downside)))
     if downside_dev == 0:
-        return 0.0
+        logger.warning("sortino is NaN: downside deviation is zero.")
+        return float("nan")
     return float(np.mean(excess) / downside_dev * np.sqrt(periods_per_year))
 
 
 def calmar(nav: NDArray[np.floating], periods_per_year: float) -> float:
     ann_ret = annualised_return(nav, periods_per_year)
     mdd = abs(max_drawdown(nav))
-    return ann_ret / mdd if mdd > 0 else 0.0
+    if mdd <= 0:
+        logger.warning("calmar is NaN: max drawdown is zero.")
+        return float("nan")
+    return ann_ret / mdd
 
 
 def _validate_nav(nav: NDArray[np.floating]) -> None:

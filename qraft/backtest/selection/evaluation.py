@@ -10,8 +10,8 @@ from qraft.backtest.selection.scoring import (
     Agg,
     Scorer,
     aggregate_scores,
+    finite_score_summary,
     returns_for_range,
-    score_summary,
     summary_from_returns,
 )
 from qraft.backtest.selection.splits import DateRange
@@ -55,7 +55,9 @@ class CandidateEvaluation:
                     self.risk_free_rate,
                 )
                 if summary is not None:
-                    window_scores.append(score_summary(summary, metric, scorer))
+                    score = finite_score_summary(summary, metric, scorer)
+                    if score is not None:
+                        window_scores.append(score)
             if window_scores:
                 scores[candidate.params] = aggregate_scores(window_scores, agg)
         return scores
@@ -65,8 +67,11 @@ class CandidateEvaluation:
         metric: SelectionMetric = "sharpe",
         scorer: Scorer | None = None,
     ) -> dict[PolicyParams, float]:
-        return {
-            candidate.params: score_summary(candidate.summary, metric, scorer)
-            for candidate in self.candidate_results
-            if candidate.failure is None and candidate.summary is not None
-        }
+        scores: dict[PolicyParams, float] = {}
+        for candidate in self.candidate_results:
+            if candidate.failure is not None or candidate.summary is None:
+                continue
+            score = finite_score_summary(candidate.summary, metric, scorer)
+            if score is not None:
+                scores[candidate.params] = score
+        return scores

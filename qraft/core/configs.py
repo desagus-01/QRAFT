@@ -40,8 +40,6 @@ class VolatilityModelConfig:
     max_q_order: int = 2
     candidate_distributions: tuple[GarchDist, ...] = ("t", "skewt")
 
-    # Admissibility constraints
-    max_persistence: float = 0.9999
     # Overflow guard for simulated GARCH variance. None disables the upper cap;
     # when set, cap = multiple * fitted unconditional variance.
     variance_overflow_cap_multiple: float | None = None
