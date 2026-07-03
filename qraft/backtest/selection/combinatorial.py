@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -25,12 +26,13 @@ from qraft.backtest.selection.evaluate import (
 from qraft.backtest.selection.evaluation import CandidateEvaluation
 from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.scoring import (
+    ScoreSpec,
     find_candidate,
     returns_for_range,
     score_candidate_ranges,
     summary_from_returns,
 )
-from qraft.backtest.selection.select import Scorer, select_candidate
+from qraft.backtest.selection.select import select_candidate
 from qraft.backtest.selection.splits import (
     CombinatorialFold,
     combinatorial_purged_folds,
@@ -38,10 +40,12 @@ from qraft.backtest.selection.splits import (
 from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.forecast.forecaster import Forecaster
+from qraft.utils.log import info_event
 from qraft.utils.backtest_viz import plot_combinatorial_report
 
 
 T = TypeVar("T")
+logger = logging.getLogger(__name__)
 
 
 def _assign_paths(
@@ -160,7 +164,7 @@ def combinatorial_purged(
     source: SelectionInputSource | None = None,
     cv_config: CombinatorialCVConfig,
     backtest_config: BacktestConfig = BacktestConfig(),
-    score: Scorer | None = None,
+    score: ScoreSpec | None = None,
 ) -> CombinatorialReport:
     """CPCV gamma-selection: run candidates once, select per combination, then
     recombine held-out test groups into a *distribution* of OOS paths.
@@ -174,8 +178,6 @@ def combinatorial_purged(
         grid,
         backtest_config,
         cv_config.cv_config.risk_free_rate,
-        metric=cv_config.cv_config.metric,
-        score=score,
         forecaster=forecaster,
         source=source,
         plan=plan,
@@ -191,7 +193,7 @@ def combinatorial_from_evaluation(
     evaluation: CandidateEvaluation,
     *,
     cv_config: CombinatorialCVConfig,
-    score: Scorer | None = None,
+    score: ScoreSpec | None = None,
 ) -> CombinatorialReport:
     candidate_results = evaluation.candidate_results
     backtest_config = evaluation.backtest_config
@@ -202,9 +204,20 @@ def combinatorial_from_evaluation(
         purge=cv_config.purge,
         embargo=cv_config.embargo,
     )
+    info_event(
+        logger,
+        "validation.combinatorial_started",
+        "Combinatorial validation started",
+        folds=len(folds),
+        candidates=len(candidate_results),
+        groups=cv_config.n_groups,
+        test_groups=cv_config.n_test_groups,
+        purge=cv_config.purge,
+        embargo=cv_config.embargo,
+    )
     fold_test_group_returns: list[dict[int, NDArray[np.floating] | None]] = []
     fold_selected_params: list[PolicyParams | None] = []
-    for fold in folds:
+    for fold_index, fold in enumerate(folds):
         train_scores = [
             score_candidate_ranges(
                 candidate_result,
@@ -216,9 +229,8 @@ def combinatorial_from_evaluation(
         ]
         selection = select_candidate(
             train_scores,
-            metric=cv_config.cv_config.metric,
             max_held_fraction=cv_config.cv_config.max_held_fraction,
-            score=score,
+            score=score if score is not None else cv_config.cv_config.metric,
         )
         fold_selected_params.append(selection.selected_params)
         winner = (
@@ -236,6 +248,14 @@ def combinatorial_from_evaluation(
             else:
                 test_group_returns[group_id] = None
         fold_test_group_returns.append(test_group_returns)
+        info_event(
+            logger,
+            "validation.fold_completed",
+            "Combinatorial fold completed",
+            fold=fold_index,
+            selected_params=selection.selected_params,
+            test_groups=tuple(fold.test_groups),
+        )
 
     paths = _assign_paths(
         cv_config.n_groups, cv_config.n_test_groups, fold_test_group_returns
@@ -268,6 +288,21 @@ def combinatorial_from_evaluation(
     n_trials, dsr, pbo_value = _diagnostics(
         candidate_results, valid, sharpes, cv_config, resolved_backtest_config
     )
+    selected_params = _most_common_params(
+        [p for p in fold_selected_params if p is not None]
+    )
+    info_event(
+        logger,
+        "validation.combinatorial_completed",
+        "Combinatorial validation completed",
+        folds=len(folds),
+        paths=len(summary_tuple),
+        trials=n_trials,
+        selected_params=selected_params,
+        median_sharpe=(f"{float(np.median(sharpes)):.3f}" if sharpes.size else None),
+        pbo=(f"{pbo_value:.3f}" if pbo_value is not None else None),
+        deflated_sharpe=(f"{dsr:.3f}" if dsr is not None else None),
+    )
     return CombinatorialReport(
         paths=summary_tuple,
         path_sharpes=sharpes,
@@ -279,9 +314,7 @@ def combinatorial_from_evaluation(
         evaluation=evaluation,
         folds=tuple(folds),
         path_returns=tuple(r for r, _ in valid),
-        selected_params=_most_common_params(
-            [p for p in fold_selected_params if p is not None]
-        ),
+        selected_params=selected_params,
         fold_selected_params=tuple(fold_selected_params),
         pbo=pbo_value,
         deflated_sharpe=dsr,

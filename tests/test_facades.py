@@ -112,7 +112,9 @@ def test_validation_runs_explicit_reports(monkeypatch):
         seen["walk"] = cfg
         return _FakeWalkReport()
 
-    def fake_combinatorial(self, cfg):
+    def fake_combinatorial(self, cfg=None):
+        if cfg is None:
+            cfg = CombinatorialCVConfig()
         seen["cpcv"] = cfg
         return _FakeCpcvReport()
 
@@ -234,7 +236,7 @@ def test_validation_tune_returns_result_with_report() -> None:
 
     result = SelectionValidation(
         _market(), policy, {}, source={}, plan=InputPlan()
-    ).tune(report, cfg=WalkForwardConfig(), metric="total_return")
+    ).tune(report, cfg=WalkForwardConfig(), score="total_return")
 
     assert result.report is report
     assert result.selected_params == params

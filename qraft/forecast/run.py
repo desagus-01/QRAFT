@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Literal, Mapping
@@ -21,6 +22,10 @@ from qraft.forecast.pipelines.fitted_universe import (
     mark_frequent_variance_cap_binding,
 )
 from qraft.forecast.pipelines.forecasting import forecast_from_fit
+from qraft.utils.log import info_event
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,8 +140,18 @@ def build_forecast_recipe_history_from_snapshots(
     last_universe: tuple[str, ...] | None = None
     current_period: RecipePeriod | None = None
     periods: list[RecipePeriod] = []
+    snapshot_list = list(snapshots)
 
-    for step, snapshot in enumerate(snapshots):
+    info_event(
+        logger,
+        "forecast.recipe_build_started",
+        "Forecast recipe history build started",
+        snapshots=len(snapshot_list),
+        refit_every=refit_every,
+        reselect_on_universe_change=reselect_on_universe_change,
+    )
+
+    for step, snapshot in enumerate(snapshot_list):
         universe_key = tuple(snapshot.universe.all_tickers)
         universe_changed = universe_key != last_universe
         rebuild_recipe = (
@@ -147,6 +162,14 @@ def build_forecast_recipe_history_from_snapshots(
         if not rebuild_recipe:
             last_universe = universe_key
             continue
+
+        reason = (
+            "initial"
+            if recipe is None
+            else "universe_changed"
+            if reselect_on_universe_change and universe_changed
+            else "refit_every"
+        )
 
         panel = snapshot.history
         recipe = create_forecast_recipe(
@@ -176,7 +199,25 @@ def build_forecast_recipe_history_from_snapshots(
         )
         periods.append(current_period)
         last_universe = universe_key
+        info_event(
+            logger,
+            "forecast.recipe_selected",
+            "Forecast recipe selected",
+            step=step,
+            as_of=snapshot.as_of,
+            reason=reason,
+            assets=len(snapshot.universe.assets),
+            factors=len(snapshot.universe.factors),
+            history_rows=panel.values.height,
+        )
 
+    info_event(
+        logger,
+        "forecast.recipe_build_completed",
+        "Forecast recipe history build completed",
+        snapshots=len(snapshot_list),
+        periods=len(periods),
+    )
     return ForecastRecipeHistory(tuple(periods), pipeline_config=pipeline_config)
 
 
@@ -189,8 +230,20 @@ def simulate_forecast_paths_from_snapshots(
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
 ) -> ForecastRun:
     steps: list[ForecastStep] = []
+    snapshot_list = list(snapshots)
 
-    for step, snapshot in enumerate(snapshots):
+    info_event(
+        logger,
+        "forecast.run_started",
+        "Forecast run started",
+        snapshots=len(snapshot_list),
+        recipe_periods=len(recipe_history.periods),
+        horizon=simulation_config.horizon,
+        simulations=simulation_config.n_sims,
+        method=simulation_config.method,
+    )
+
+    for step, snapshot in enumerate(snapshot_list):
         period_index, period = recipe_history.period_at(snapshot.as_of)
         panel = snapshot.history
         data = panel.to_frame()
@@ -211,21 +264,41 @@ def simulate_forecast_paths_from_snapshots(
             )
         else:
             diagnostics = None
+        action = (
+            "selected_recipe" if period.start == snapshot.as_of else "applied_recipe"
+        )
         steps.append(
             ForecastStep(
                 as_of=snapshot.as_of,
                 recipe_period_index=period_index,
                 forecast=forecast,
-                action=(
-                    "selected_recipe"
-                    if period.start == snapshot.as_of
-                    else "applied_recipe"
-                ),
+                action=action,
                 diagnostics=diagnostics,
                 invariance_drops=period.invariance_drops,
             )
         )
+        info_event(
+            logger,
+            "forecast.recipe_applied",
+            "Forecast recipe applied",
+            step=step,
+            as_of=snapshot.as_of,
+            recipe_period=period_index,
+            action=action,
+            forecast_assets=(
+                len(forecast.universe.all_tickers)
+                if hasattr(forecast, "universe")
+                else None
+            ),
+        )
 
+    info_event(
+        logger,
+        "forecast.completed",
+        "Forecast run completed",
+        steps=len(steps),
+        recipe_periods=len(recipe_history.periods),
+    )
     return ForecastRun(recipe_history=recipe_history, steps=tuple(steps))
 
 

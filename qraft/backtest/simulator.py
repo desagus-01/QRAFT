@@ -26,6 +26,7 @@ from qraft.construction.state import PortfolioState
 from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecaster import Forecaster, ForecastSource
+from qraft.utils.log import info_event, warning_event
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,14 @@ def decide_or_hold(
         return DecideOrHoldResult(decision, status, sigma, None, None, policy_inputs)
     except (OptimizationFailure, RuntimeError, ValueError) as exc:
         bar = point.decision_bar
-        logger.warning("decision at %s failed (%s); holding.", bar, exc)
+        warning_event(
+            logger,
+            "backtest.decision_failed",
+            "Decision failed; holding current weights",
+            decision_bar=bar,
+            exception_type=type(exc).__name__,
+            exception=str(exc),
+        )
         logger.debug(
             "Traceback for failed decision at %s:\n%s", bar, traceback.format_exc()
         )
@@ -275,8 +283,17 @@ def precompute_inputs(
             plan=plan,
             policy=policy,
             dtype=dtype,
+            market=market,
         )
-    logger.info("precompute_inputs: cached %d decision date(s)", len(table))
+    info_event(
+        logger,
+        "policy_inputs.completed",
+        "Policy inputs precomputed",
+        decisions=len(table),
+        source_type=type(source).__name__
+        if source is not None
+        else type(forecaster).__name__,
+    )
     return table
 
 
@@ -308,6 +325,18 @@ def run_backtest(
     nav_dates: list[datetime] = []
     nav: list[float] = []
     holding_costs: list[float] = []
+
+    info_event(
+        logger,
+        "backtest.started",
+        "Backtest started",
+        policy=policy.name,
+        bars=len(bars),
+        assets=len(asset_order),
+        decisions=len(points),
+        warmup=warmup,
+        initial_cash=initial_cash,
+    )
 
     warnings_log: list[BacktestWarning] = []
     invariance_drops: list[object] = []
@@ -363,8 +392,29 @@ def run_backtest(
 
     if warmup and not periods:
         msg = f"No decisions: history never reached policy.min_history={warmup}."
-        logger.warning(msg)
+        warning_event(logger, "backtest.no_decisions", msg, warmup=warmup)
         warnings_log.append(_make_warning(message=msg))
+
+    initial_nav = nav[0] if nav else initial_cash
+    final_nav = nav[-1] if nav else initial_cash
+    decision_failures = sum(
+        1 for period in periods if period.decision_error is not None
+    )
+    held_decisions = sum(1 for period in periods if period.decision.hold)
+
+    info_event(
+        logger,
+        "backtest.completed",
+        "Backtest completed",
+        policy=policy.name,
+        bars=len(nav),
+        periods=len(periods),
+        warnings=len(warnings_log),
+        decision_failures=decision_failures,
+        held_decisions=held_decisions,
+        final_nav=f"{final_nav:.6g}",
+        total_return=f"{(final_nav / initial_nav - 1.0):.6g}" if initial_nav else "nan",
+    )
 
     return BacktestResult(
         policy_name=policy.name,

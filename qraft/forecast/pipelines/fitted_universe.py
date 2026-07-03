@@ -178,7 +178,7 @@ class FittedUniverse:
                 f"does not match number of assets ({len(self.assets)})"
             )
 
-        logger.info("Simulating asset paths for %d assets", len(self.assets))
+        logger.debug("Simulating asset paths for %d assets", len(self.assets))
 
         paths: dict[str, NDArray[np.floating]] = {}
         for i, asset in enumerate(self.assets):
@@ -206,7 +206,7 @@ def create_forecast_recipe(
         preprocess_config=pipeline_config.preprocess,
         seed=seed,
     )
-    logger.info(
+    logger.debug(
         "Preprocessing complete: post_data_shape=%s assets_to_model=%s",
         preprocess.post_data.shape,
         preprocess.needs_further_modelling,
@@ -217,7 +217,7 @@ def create_forecast_recipe(
         assets_to_model=preprocess.needs_further_modelling,
         pipeline_config=pipeline_config,
     )
-    logger.info(
+    logger.debug(
         "Univariate model selection complete for %d assets",
         len(preprocess.needs_further_modelling),
     )
@@ -572,7 +572,7 @@ def _build_invariants_panel(
     Each column holds the invariant (innovation) series for one asset, with
     nulls preserved where the underlying post-processed series was null.
     """
-    logger.info("Building invariants panel for assets=%s", assets)
+    logger.debug("Building invariants panel for assets=%s", assets)
 
     base = post.select("date")
     patches: list[pl.DataFrame] = []
@@ -604,7 +604,7 @@ def _build_invariants_panel(
                 "After left-join: %d new nulls introduced across all columns", new_nans
             )
 
-    logger.info("Invariants shape=%s", innovations_df.shape)
+    logger.debug("Invariants shape=%s", innovations_df.shape)
     logger.debug(
         "Total nulls in innovations_df: %s",
         innovations_df.select(pl.all().is_null().sum()).row(0),

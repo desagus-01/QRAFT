@@ -18,6 +18,7 @@ from qraft.core.configs import SelectionMetric
 
 Agg = Literal["mean", "median"]
 Scorer = Callable[[PerformanceSummary], float]
+ScoreSpec = SelectionMetric | Scorer
 
 _LOWER_IS_BETTER: frozenset[SelectionMetric] = frozenset({"cvar"})
 logger = logging.getLogger(__name__)
@@ -25,26 +26,34 @@ logger = logging.getLogger(__name__)
 
 def score_summary(
     summary: PerformanceSummary,
-    metric: SelectionMetric,
-    scorer: Scorer | None = None,
+    score: ScoreSpec = "sharpe",
 ) -> float:
     """Signed score so the best candidate is always the maximum."""
-    if scorer is not None:
-        return float(scorer(summary))
-    value = float(getattr(summary, metric))
-    return -value if metric in _LOWER_IS_BETTER else value
+    if callable(score):
+        return float(score(summary))
+    value = float(getattr(summary, score))
+    return -value if score in _LOWER_IS_BETTER else value
 
 
 def finite_score_summary(
     summary: PerformanceSummary,
-    metric: SelectionMetric,
-    scorer: Scorer | None = None,
+    score: ScoreSpec = "sharpe",
 ) -> float | None:
-    score = score_summary(summary, metric, scorer)
-    if np.isfinite(score):
-        return score
-    logger.warning("Excluding non-finite selection score for metric=%s", metric)
+    value = score_summary(summary, score)
+    if np.isfinite(value):
+        return value
+    logger.warning(
+        "Excluding non-finite selection score for score=%s", _score_name(score)
+    )
     return None
+
+
+def score_name(score: ScoreSpec) -> str:
+    return _score_name(score)
+
+
+def _score_name(score: ScoreSpec) -> str:
+    return getattr(score, "__name__", "custom") if callable(score) else score
 
 
 def aggregate_scores(scores: Sequence[float], agg: Agg) -> float:

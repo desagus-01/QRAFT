@@ -12,7 +12,6 @@ from polars import DataFrame
 from qraft.core.panel import DatetimeSeries, ScenarioPanel, normalize_datetime_series
 from qraft.core.probability.prob_vector import ProbVector, as_prob_vector
 from qraft.core.universe import AssetSubset, AssetUniverse
-from qraft.utils.visuals import plot_simulation_results
 
 if TYPE_CHECKING:
     from qraft.forecast.pipelines.fitted_universe import FittedUniverse
@@ -145,6 +144,8 @@ class ForecastPaths:
         raise ValueError(f"Unknown subset: {subset}")
 
     def plot_asset_paths(self) -> None:
+        from qraft.utils.visuals import plot_simulation_results
+
         for asset, path in self.tradable_paths.items():
             plot_simulation_results(path, title=asset)
 

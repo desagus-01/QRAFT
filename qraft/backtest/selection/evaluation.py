@@ -8,14 +8,13 @@ from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.scoring import (
     Agg,
-    Scorer,
+    ScoreSpec,
     aggregate_scores,
     finite_score_summary,
     returns_for_range,
     summary_from_returns,
 )
 from qraft.backtest.selection.splits import DateRange
-from qraft.core.configs import SelectionMetric
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,8 +22,8 @@ class CandidateEvaluation:
     """Full-grid backtest artifact reused by reports and tuning.
 
     Stores only what the grid backtest actually needs (raw results + config).
-    Scoring parameters (metric, scorer) are supplied at query time so the
-    same artifact serves every metric without cache invalidation.
+    Scoring parameters are supplied at query time so the same artifact serves
+    every metric or custom scorer without cache invalidation.
     """
 
     candidate_results: tuple[CandidateResult, ...]
@@ -35,8 +34,7 @@ class CandidateEvaluation:
     def oos_scores(
         self,
         windows_per_candidate: Mapping[PolicyParams, Sequence[DateRange]],
-        metric: SelectionMetric = "sharpe",
-        scorer: Scorer | None = None,
+        score: ScoreSpec = "sharpe",
         agg: Agg = "mean",
     ) -> dict[PolicyParams, float]:
         scores: dict[PolicyParams, float] = {}
@@ -55,23 +53,22 @@ class CandidateEvaluation:
                     self.risk_free_rate,
                 )
                 if summary is not None:
-                    score = finite_score_summary(summary, metric, scorer)
-                    if score is not None:
-                        window_scores.append(score)
+                    value = finite_score_summary(summary, score)
+                    if value is not None:
+                        window_scores.append(value)
             if window_scores:
                 scores[candidate.params] = aggregate_scores(window_scores, agg)
         return scores
 
     def full_sample_scores(
         self,
-        metric: SelectionMetric = "sharpe",
-        scorer: Scorer | None = None,
+        score: ScoreSpec = "sharpe",
     ) -> dict[PolicyParams, float]:
         scores: dict[PolicyParams, float] = {}
         for candidate in self.candidate_results:
             if candidate.failure is not None or candidate.summary is None:
                 continue
-            score = finite_score_summary(candidate.summary, metric, scorer)
-            if score is not None:
-                scores[candidate.params] = score
+            value = finite_score_summary(candidate.summary, score)
+            if value is not None:
+                scores[candidate.params] = value
         return scores

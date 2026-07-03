@@ -22,6 +22,7 @@ from qraft.construction.optimization.objectives.specs import (
     CVaRCuttingPlane,
     ObjectiveSpec,
 )
+from qraft.utils.log import debug_event, warning_event
 
 logger = logging.getLogger(__name__)
 
@@ -415,8 +416,11 @@ class MultiPeriodOptimizer:
         if raise_on_failure:
             raise RuntimeError(message)
 
-        logger.warning(
-            "MPO solve non-optimal: status=%s (returning MPOFailure)", status
+        warning_event(
+            logger,
+            "optimization.failed",
+            "MPO solve returned non-optimal status",
+            status=status,
         )
         return MPOFailure(
             status=status,
@@ -433,7 +437,13 @@ class MultiPeriodOptimizer:
             raise exc
 
         message = f"Optimization failed: solver_error ({exc})"
-        logger.warning("MPO solve solver_error (returning MPOFailure): %s", exc)
+        warning_event(
+            logger,
+            "optimization.failed",
+            "MPO solve raised solver error",
+            status="solver_error",
+            exception=str(exc),
+        )
         return MPOFailure(
             status="solver_error",
             solver_stats=self.problem.solver_stats,
@@ -522,14 +532,15 @@ class MultiPeriodOptimizer:
             initial_cash=initial_cash,
             objective_value=float(objective_value),
         )
-        logger.info(
-            "MPO solve complete: status=%s objective=%.6f turnover=%.4f "
-            "n_assets=%d n_horizons=%d",
-            result.status,
-            result.objective_value,
-            result.turnover,
-            len(result.assets),
-            result.n_horizons,
+        debug_event(
+            logger,
+            "optimization.completed",
+            "MPO solve completed",
+            status=result.status,
+            objective=f"{result.objective_value:.6f}",
+            turnover=f"{result.turnover:.4f}",
+            assets=len(result.assets),
+            horizons=result.n_horizons,
         )
         return result
 
@@ -611,11 +622,12 @@ class MultiPeriodOptimizer:
                 sum(term_params.get("cut_count", [0]))
                 for _, term_params in cutting_plane_terms
             )
-            logger.warning(
-                "CVaR cutting-plane did not converge in %d iterations "
-                "(%d total cuts placed).",
-                max_iter,
-                total_cuts,
+            warning_event(
+                logger,
+                "optimization.nonconverged",
+                "CVaR cutting-plane did not converge",
+                max_iter=max_iter,
+                total_cuts=total_cuts,
             )
             message = (
                 "Optimization failed: cvar_cutting_plane_nonconverged "
@@ -641,14 +653,15 @@ class MultiPeriodOptimizer:
             initial_cash=initial_cash,
             objective_value=float(objective_value),
         )
-        logger.info(
-            "MPO cutting-plane solve complete: status=%s objective=%.6f "
-            "iterations=%d turnover=%.4f n_assets=%d n_horizons=%d",
-            result.status,
-            result.objective_value,
-            iteration + 1,
-            result.turnover,
-            len(result.assets),
-            result.n_horizons,
+        debug_event(
+            logger,
+            "optimization.completed",
+            "MPO cutting-plane solve completed",
+            status=result.status,
+            objective=f"{result.objective_value:.6f}",
+            iterations=iteration + 1,
+            turnover=f"{result.turnover:.4f}",
+            assets=len(result.assets),
+            horizons=result.n_horizons,
         )
         return result

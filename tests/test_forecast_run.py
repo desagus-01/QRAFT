@@ -3,6 +3,7 @@ from datetime import datetime
 import polars as pl
 
 from qraft.core.market import MarketData
+from qraft.core.schedule import RebalanceSchedule
 from qraft.core.universe import AssetUniverse
 from qraft.forecast.run import (
     ForecastRecipeHistory,
@@ -10,6 +11,22 @@ from qraft.forecast.run import (
     build_forecast_recipe_history,
     simulate_forecast_paths,
 )
+
+
+def _forecast_paths(universe: AssetUniverse | None = None):
+    import numpy as np
+
+    from qraft.forecast.forecast_paths import ForecastPaths
+
+    if universe is None:
+        universe = AssetUniverse.factors_free(["A"])
+    return ForecastPaths(
+        asset_paths={"A": np.array([[15.0], [16.0]])},
+        dates=pl.Series("date", [datetime(2024, 1, 7)]),
+        path_probs=np.array([0.5, 0.5]),
+        initial_prices={"A": 14.0},
+        universe=universe,
+    )
 
 
 def _market(universe: AssetUniverse | None = None) -> MarketData:
@@ -175,3 +192,41 @@ def test_forecast_package_does_not_import_backtest_or_construction():
                     continue
                 assert not node.module.startswith("qraft.backtest")
                 assert not node.module.startswith("qraft.construction")
+
+
+def test_policy_input_precompute_refits_recipes_on_market_bars(monkeypatch):
+    from qraft.backtest.simulator import precompute_inputs
+    from qraft.construction.optimization.inputs import InputPlan
+    from qraft.forecast.forecaster import Forecaster
+
+    selected_steps: list[int] = []
+
+    def create_forecast_recipe(**kwargs):
+        selected_steps.append(kwargs["data"].height)
+        return object()
+
+    def apply_forecast_recipe(*args, **kwargs):
+        return object()
+
+    def forecast_from_fit(**kwargs):
+        return _forecast_paths()
+
+    monkeypatch.setattr(
+        "qraft.forecast.run.create_forecast_recipe", create_forecast_recipe
+    )
+    monkeypatch.setattr(
+        "qraft.forecast.run.apply_forecast_recipe", apply_forecast_recipe
+    )
+    monkeypatch.setattr("qraft.forecast.run.forecast_from_fit", forecast_from_fit)
+
+    market = _market()
+    table = precompute_inputs(
+        market,
+        schedule=RebalanceSchedule("every_bar"),
+        warmup=2,
+        source=Forecaster(refit_every=2),
+        plan=InputPlan(expected_returns="forecast", risk="cvar"),
+    )
+
+    assert selected_steps == [2, 4]
+    assert len(table) == 4

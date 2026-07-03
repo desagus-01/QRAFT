@@ -22,8 +22,8 @@ from qraft.backtest.selection.evaluate import (
 )
 from qraft.backtest.selection.evaluation import CandidateEvaluation
 from qraft.backtest.selection.results import CandidateResult, PolicyParams
-from qraft.backtest.selection.scoring import Agg
-from qraft.backtest.selection.select import Scorer, _conservatism, _eligible
+from qraft.backtest.selection.scoring import Agg, ScoreSpec
+from qraft.backtest.selection.select import _conservatism, _eligible
 from qraft.backtest.selection.splits import DateRange
 from qraft.backtest.selection.walkforward import (
     WalkForwardReport,
@@ -58,7 +58,7 @@ class Validation:
     source: SelectionInputSource
     plan: InputPlan
     backtest_config: BacktestConfig = field(default_factory=BacktestConfig)
-    score: Scorer | None = None
+    score: ScoreSpec | None = None
     _evaluation_cache: dict[tuple[Any, ...], CandidateEvaluation] = field(
         default_factory=dict, init=False, compare=False, repr=False
     )
@@ -90,16 +90,13 @@ class Validation:
         report: ValidationReport,
         *,
         cfg: WalkForwardConfig | CombinatorialCVConfig | None = None,
-        metric: SelectionMetric | None = None,
-        scorer: Scorer | None = None,
+        score: ScoreSpec | None = None,
         agg: Agg = "mean",
     ) -> ValidationResult:
         if cfg is None:
             cfg = _default_config_for_report(report)
-        if metric is None:
-            metric = _config_metric(cfg)
-        if scorer is None:
-            scorer = self.score
+        if score is None:
+            score = self.score if self.score is not None else _config_metric(cfg)
         if isinstance(report, WalkForwardReport):
             if not isinstance(cfg, WalkForwardConfig):
                 raise TypeError("cfg must be WalkForwardConfig for WalkForwardReport")
@@ -111,9 +108,7 @@ class Validation:
                 params = fold_result.selection.selected_params
                 if params is not None:
                     windows.setdefault(params, []).append(fold_result.fold.test)
-            scores = evaluation.oos_scores(
-                windows, metric=metric, scorer=scorer, agg=agg
-            )
+            scores = evaluation.oos_scores(windows, score=score, agg=agg)
             candidates = evaluation.candidate_results
         elif isinstance(report, CombinatorialReport):
             if not isinstance(cfg, CombinatorialCVConfig):
@@ -127,9 +122,7 @@ class Validation:
             for fold, params in zip(report.folds, report.fold_selected_params):
                 if params is not None:
                     windows.setdefault(params, []).extend(fold.test)
-            scores = evaluation.oos_scores(
-                windows, metric=metric, scorer=scorer, agg=agg
-            )
+            scores = evaluation.oos_scores(windows, score=score, agg=agg)
             candidates = evaluation.candidate_results
         else:
             raise TypeError(

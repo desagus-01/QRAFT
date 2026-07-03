@@ -20,14 +20,14 @@ from qraft import (
     Views,
     setup_logging,
 )
-from qraft.construction import FullyInvested, LongOnly, MinCashWeight
+from qraft.construction import FullyInvested, LongOnly, MinCashWeight, TurnoverLimit
 from qraft.construction.policies.allocation import Allocation
 from qraft.core.scenarios.view_types import RankingView
 from qraft.core.schedule import RebalanceSchedule
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
-setup_logging(LogConfig(level=logging.WARN))
+setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # Data and causal market setup.
@@ -60,8 +60,8 @@ market = MarketData.from_log_prices(
     prices,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=45),
-).with_view_events((prices["date"][-120], views))
+    history_weighting=HistoryWeighting("state_smooth", half_life=60),
+)
 
 
 # %%
@@ -86,6 +86,7 @@ base_policy = MPOPolicy.preset(
         LongOnly(),
         FullyInvested(constraint_type="soft", soft_weight=1.0),
         MinCashWeight(limit=0.10),
+        TurnoverLimit(limit=0.15, constraint_type="soft", soft_weight=2.0),
     ),
     min_history=252,
     name="cvar_template",
@@ -105,13 +106,18 @@ val = Validation(
 
 
 # %%
-report = val.walk_forward()
-tuned = val.tune(report, metric="sortino")
+report = val.combinatorial()
+# %%
+tuned = val.tune(report, score="sortino")
+# tuned = val.tune(report, score="sharpe")
 policy = tuned.selected_policy
+tuned.selected_params
+
 # %%
 live = Allocation(market, policy, source=forecaster, plan=plan)
 run = live.at()
 risk = live.risk()
 
+run.projection.plot()
 # %%
 risk.effective_bets().plot()

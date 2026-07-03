@@ -349,7 +349,7 @@ def mean_modelling_pipeline(
                 array, asset_name=asset, cfg=mean_model_config, audit=audit
             )
             asset_mean_model_res[asset] = res
-            logger.info(
+            logger.debug(
                 "Selected mean model for %s: %s", asset, _describe_mean_model(res)
             )
         else:
@@ -366,7 +366,7 @@ def mean_modelling_pipeline(
                 residual_scale=scale,
             )
             asset_mean_model_res[asset] = res
-            logger.info(
+            logger.debug(
                 "Selected mean model for %s: %s", asset, _describe_mean_model(res)
             )
 
@@ -385,7 +385,7 @@ def volatility_modelling_pipeline(
     if cfg is None:
         cfg = VolatilityModelConfig()
     assets_needing_garch = needs_volatility_modelling(mean_model_res, cfg=cfg)
-    logger.info("Assets needing volatility modelling: %s", assets_needing_garch)
+    logger.debug("Assets needing volatility modelling: %s", assets_needing_garch)
 
     asset_vol_model_res: dict[str, AutoGARCHRes] = {}
     vol_audits: dict[str, SelectionAudit] = {}
@@ -398,7 +398,7 @@ def volatility_modelling_pipeline(
         if res is not None:
             asset_vol_model_res[asset] = res
         vol_audits[asset] = audit
-        logger.info(
+        logger.debug(
             "Selected volatility model for %s: %s", asset, _describe_vol_model(res)
         )
 
@@ -448,7 +448,7 @@ def run_univariate_pipeline(
             volatility_res=volatility_modelling.get(asset),
             quality=quality,
         )
-        logger.info(
+        logger.debug(
             "Final univariate result for %s: %s",
             asset,
             describe_univariate_result(asset_model[asset]),

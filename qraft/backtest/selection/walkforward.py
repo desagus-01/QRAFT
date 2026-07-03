@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -27,15 +28,23 @@ from qraft.backtest.selection.results import (
     CandidateResult,
     SelectionReport,
 )
-from qraft.backtest.selection.scoring import find_candidate, score_candidate_range
-from qraft.backtest.selection.select import Scorer, select_candidate
+from qraft.backtest.selection.scoring import (
+    ScoreSpec,
+    find_candidate,
+    score_candidate_range,
+)
+from qraft.backtest.selection.select import select_candidate
 from qraft.backtest.selection.splits import Fold, walk_forward_folds
 from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.core import metrics
 from qraft.backtest.configs import BacktestConfig, WalkForwardConfig
 from qraft.forecast.forecaster import Forecaster
+from qraft.utils.log import info_event
 from qraft.utils.backtest_viz import plot_walk_forward_report
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,7 +253,7 @@ def walk_forward(
     source: SelectionInputSource | None = None,
     walk_config: WalkForwardConfig,
     backtest_config: BacktestConfig = BacktestConfig(),
-    score: Scorer | None = None,
+    score: ScoreSpec | None = None,
 ) -> WalkForwardReport:
     """Walk-forward gamma-selection: run candidates once, then per fold select on
     the train window and score the choice on the held-out test window.
@@ -259,8 +268,6 @@ def walk_forward(
         grid,
         backtest_config,
         walk_config.risk_free_rate,
-        metric=walk_config.metric,
-        score=score,
         forecaster=forecaster,
         source=source,
         plan=plan,
@@ -276,7 +283,7 @@ def walk_forward_from_evaluation(
     evaluation: CandidateEvaluation,
     *,
     walk_config: WalkForwardConfig,
-    score: Scorer | None = None,
+    score: ScoreSpec | None = None,
 ) -> WalkForwardReport:
     full = evaluation.candidate_results
     backtest_config = evaluation.backtest_config
@@ -287,6 +294,16 @@ def walk_forward_from_evaluation(
         test_size=walk_config.test_size,
         step=walk_config.fold_step,
         embargo=walk_config.embargo,
+        anchored=walk_config.anchored,
+    )
+    info_event(
+        logger,
+        "validation.walk_forward_started",
+        "Walk-forward validation started",
+        folds=len(folds),
+        candidates=len(full),
+        train_size=walk_config.train_size,
+        test_size=walk_config.test_size,
         anchored=walk_config.anchored,
     )
     fold_results, oos_returns, oos_dates = _run_folds(
@@ -314,6 +331,16 @@ def walk_forward_from_evaluation(
         full, oos_returns, walk_config, resolved_backtest_config
     )
 
+    info_event(
+        logger,
+        "validation.walk_forward_completed",
+        "Walk-forward validation completed",
+        folds=len(fold_results),
+        trials=n_trials,
+        oos_sharpe=(f"{summary.sharpe:.3f}" if summary is not None else None),
+        pbo=(f"{pbo_value:.3f}" if pbo_value is not None else None),
+        deflated_sharpe=(f"{dsr:.3f}" if dsr is not None else None),
+    )
     return WalkForwardReport(
         folds=tuple(fold_results),
         oos_summary=summary,
@@ -331,7 +358,7 @@ def _select_fold_candidate(
     fold: Fold,
     walk_config: WalkForwardConfig,
     backtest_config: BacktestConfig,
-    score: Scorer | None,
+    score: ScoreSpec | None,
 ) -> SelectionReport:
     train_scores = [
         score_candidate_range(
@@ -344,9 +371,8 @@ def _select_fold_candidate(
     ]
     return select_candidate(
         train_scores,
-        metric=walk_config.metric,
         max_held_fraction=walk_config.max_held_fraction,
-        score=score,
+        score=score if score is not None else walk_config.metric,
     )
 
 
@@ -379,12 +405,12 @@ def _run_folds(
     folds: Sequence[Fold],
     walk_config: WalkForwardConfig,
     backtest_config: BacktestConfig,
-    score: Scorer | None,
+    score: ScoreSpec | None,
 ) -> tuple[list[FoldResult], list[NDArray[np.floating]], list[datetime]]:
     fold_results: list[FoldResult] = []
     oos_returns: list[NDArray[np.floating]] = []
     oos_dates: list[datetime] = []
-    for fold in folds:
+    for fold_index, fold in enumerate(folds):
         selection = _select_fold_candidate(
             full, fold, walk_config, backtest_config, score
         )
@@ -395,6 +421,18 @@ def _run_folds(
             oos_returns.append(rets)
             oos_dates.extend(dates)
         fold_results.append(FoldResult(fold, selection, oos_summary))
+        info_event(
+            logger,
+            "validation.fold_completed",
+            "Walk-forward fold completed",
+            fold=fold_index,
+            selected_params=selection.selected_params,
+            test_sharpe=(
+                f"{oos_summary.sharpe:.3f}" if oos_summary is not None else None
+            ),
+            test_start=fold.test[0],
+            test_end=fold.test[1],
+        )
     return fold_results, oos_returns, oos_dates
 
 

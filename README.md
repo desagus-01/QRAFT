@@ -40,3 +40,43 @@ Portfolio-level risk is computed from the simulated loss distribution, supportin
 - [ ] Block resampling to better preserve return dynamics
 - [ ] Expand test coverage across pipeline and simulation entry points
 
+---
+
+## Logging
+
+QRAFT uses standard Python logging with project-level event helpers. The default `INFO` output is intended to show lifecycle milestones without flooding notebooks or validation runs.
+
+```python
+import logging
+
+from qraft import LogConfig, setup_logging
+
+setup_logging(LogConfig(level=logging.INFO))
+```
+
+Recommended modes:
+
+- Research default: `LogConfig(level=logging.INFO)`
+- Quiet notebooks: `LogConfig(level=logging.WARNING)`
+- Debug one run: `LogConfig(level=logging.DEBUG)`
+- Quiet console with detailed file logs: `LogConfig(level=logging.DEBUG, console_level=logging.WARNING, file_level=logging.DEBUG, log_file="qraft.log")`
+
+Level policy:
+
+- `DEBUG`: repeated internals such as per-asset model choices, simulation shapes, optimizer success details, and candidate success details.
+- `INFO`: major lifecycle events such as backtest start/end, validation start/end, fold summaries, forecast recipe selection, and policy input construction.
+- `WARNING`: recoverable degradations that may affect output quality, including solver failures, held decisions, dropped forecast assets, and non-convergence.
+- `ERROR`: invalid states or failures that prevent a valid result.
+
+Core event names:
+
+- Backtest: `backtest.started`, `backtest.completed`, `backtest.decision_failed`, `backtest.no_decisions`
+- Policy inputs and allocation: `policy_inputs.started`, `policy_inputs.completed`, `optimization.completed`, `optimization.failed`, `optimization.nonconverged`
+- Validation: `validation.started`, `validation.candidates_precomputed`, `validation.candidate_completed`, `validation.candidate_failed`, `validation.fold_completed`, `validation.completed`, `validation.walk_forward_started`, `validation.walk_forward_completed`, `validation.combinatorial_started`, `validation.combinatorial_completed`
+- Forecasting: `forecast.recipe_build_started`, `forecast.recipe_selected`, `forecast.recipe_build_completed`, `forecast.run_started`, `forecast.recipe_applied`, `forecast.completed`, `forecast.asset_dropped`
+
+Each event stores structured context on the log record as `qraft_context`. By default that context is appended to the message. To keep messages compact while preserving structured context for handlers/tests, use:
+
+```python
+setup_logging(LogConfig(level=logging.INFO, include_context=False))
+```

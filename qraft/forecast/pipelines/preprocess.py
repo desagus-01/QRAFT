@@ -150,7 +150,7 @@ def run_univariate_preprocess(
     if assets is None:
         assets = get_assets_names(df=data, assets=assets)
 
-    logger.info(
+    logger.debug(
         "Starting univariate preprocess: rows=%d assets=%s",
         data.height,
         assets,
@@ -213,7 +213,7 @@ def run_univariate_preprocess(
         suffix="_deseason",
     )
 
-    logger.info("Finished univariate preprocess: inverse_specs=%s", inverse_specs)
+    logger.debug("Finished univariate preprocess: inverse_specs=%s", inverse_specs)
 
     return UnivariatePreprocess(
         post_data=final,

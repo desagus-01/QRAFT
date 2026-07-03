@@ -24,6 +24,7 @@ from qraft.forecast.pipelines.fitted_universe import (
     create_forecast_recipe,
 )
 from qraft.forecast.time_series.transforms.inverses import apply_inverse_transforms
+from qraft.utils.log import warning_event
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ def draw_innovations(
 
     assets = invariants.asset_names
 
-    logger.info(
+    logger.debug(
         "Drawing innovations with method=%s, horizon=%d, n_sims=%d, assets=%s",
         method,
         horizon,
@@ -78,20 +79,20 @@ def draw_innovations(
             seed=seed, cfg=cma_config, use_weighted_fit=True
         )
 
-        logger.info("CMA update complete: n_scenarios=%d", len(invariants))
+        logger.debug("CMA update complete: n_scenarios=%d", len(invariants))
 
     invariants_vector = invariants.values.to_numpy()
     prob = invariants.prob
 
     if method == "historical":
-        logger.info("Returning historical innovations without resampling")
+        logger.debug("Returning historical innovations without resampling")
         return InnovationPaths(
             values=invariants_vector[:, None, :],
             path_probs=prob,
         )
 
     n_draws = n_sims * horizon
-    logger.info("Bootstrapping %d innovation draws", n_draws)
+    logger.debug("Bootstrapping %d innovation draws", n_draws)
 
     idx = weighted_bootstrapping_idx(
         invariants.values,
@@ -101,7 +102,7 @@ def draw_innovations(
     )
     simulated_draws = invariants_vector[idx].reshape(n_sims, horizon, len(assets))
 
-    logger.info("Innovation draw complete with output shape=%s", simulated_draws.shape)
+    logger.debug("Innovation draw complete with output shape=%s", simulated_draws.shape)
     return InnovationPaths(
         values=simulated_draws,
         path_probs=np.full(n_sims, 1.0 / n_sims),  # uniform for MC
@@ -143,7 +144,7 @@ def forecast_from_fit(
 
     simulated = universe_fit.simulate(innovations.values)
 
-    logger.info("Forecast complete - applying inverse transforms")
+    logger.debug("Forecast complete - applying inverse transforms")
     transformed = apply_inverse_transforms(
         asset_data_dict=simulated,
         n_original=n_rows,
@@ -154,12 +155,14 @@ def forecast_from_fit(
     forecast_assets = list(transformed.keys())
     n_dropped = len(asset_universe.all_tickers) - len(forecast_assets)
     if n_dropped > 0:
-        logger.info(
-            "Forecast produced %d assets (dropped %d from original universe of %d): %s",
-            len(forecast_assets),
-            n_dropped,
-            len(asset_universe.all_tickers),
-            forecast_assets,
+        warning_event(
+            logger,
+            "forecast.asset_dropped",
+            "Forecast dropped assets from original universe",
+            forecast_assets=len(forecast_assets),
+            dropped=n_dropped,
+            original_assets=len(asset_universe.all_tickers),
+            remaining=tuple(forecast_assets),
         )
 
     initial_prices = {

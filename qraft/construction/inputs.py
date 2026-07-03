@@ -5,21 +5,29 @@ from typing import Any, Iterable, Mapping, Protocol, cast, runtime_checkable
 
 import numpy as np
 
+import logging
+
 from qraft.construction.optimization.inputs import (
     AssetDiagnostics,
     InputPlan,
     PolicyInputs,
     RequiredPolicyInputs,
 )
+from qraft.core.market import MarketData
 from qraft.core.snapshot import MarketSnapshot, forecast_snapshot_from_decision_snapshot
 from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.forecaster import Forecaster, ForecastSource
 from qraft.forecast.run import (
     ForecastRecipeHistory,
     ForecastRun,
+    build_forecast_recipe_history,
     build_forecast_recipe_history_from_snapshots,
     simulate_forecast_paths_from_snapshots,
 )
+from qraft.utils.log import info_event
+
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -65,9 +73,20 @@ def build_policy_input_table(
     plan: InputPlan,
     policy=None,
     dtype: type = np.float64,
+    market: MarketData | None = None,
 ) -> dict[datetime, PolicyInputs]:
     """Build ``{date: PolicyInputs}`` from decision snapshots and a forecast source."""
     market_snapshots = list(snapshots)
+    info_event(
+        logger,
+        "policy_inputs.started",
+        "Building policy input table",
+        decisions=len(market_snapshots),
+        expected_returns=plan.expected_returns,
+        risk=policy_risk_source(plan, policy),
+        max_horizons=plan.max_horizons,
+        dtype=getattr(dtype, "__name__", str(dtype)),
+    )
     if policy is not None:
         required = policy.required_inputs()
         if (
@@ -75,9 +94,19 @@ def build_policy_input_table(
             and not required.scenarios
             and plan.expected_returns != "forecast"
         ):
+            info_event(
+                logger,
+                "policy_inputs.completed",
+                "Policy inputs not required by policy",
+                decisions=0,
+                expected_returns=plan.expected_returns,
+                risk=policy_risk_source(plan, policy),
+            )
             return {}
 
-    forecasts = forecast_run_for_source(market_snapshots, forecast_source)
+    forecasts = forecast_run_for_source(
+        market_snapshots, forecast_source, market=market
+    )
     forecast_paths = (
         [step.forecast for step in forecasts.steps]
         if isinstance(forecasts, ForecastRun)
@@ -122,12 +151,29 @@ def build_policy_input_table(
             inputs = inputs.astype(dtype)
         table[snapshot.t] = inputs
 
+    first_date = min(table) if table else None
+    last_date = max(table) if table else None
+    n_assets = len(next(iter(table.values())).assets) if table else 0
+    info_event(
+        logger,
+        "policy_inputs.completed",
+        "Policy input table built",
+        decisions=len(table),
+        assets=n_assets,
+        first_date=first_date,
+        last_date=last_date,
+        expected_returns=plan.expected_returns,
+        risk=policy_risk_source(plan, policy),
+    )
+
     return table
 
 
 def forecast_run_for_source(
     market_snapshots: list[MarketSnapshot],
     forecast_source: ForecastSource,
+    *,
+    market: MarketData | None = None,
 ) -> ForecastRun | Iterable[ForecastPaths]:
     if isinstance(forecast_source, ForecastRun):
         return forecast_source
@@ -144,17 +190,39 @@ def forecast_run_for_source(
     if not isinstance(forecast_source, Forecaster):
         return forecast_source
 
+    if not market_snapshots:
+        return ForecastRun(
+            recipe_history=ForecastRecipeHistory(
+                periods=(),
+                pipeline_config=forecast_source.pipeline,
+            ),
+            steps=(),
+        )
+
     forecast_snapshots = [
         forecast_snapshot_from_decision_snapshot(snapshot)
         for snapshot in market_snapshots
     ]
-    recipe_history = build_forecast_recipe_history_from_snapshots(
-        forecast_snapshots,
-        refit_every=forecast_source.refit_every,
-        reselect_on_universe_change=forecast_source.reselect_on_universe_change,
-        seed=forecast_source.seed,
-        pipeline_config=forecast_source.pipeline,
-    )
+    if market is None:
+        recipe_history = build_forecast_recipe_history_from_snapshots(
+            forecast_snapshots,
+            refit_every=forecast_source.refit_every,
+            reselect_on_universe_change=forecast_source.reselect_on_universe_change,
+            seed=forecast_source.seed,
+            pipeline_config=forecast_source.pipeline,
+        )
+    else:
+        min_history = min(
+            snapshot.history.values.height for snapshot in market_snapshots
+        )
+        recipe_history = build_forecast_recipe_history(
+            market,
+            min_history=min_history,
+            refit_every=forecast_source.refit_every,
+            reselect_on_universe_change=forecast_source.reselect_on_universe_change,
+            seed=forecast_source.seed,
+            pipeline_config=forecast_source.pipeline,
+        )
     return simulate_forecast_paths_from_snapshots(
         forecast_snapshots,
         recipe_history,

@@ -80,7 +80,6 @@ constraints: list[PortfolioConstraint] = [
 
 base_policy = MPOPolicy.preset(
     objective_type="cvar_cuts",
-    risk_aversion=0.01,
     constraints=constraints,
     min_history=360,
 )

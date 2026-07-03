@@ -132,14 +132,14 @@ def check_white_noise(
 
     assets_for_copula = [asset for asset, passed in simple_pass.items() if passed]
 
-    logger.info(
+    logger.debug(
         "White-noise simple screen: passed_simple=%s, sent_to_complex=%s",
         assets_for_copula,
         assets_for_copula,
     )
 
     if not assets_for_copula:
-        logger.info("White-noise final screen: passed_all=[]")
+        logger.debug("White-noise final screen: passed_all=[]")
         return simple_pass
 
     complex_tests = run_iid_complex(
@@ -165,7 +165,7 @@ def check_white_noise(
     for asset in assets_for_copula:
         final_pass[asset] = final_pass[asset] and copula_pass[asset]
 
-    logger.info(
+    logger.debug(
         "White-noise final screen: passed_all=%s",
         [asset for asset, passed in final_pass.items() if passed],
     )

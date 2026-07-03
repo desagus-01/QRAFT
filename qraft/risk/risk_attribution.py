@@ -15,7 +15,6 @@ from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.risk.dimensionality_reduction import minimum_torsion_matrix
 from qraft.risk.performance_attribution import PortfolioPerformanceAttribution
-from qraft.utils.visuals import plot_effective_bets
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +32,8 @@ class EffectiveBets:
     effective_bets: float
 
     def plot(self) -> None:
+        from qraft.utils.visuals import plot_effective_bets
+
         return plot_effective_bets(self)
 
 

@@ -259,7 +259,7 @@ def test_selection_excludes_nan_scores() -> None:
         ),
     )
 
-    report = select_candidate([flat, losing], metric="sharpe")
+    report = select_candidate([flat, losing], score="sharpe")
 
     assert report.selected_params == losing.params
 

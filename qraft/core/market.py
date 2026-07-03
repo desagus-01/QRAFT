@@ -19,7 +19,7 @@ from qraft.core.scenarios.views import (
     normalize_view_event,
 )
 from qraft.core.snapshot import MarketSnapshot
-from qraft.forecast.forecast_paths import AssetUniverse
+from qraft.core.universe import AssetUniverse
 from qraft.utils.helpers import str_to_datetime
 
 PriceKind = Literal["price", "log_price"]

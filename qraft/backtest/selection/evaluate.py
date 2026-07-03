@@ -24,6 +24,7 @@ from qraft.construction.policies import PolicyProtocol
 from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.forecaster import Forecaster, ForecastSource
+from qraft.utils.log import debug_event, info_event, warning_event
 
 SelectionInputSource: TypeAlias = (
     ForecastSource | PolicyInputsProvider | dict[datetime, PolicyInputs]
@@ -72,10 +73,22 @@ def evaluate_candidates(
                     params=candidate.params, summary=summary, backtest=backtest
                 )
             )
-            logger.info("candidate %s: sharpe=%.3f", candidate.params, summary.sharpe)
+            debug_event(
+                logger,
+                "validation.candidate_completed",
+                "Candidate evaluation completed",
+                params=candidate.params,
+                sharpe=f"{summary.sharpe:.3f}",
+            )
         except Exception as exc:  # isolate: one bad candidate must not kill the sweep
             reason = f"{type(exc).__name__}: {exc}"
-            logger.warning("candidate %s failed: %s", candidate.params, reason)
+            warning_event(
+                logger,
+                "validation.candidate_failed",
+                "Candidate evaluation failed",
+                params=candidate.params,
+                reason=reason,
+            )
             results.append(
                 CandidateResult(
                     params=candidate.params,
@@ -142,6 +155,17 @@ def evaluate_candidate_grid(
         raise TypeError("evaluate_candidate_grid requires source or forecaster")
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
+    info_event(
+        logger,
+        "validation.started",
+        "Validation candidate evaluation started",
+        candidates=len(candidates),
+        grid_keys=tuple(sorted(grid)),
+        warmup=warmup,
+        source_type=type(source).__name__
+        if source is not None
+        else type(forecaster).__name__,
+    )
     table = precompute_inputs(
         market,
         backtest_config.schedule,
@@ -150,6 +174,13 @@ def evaluate_candidate_grid(
         plan=plan,
         source=source,
         policy=base_policy,
+    )
+    info_event(
+        logger,
+        "validation.candidates_precomputed",
+        "Validation policy inputs precomputed",
+        candidates=len(candidates),
+        decisions=len(table),
     )
     shared = PrecomputedInputsProvider(table)
     candidate_results = evaluate_candidates(
@@ -160,6 +191,15 @@ def evaluate_candidate_grid(
         initial_cash=backtest_config.initial_cash,
         periods_per_year=backtest_config.periods_per_year,
         risk_free_rate=risk_free_rate,
+    )
+    failures = sum(1 for result in candidate_results if result.failure is not None)
+    info_event(
+        logger,
+        "validation.completed",
+        "Validation candidate evaluation completed",
+        candidates=len(candidate_results),
+        failures=failures,
+        decisions=len(table),
     )
     return CandidateEvaluation(
         candidate_results=candidate_results,
