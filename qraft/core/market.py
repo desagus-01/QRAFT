@@ -22,7 +22,6 @@ from qraft.core.snapshot import MarketSnapshot
 from qraft.core.universe import AssetUniverse
 from qraft.utils.helpers import str_to_datetime
 
-PriceKind = Literal["price", "log_price"]
 WeightingScheme = Literal["uniform", "state_smooth"]
 DateLike = datetime | str
 
@@ -56,7 +55,6 @@ class HistoryWeighting:
 @dataclass(frozen=True, slots=True)
 class MarketData:
     frame: pl.DataFrame
-    price_kind: PriceKind
     universe: AssetUniverse
     cash: pl.DataFrame | None
     config: MarketDataConfig
@@ -73,28 +71,13 @@ class MarketData:
         history_weighting: HistoryWeighting = HistoryWeighting(),
         config: MarketDataConfig = MarketDataConfig(),
     ) -> "MarketData":
-        return cls._from_frame(data, universe, "price", cash, history_weighting, config)
-
-    @classmethod
-    def from_log_prices(
-        cls,
-        data: pl.DataFrame,
-        universe: AssetUniverse,
-        *,
-        cash: pl.DataFrame | None = None,
-        history_weighting: HistoryWeighting = HistoryWeighting(),
-        config: MarketDataConfig = MarketDataConfig(),
-    ) -> "MarketData":
-        return cls._from_frame(
-            data, universe, "log_price", cash, history_weighting, config
-        )
+        return cls._from_frame(data, universe, cash, history_weighting, config)
 
     @classmethod
     def _from_frame(
         cls,
         data: pl.DataFrame,
         universe: AssetUniverse,
-        price_kind: PriceKind,
         cash: pl.DataFrame | None,
         history_weighting: HistoryWeighting,
         config: MarketDataConfig,
@@ -109,8 +92,12 @@ class MarketData:
         values = frame.select(*universe.all_tickers).to_numpy()
         if not np.all(np.isfinite(values)):
             raise ValueError("MarketData prices must contain only finite values")
-        if price_kind == "price" and np.any(values <= 0):
+        if np.any(values <= 0):
             raise ValueError("MarketData prices must be strictly positive")
+        if np.all(np.max(values, axis=0) < 15.0):
+            raise ValueError(
+                "values look like log prices; from_prices expects raw adjusted-close prices."
+            )
         cash_sorted = (
             cls._normalize_date_column(cash).sort("date") if cash is not None else None
         )
@@ -127,7 +114,6 @@ class MarketData:
         )
         return cls(
             frame=frame,
-            price_kind=price_kind,
             universe=universe,
             cash=cash_sorted,
             config=resolved_config,
@@ -165,7 +151,7 @@ class MarketData:
         if row.height == 0:
             raise ValueError(f"No market data on {t!r}")
         values = row.select(self.universe.assets).to_numpy().ravel()
-        return self._to_prices(values, self.price_kind)
+        return np.asarray(values, dtype=float)
 
     def history_through(self, t: DateLike) -> ScenarioPanel:
         """Causal log-price window: rows with date <= t, weights from the window only."""
@@ -186,8 +172,6 @@ class MarketData:
         if window.height == 0:
             raise ValueError(f"No history on or before {t!r}")
         prob = self.history_weighting.probs(window.height)
-        if self.price_kind == "log_price":
-            return ScenarioPanel.from_log_prices(window, prob=prob)
         return ScenarioPanel.from_prices(window, prob=prob)
 
     def cash_rate_asof(self, t: DateLike, *, step_size: int = 1) -> float:
@@ -246,11 +230,3 @@ class MarketData:
                 .alias("date")
             )
         return data
-
-    @staticmethod
-    def _to_prices(
-        values: NDArray[np.floating], price_kind: PriceKind
-    ) -> NDArray[np.floating]:
-        if price_kind == "log_price":
-            return np.exp(values)
-        return np.asarray(values, dtype=float)

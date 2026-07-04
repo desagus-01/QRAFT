@@ -2,7 +2,6 @@
 import logging
 from collections import defaultdict
 
-import numpy as np
 import polars as pl
 
 from qraft import (
@@ -34,7 +33,7 @@ cols_to_keep = [
     or (
         data[col].null_count() == 0
         and data[col].dtype.is_numeric()
-        and float(data[col].min()) >= np.log(min_price)  # type: ignore[arg-type]
+        and float(data[col].min()) >= min_price  # type: ignore[arg-type]
     )
 ]
 data = data.select(cols_to_keep)
@@ -45,7 +44,7 @@ tradable_assets = list(data.columns[10:90])
 universe = AssetUniverse(assets=tradable_assets, factors=list(factors_cols))
 data = data.select("date", *universe.all_tickers)
 
-market = MarketData.from_log_prices(
+market = MarketData.from_prices(
     data,
     universe,
     cash=cash,

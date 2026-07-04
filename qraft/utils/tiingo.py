@@ -616,7 +616,7 @@ def get_sampled_ticker_prices(
 
 def clean_and_save_sample(sample_df: pl.DataFrame, path_to_save: str) -> None:
     """
-    Pivot and save a sampled price DataFrame to CSV with adjusted log closes.
+    Pivot and save a sampled price DataFrame to CSV with adjusted closes.
 
     Parameters
     ----------
@@ -627,8 +627,7 @@ def clean_and_save_sample(sample_df: pl.DataFrame, path_to_save: str) -> None:
     """
     clean_df = (
         sample_df.select(["date", "ticker", "adj_close"])
-        .with_columns(adj_log_close=pl.col("adj_close").log())
-        .pivot("ticker", index="date", values="adj_log_close")
+        .pivot("ticker", index="date", values="adj_close")
         .sort("date")
     )
 

@@ -47,7 +47,7 @@ def _market() -> MarketData:
         pl.DataFrame(
             {
                 "date": [datetime(2024, 1, day) for day in range(1, 5)],
-                "A": [10.0, 11.0, 12.0, 13.0],
+                "A": [20.0, 22.0, 24.0, 26.0],
             }
         ),
         AssetUniverse.factors_free(["A"]),

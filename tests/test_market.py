@@ -156,7 +156,7 @@ def test_from_prices_sorts_by_date() -> None:
                 datetime(2024, 1, 1),
                 datetime(2024, 1, 2),
             ],
-            "A": [12.0, 10.0, 11.0],
+            "A": [17.0, 15.0, 16.0],
         }
     )
     md = MarketData.from_prices(df, universe)
@@ -178,7 +178,7 @@ def test_from_prices_without_cash() -> None:
     assert md.cash is None
 
 
-def test_from_log_prices() -> None:
+def test_from_prices_rejects_log_price_like_values() -> None:
     df = pl.DataFrame(
         {
             "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
@@ -186,9 +186,8 @@ def test_from_log_prices() -> None:
             "B": [np.log(20.0), np.log(22.0)],
         }
     )
-    md = MarketData.from_log_prices(df, _universe())
-    assert md.price_kind == "log_price"
-    np.testing.assert_allclose(md.prices_at(datetime(2024, 1, 1)), [10.0, 20.0])
+    with pytest.raises(ValueError, match="values look like log prices"):
+        MarketData.from_prices(df, _universe())
 
 
 # ---------------------------------------------------------------------------
@@ -390,18 +389,20 @@ def test_universe_with_factors_are_excluded_from_prices_at() -> None:
     np.testing.assert_allclose(md.prices_at(datetime(2024, 1, 3)), [12.0])
 
 
-def test_log_price_frame_converted_to_price_output() -> None:
+def test_prices_at_returns_stored_raw_prices() -> None:
     df = pl.DataFrame(
         {
             "date": [datetime(2024, 1, 1)],
-            "A": [np.log(15.0)],
-            "B": [np.log(30.0)],
+            "A": [15.123456789],
+            "B": [30.987654321],
         }
     )
-    md = MarketData.from_log_prices(
+    md = MarketData.from_prices(
         df, _universe(), config=MarketDataConfig(periods_per_year=252)
     )
-    np.testing.assert_allclose(md.prices_at(datetime(2024, 1, 1)), [15.0, 30.0])
+    np.testing.assert_array_equal(
+        md.prices_at(datetime(2024, 1, 1)), [15.123456789, 30.987654321]
+    )
 
 
 def test_from_prices_accepts_string_date_columns() -> None:

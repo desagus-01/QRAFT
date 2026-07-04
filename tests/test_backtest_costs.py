@@ -103,7 +103,7 @@ def test_long_book_accrues_holding_drag():
 def test_holding_cost_scales_with_calendar_gap():
     dates = [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 12)]
     market = MarketData.from_prices(
-        pl.DataFrame({"date": dates, "A": [10.0, 10.0, 10.0]}),
+        pl.DataFrame({"date": dates, "A": [20.0, 20.0, 20.0]}),
         AssetUniverse.factors_free(["A"]),
         cash=pl.DataFrame({"date": dates, "DFF": [0.0, 0.0, 0.0]}),
         config=MarketDataConfig(cash_day_count=360),
@@ -123,7 +123,7 @@ def test_holding_cost_scales_with_calendar_gap():
 def test_holding_cost_uses_market_cadence_not_holding_default():
     dates = [datetime(2024, 1, 1), datetime(2024, 1, 8), datetime(2024, 1, 15)]
     market = MarketData.from_prices(
-        pl.DataFrame({"date": dates, "A": [10.0, 10.0, 10.0]}),
+        pl.DataFrame({"date": dates, "A": [20.0, 20.0, 20.0]}),
         AssetUniverse.factors_free(["A"]),
         cash=pl.DataFrame({"date": dates, "DFF": [0.0, 0.0, 0.0]}),
         config=MarketDataConfig(cash_day_count=365),

@@ -35,7 +35,7 @@ def _market(universe: AssetUniverse | None = None) -> MarketData:
     data = pl.DataFrame(
         {
             "date": [datetime(2024, 1, day) for day in range(1, 7)],
-            "A": [9.0, 10.0, 11.0, 12.0, 13.0, 14.0],
+            "A": [18.0, 20.0, 22.0, 24.0, 26.0, 28.0],
             "B": [19.0, 20.0, 21.0, 22.0, 23.0, 24.0],
         }
     )

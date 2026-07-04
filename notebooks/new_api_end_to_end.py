@@ -1,7 +1,6 @@
 # %%
 import logging
 
-import numpy as np
 import polars as pl
 
 from qraft import (
@@ -46,7 +45,7 @@ cols_to_keep = [
         col != "DHIL"
         and prices[col].null_count() == 0
         and prices[col].dtype.is_numeric()
-        and float(prices[col].min()) >= np.log(min_price)  # type: ignore[arg-type]
+        and float(prices[col].min()) >= min_price  # type: ignore[arg-type]
     )
 ]
 prices = prices.select(cols_to_keep)
@@ -56,12 +55,12 @@ universe = AssetUniverse(assets=assets, factors=list(factor_cols)[:4])
 prices = prices.select("date", *universe.all_tickers)
 
 views = Views([RankingView(order=assets[:1])], confidence=0.35)
-market = MarketData.from_log_prices(
+market = MarketData.from_prices(
     prices,
     universe,
     cash=cash,
     history_weighting=HistoryWeighting("state_smooth", half_life=60),
-)
+).with_view_events((prices["date"][-120], views))
 
 
 # %%

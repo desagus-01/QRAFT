@@ -1,7 +1,6 @@
 # %%
 import logging
 
-import numpy as np
 import polars as pl
 
 from qraft import (
@@ -57,7 +56,7 @@ cols_to_keep = [
     or (
         data[col].null_count() == 0
         and data[col].dtype.is_numeric()
-        and float(data[col].min()) >= np.log(min_price)  # type: ignore[arg-type]
+        and float(data[col].min()) >= min_price  # type: ignore[arg-type]
     )
 ]
 
@@ -74,13 +73,13 @@ prob_ex = state_smooth_probs(
 )
 
 
-posterior_panel = ScenarioPanel.from_log_prices(
+posterior_panel = ScenarioPanel.from_prices(
     data,
     prob=prob_ex,
 )
 # %%
 
-mkt_dt = MarketData.from_log_prices(
+mkt_dt = MarketData.from_prices(
     data,
     universe,
     cash=cash,

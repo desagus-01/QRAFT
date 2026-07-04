@@ -108,7 +108,7 @@ def test_precompute_inputs_uses_snapshot_cash_rate(monkeypatch):
         pl.DataFrame(
             {
                 "date": [datetime(2024, 1, day) for day in range(1, 4)],
-                "A": [9.0, 10.0, 11.0],
+                "A": [18.0, 20.0, 22.0],
             }
         ),
         AssetUniverse.factors_free(["A"]),
@@ -169,7 +169,7 @@ def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
 def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch):
     dates = [datetime(2024, 1, day) for day in range(1, 5)]
     market = MarketData.from_prices(
-        pl.DataFrame({"date": dates, "A": [9.0, 10.0, 11.0, 12.0]}),
+        pl.DataFrame({"date": dates, "A": [18.0, 20.0, 22.0, 24.0]}),
         AssetUniverse.factors_free(["A"]),
     )
     recipe_history = object()
@@ -206,7 +206,7 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
 def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
     dates = [datetime(2024, 1, day) for day in range(1, 4)]
     market = MarketData.from_prices(
-        pl.DataFrame({"date": dates, "A": [9.0, 10.0, 11.0]}),
+        pl.DataFrame({"date": dates, "A": [18.0, 20.0, 22.0]}),
         AssetUniverse.factors_free(["A"]),
     )
     policy = _DummyPolicy()

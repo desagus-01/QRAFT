@@ -454,7 +454,7 @@ def test_9_self_financing_trades() -> None:
 def test_10_single_asset() -> None:
     dates = DATES_4
     market = MarketData.from_prices(
-        _price_frame(dates, A=[10.0, 11.0, 12.0, 13.0]),
+        _price_frame(dates, A=[15.0, 16.5, 18.0, 19.5]),
         _universe("A"),
         cash=_cash_frame(dates, [5.0] * 4),
     )
@@ -510,21 +510,21 @@ def test_11_three_assets() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 12. MarketData constructed from log prices
+# 12. MarketData constructed from raw prices
 # ---------------------------------------------------------------------------
 
 
-def test_12_from_log_prices() -> None:
+def test_12_from_prices() -> None:
     dates = DATES_4
-    log_prices = pl.DataFrame(
+    prices = pl.DataFrame(
         {
             "date": dates,
-            "A": [np.log(10.0), np.log(12.0), np.log(12.0), np.log(15.0)],
-            "B": [np.log(20.0), np.log(18.0), np.log(18.0), np.log(18.0)],
+            "A": [10.0, 12.0, 12.0, 15.0],
+            "B": [20.0, 18.0, 18.0, 18.0],
         }
     )
-    market = MarketData.from_log_prices(
-        log_prices, _universe("A", "B"), cash=_cash_frame(dates, [3.6, 7.2, 7.2, 7.2])
+    market = MarketData.from_prices(
+        prices, _universe("A", "B"), cash=_cash_frame(dates, [3.6, 7.2, 7.2, 7.2])
     )
 
     result = run_backtest(
@@ -535,7 +535,6 @@ def test_12_from_log_prices() -> None:
         initial_cash=100.0,
     )
 
-    # Should match from_prices with the same exp values
     np.testing.assert_allclose(
         result.nav,
         [100.0, 100.01, 100.0150005, 109.39640821875],
