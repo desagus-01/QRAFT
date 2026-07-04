@@ -14,17 +14,21 @@ from qraft.core.probability.prob_vector import ProbVector
 from qraft.core.scenarios.view_types import (
     ConstraintDiag,
     CorrView,
+    EntropyPoolingResult,
     MeanView,
     QuantileView,
     RankingView,
     Sign,
     StdView,
+    ViewDiagnostics,
     ViewSpec,
 )
 from qraft.globals import model_cfg
 from qraft.utils.helpers import indicator_quantile_marginal, weighted_moments
+from qraft.utils.log import warning_event
 
 logger = logging.getLogger(__name__)
+SUCCESS_STATUSES = ("optimal", "optimal_inaccurate")
 
 _OPS: dict[Sign, Callable[[Any, Any], CvxConstraint]] = {
     "<=": operator.le,
@@ -58,6 +62,10 @@ class CompiledConstraint:
     risk_driver: tuple[str, str] | str
     sign: Sign
     target: float | None
+
+
+class InfeasibleViewsError(ValueError):
+    pass
 
 
 def compile_spec(
@@ -204,9 +212,23 @@ def diagnose_view(c: CompiledConstraint) -> ConstraintDiag:
 
 def get_constraints_diags(
     compiled: list[CompiledConstraint],
-) -> list[ConstraintDiag]:
+) -> tuple[ConstraintDiag, ...]:
     """Diagnostics for every compiled constraint after solving."""
-    return [diagnose_view(c) for c in compiled]
+    return tuple(diagnose_view(c) for c in compiled)
+
+
+def _constraint_label(c: CompiledConstraint) -> str:
+    return f"{c.risk_driver} {c.sign} {c.target}"
+
+
+def _raise_infeasible_views(status: str, compiled: list[CompiledConstraint]) -> None:
+    constraints = "; ".join(_constraint_label(c) for c in compiled) or "<none>"
+    raise InfeasibleViewsError(
+        f"Entropy pooling views are infeasible. status={status}; "
+        f"constraints={constraints}. A correlation view below the prior's "
+        "achievable minimum has no solution — relax the target or supply richer "
+        "scenarios."
+    )
 
 
 # TODO: Consider whether this is the best way (maybe instead of clipping give a v small value)
@@ -226,11 +248,14 @@ def entropy_pooling(
     panel: ScenarioPanel,
     specs: Sequence[ViewSpec],
     solver: str = "SCS",
+    *,
+    ens_warn_ratio: float = 0.1,
     **solver_kwargs: Any,
-) -> ProbVector:
+) -> EntropyPoolingResult:
     """Minimum-KL update of ``panel.prob`` subject to the supplied view specs."""
     prior: ProbVector = panel.prob
     posterior: cp.Variable = cp.Variable(prior.shape[0])
+    ens_prior = ens(prior)
 
     compiled, all_constraints = _build_constraints(panel, specs, posterior, prior)
 
@@ -239,23 +264,44 @@ def entropy_pooling(
     )
     problem.solve(solver=solver, **solver_kwargs)
 
-    if problem.status not in ("optimal", "optimal_inaccurate"):
-        raise RuntimeError(f"EP did not solve optimally. status={problem.status}")
+    if problem.status not in SUCCESS_STATUSES:
+        _raise_infeasible_views(problem.status, compiled)
 
-    posterior_res: NDArray[np.floating] | None = posterior.value
-    if posterior_res is None:
+    posterior_value: NDArray[np.floating] | None = posterior.value
+    if posterior_value is None:
         raise RuntimeError("Optimization failed or returned no solution!")
-    if posterior_res.min() < -1e-6:
+    if posterior_value.min() < -1e-6:
         raise RuntimeError(
-            f"Materially negative posterior probability: min={posterior_res.min()}"
+            f"Materially negative posterior probability: min={posterior_value.min()}"
         )
-    if posterior_res.min() < 0:
-        posterior_res = clip_normalise_probs(posterior_res)
+    posterior_res: ProbVector = (
+        clip_normalise_probs(posterior_value)
+        if posterior_value.min() < 0
+        else np.asarray(posterior_value, dtype=float)
+    )
 
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("EP constraint diagnostics: %s", get_constraints_diags(compiled))
+    ens_posterior = ens(posterior_res)
+    ens_ratio = ens_posterior / ens_prior if ens_prior > 0 else 0.0
+    ens_collapsed = ens_ratio < ens_warn_ratio
+    if ens_collapsed:
+        warning_event(
+            logger,
+            "views.ens_collapsed",
+            "Entropy pooling posterior effective scenario count collapsed",
+            ens_prior=ens_prior,
+            ens_posterior=ens_posterior,
+            ens_ratio=ens_ratio,
+            ens_warn_ratio=ens_warn_ratio,
+        )
 
-    return posterior_res
+    diagnostics = ViewDiagnostics(
+        ens_prior=ens_prior,
+        ens_posterior=ens_posterior,
+        constraints=get_constraints_diags(compiled),
+        solver_status=problem.status,
+        ens_collapsed=ens_collapsed,
+    )
+    return EntropyPoolingResult(posterior=posterior_res, diagnostics=diagnostics)
 
 
 @validate_call(config=model_cfg, validate_return=True)
@@ -264,14 +310,16 @@ def entropy_pooling_probs(
     specs: Sequence[ViewSpec],
     confidence: float = 1.0,
     solver: str = "SCS",
+    ens_warn_ratio: float = 0.1,
     **solver_kwargs: Any,
-) -> ProbVector:
+) -> EntropyPoolingResult:
     """Run EP and linearly pool posterior with prior by ``confidence``.
 
     ``confidence`` is a linear opinion-pool weight, not Meucci's partial-view
     confidence/effective-number-of-views adjustment.
     """
-    posterior: ProbVector = entropy_pooling(
-        panel, specs, solver=solver, **solver_kwargs
+    result = entropy_pooling(
+        panel, specs, solver=solver, ens_warn_ratio=ens_warn_ratio, **solver_kwargs
     )
-    return confidence * posterior + (1.0 - confidence) * panel.prob
+    posterior = confidence * result.posterior + (1.0 - confidence) * panel.prob
+    return EntropyPoolingResult(posterior=posterior, diagnostics=result.diagnostics)

@@ -23,6 +23,7 @@ data, factors_cols = import_tickers_and_factors(
     "./data/tiingo_sample.csv",
     "./data/tiingo_factors.csv",
 )
+data = data.with_columns(pl.selectors.numeric().exp())
 cash = pl.read_csv("data/cash.csv", try_parse_dates=True)
 
 min_price = 15

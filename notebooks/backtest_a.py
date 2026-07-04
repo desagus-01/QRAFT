@@ -43,6 +43,7 @@ data, factors_cols = import_tickers_and_factors(
     "./data/tiingo_sample.csv",
     "./data/tiingo_factors.csv",
 )
+data = data.with_columns(pl.selectors.numeric().exp())
 
 min_price = 15
 

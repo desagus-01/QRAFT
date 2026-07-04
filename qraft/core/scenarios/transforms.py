@@ -31,14 +31,14 @@ class Views:
             )
 
     def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
-        posterior = entropy_pooling_probs(
+        result = entropy_pooling_probs(
             panel=panel,
             specs=self.specs,
             confidence=self.confidence,
             solver=self.solver,
             **(self.solver_kwargs or {}),
         )
-        return panel.with_prob(posterior)
+        return panel.with_prob(result.posterior)
 
 
 @dataclass(frozen=True)

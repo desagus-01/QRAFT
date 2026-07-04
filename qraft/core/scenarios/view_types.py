@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Literal, TypeAlias, TypedDict
 
+from qraft.core.probability.prob_vector import ProbVector
+
 Sign: TypeAlias = Literal["<=", ">=", "=="]
 
 
@@ -46,3 +48,18 @@ class ConstraintDiag(TypedDict):
     constraint_value: float | None  # was NDArray | None
     active: bool
     sensitivity: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class ViewDiagnostics:
+    ens_prior: float
+    ens_posterior: float
+    constraints: tuple[ConstraintDiag, ...]
+    solver_status: str
+    ens_collapsed: bool
+
+
+@dataclass(frozen=True, slots=True)
+class EntropyPoolingResult:
+    posterior: ProbVector
+    diagnostics: ViewDiagnostics
