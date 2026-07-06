@@ -26,15 +26,10 @@ ViewInput: TypeAlias = "tuple[DateLike, ScenarioView] | ViewEvent"
 @dataclass(frozen=True, slots=True)
 class ViewState:
     events: tuple[ViewEvent, ...] = ()
-    current: ScenarioView | None = None
 
     def latest_event_at(self, t: datetime) -> ViewEvent | None:
         active = [event for event in self.events if event.as_of <= t]
         return active[-1] if active else None
-
-    @property
-    def has_current_only_views(self) -> bool:
-        return self.current is not None
 
 
 def normalize_view_event(event: ViewInput) -> ViewEvent:

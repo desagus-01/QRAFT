@@ -275,15 +275,45 @@ def _build_constraints(
     return compiled, [c.constraint for c in compiled] + base
 
 
-def diagnose_view(c: CompiledConstraint) -> ConstraintDiag:
+def _constraint_value(
+    value: cp.Expression | float | NDArray[np.floating],
+) -> NDArray[np.floating]:
+    return np.asarray(value.value if isinstance(value, cp.Expression) else value)
+
+
+def _constraint_active(c: CompiledConstraint, prob: ProbVector | None = None) -> bool:
+    if prob is None:
+        lhs_val = _constraint_value(c.lhs)
+        rhs_val = _constraint_value(c.rhs)
+    else:
+        lhs_val = _expression_at_prob(c.lhs, prob)
+        rhs_val = _expression_at_prob(c.rhs, prob)
+    return bool(np.all(np.abs(lhs_val - rhs_val) <= 1e-5))
+
+
+def _expression_at_prob(
+    expr: cp.Expression | float | NDArray[np.floating], prob: ProbVector
+) -> NDArray[np.floating]:
+    if not isinstance(expr, cp.Expression):
+        return np.asarray(expr)
+
+    variables = expr.variables()
+    if len(variables) != 1:
+        return _constraint_value(expr)
+
+    original = variables[0].value
+    variables[0].value = prob
+    try:
+        return np.asarray(expr.value)
+    finally:
+        variables[0].value = original
+
+
+def diagnose_view(
+    c: CompiledConstraint, prob: ProbVector | None = None
+) -> ConstraintDiag:
     """Post-solve diagnostics for one compiled constraint (type-agnostic)."""
-    lhs_val: NDArray[np.floating] = np.asarray(c.lhs.value)
-    rhs_val: NDArray[np.floating] = (
-        np.asarray(c.rhs.value)
-        if isinstance(c.rhs, cp.Expression)
-        else np.asarray(c.rhs)
-    )
-    active: bool = bool(np.all(np.abs(lhs_val - rhs_val) <= 1e-5))
+    active = _constraint_active(c, prob)
 
     dual_value = c.constraint.dual_value
     sensitivity: float | None = (
@@ -303,9 +333,42 @@ def diagnose_view(c: CompiledConstraint) -> ConstraintDiag:
 
 def get_constraints_diags(
     compiled: list[CompiledConstraint],
+    prob: ProbVector | None = None,
 ) -> tuple[ConstraintDiag, ...]:
     """Diagnostics for every compiled constraint after solving."""
-    return tuple(diagnose_view(c) for c in compiled)
+    return tuple(diagnose_view(c, prob) for c in compiled)
+
+
+def _build_diagnostics(
+    *,
+    prior: ProbVector,
+    posterior: ProbVector,
+    compiled: list[CompiledConstraint],
+    solver_status: str,
+    ens_warn_ratio: float,
+) -> ViewDiagnostics:
+    ens_prior = ens(prior)
+    ens_posterior = ens(posterior)
+    ens_ratio = ens_posterior / ens_prior if ens_prior > 0 else 0.0
+    ens_collapsed = ens_ratio < ens_warn_ratio
+    if ens_collapsed:
+        warning_event(
+            logger,
+            "views.ens_collapsed",
+            "Entropy pooling posterior effective scenario count collapsed",
+            ens_prior=ens_prior,
+            ens_posterior=ens_posterior,
+            ens_ratio=ens_ratio,
+            ens_warn_ratio=ens_warn_ratio,
+        )
+
+    return ViewDiagnostics(
+        ens_prior=ens_prior,
+        ens_posterior=ens_posterior,
+        constraints=get_constraints_diags(compiled, posterior),
+        solver_status=solver_status,
+        ens_collapsed=ens_collapsed,
+    )
 
 
 def _constraint_label(c: CompiledConstraint) -> str:
@@ -346,7 +409,6 @@ def entropy_pooling(
     """Minimum-KL update of ``panel.prob`` subject to the supplied view specs."""
     prior: ProbVector = panel.prob
     posterior: cp.Variable = cp.Variable(prior.shape[0])
-    ens_prior = ens(prior)
 
     compiled, all_constraints = _build_constraints(panel, specs, posterior, prior)
 
@@ -371,26 +433,12 @@ def entropy_pooling(
         else np.asarray(posterior_value, dtype=float)
     )
 
-    ens_posterior = ens(posterior_res)
-    ens_ratio = ens_posterior / ens_prior if ens_prior > 0 else 0.0
-    ens_collapsed = ens_ratio < ens_warn_ratio
-    if ens_collapsed:
-        warning_event(
-            logger,
-            "views.ens_collapsed",
-            "Entropy pooling posterior effective scenario count collapsed",
-            ens_prior=ens_prior,
-            ens_posterior=ens_posterior,
-            ens_ratio=ens_ratio,
-            ens_warn_ratio=ens_warn_ratio,
-        )
-
-    diagnostics = ViewDiagnostics(
-        ens_prior=ens_prior,
-        ens_posterior=ens_posterior,
-        constraints=get_constraints_diags(compiled),
+    diagnostics = _build_diagnostics(
+        prior=prior,
+        posterior=posterior_res,
+        compiled=compiled,
         solver_status=problem.status,
-        ens_collapsed=ens_collapsed,
+        ens_warn_ratio=ens_warn_ratio,
     )
     return EntropyPoolingResult(posterior=posterior_res, diagnostics=diagnostics)
 
@@ -409,8 +457,43 @@ def entropy_pooling_probs(
     ``confidence`` is a linear opinion-pool weight, not Meucci's partial-view
     confidence/effective-number-of-views adjustment.
     """
-    result = entropy_pooling(
-        panel, specs, solver=solver, ens_warn_ratio=ens_warn_ratio, **solver_kwargs
+    prior: ProbVector = panel.prob
+    posterior_var: cp.Variable = cp.Variable(prior.shape[0])
+    compiled, all_constraints = _build_constraints(panel, specs, posterior_var, prior)
+
+    problem: cp.Problem = cp.Problem(
+        cp.Minimize(cp.sum(cp.kl_div(posterior_var, prior))), all_constraints
     )
-    posterior = confidence * result.posterior + (1.0 - confidence) * panel.prob
-    return EntropyPoolingResult(posterior=posterior, diagnostics=result.diagnostics)
+    problem.solve(solver=solver, **solver_kwargs)
+
+    if problem.status not in SUCCESS_STATUSES:
+        _raise_infeasible_views(problem.status, compiled)
+
+    posterior_value: NDArray[np.floating] | None = posterior_var.value
+    if posterior_value is None:
+        raise RuntimeError("Optimization failed or returned no solution!")
+    if posterior_value.min() < -1e-6:
+        raise RuntimeError(
+            f"Materially negative posterior probability: min={posterior_value.min()}"
+        )
+    raw_posterior: ProbVector = (
+        clip_normalise_probs(posterior_value)
+        if posterior_value.min() < 0
+        else np.asarray(posterior_value, dtype=float)
+    )
+    posterior = confidence * raw_posterior + (1.0 - confidence) * prior
+    diagnostics = _build_diagnostics(
+        prior=prior,
+        posterior=posterior,
+        compiled=[],
+        solver_status=problem.status,
+        ens_warn_ratio=ens_warn_ratio,
+    )
+    diagnostics = ViewDiagnostics(
+        ens_prior=diagnostics.ens_prior,
+        ens_posterior=diagnostics.ens_posterior,
+        constraints=get_constraints_diags(compiled, posterior),
+        solver_status=diagnostics.solver_status,
+        ens_collapsed=diagnostics.ens_collapsed,
+    )
+    return EntropyPoolingResult(posterior=posterior, diagnostics=diagnostics)

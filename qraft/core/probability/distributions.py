@@ -1,5 +1,5 @@
-from numpy.typing import NDArray
 import numpy as np
+from numpy.typing import NDArray
 from pydantic import validate_call
 
 from qraft.core.probability.prob_vector import ProbVector, as_prob_vector
@@ -65,11 +65,11 @@ def state_smooth_probs(
     reference: float | None = None,
     time_based: bool = True,
 ) -> ProbVector:
-    w = kernel_smoothing(
+    probs = kernel_smoothing(
         n=n,
         half_life=half_life,
         kernel_type=kernel_type,
         reference=reference,
         time_based=time_based,
     )
-    return as_prob_vector(w / w.sum())
+    return as_prob_vector(probs / probs.sum())

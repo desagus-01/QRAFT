@@ -4,7 +4,11 @@ import numpy as np
 import polars as pl
 import pytest
 
-from qraft.core.panel import ScenarioPanel
+from qraft.core.panel import (
+    ScenarioPanel,
+    compensate_prob,
+    expand_posterior_to_parent,
+)
 from qraft.core.probability.distributions import uniform_probs
 
 
@@ -140,3 +144,51 @@ def test_log_price_diff_is_tagged_as_return() -> None:
     diffed = panel.diff()
 
     assert diffed.kind == "return"
+
+
+def test_expand_posterior_to_parent_round_trips_through_compensate_prob() -> None:
+    parent = np.array([0.2, 0.3, 0.5])
+    posterior = np.array([0.25, 0.75])
+
+    expanded = expand_posterior_to_parent(posterior, parent, 1)
+
+    np.testing.assert_allclose(compensate_prob(expanded, 1), posterior)
+
+
+def test_to_simple_returns_uses_price_ratio_minus_one() -> None:
+    panel = ScenarioPanel.from_levels(
+        pl.DataFrame(
+            {
+                "date": [
+                    datetime(2024, 1, 1),
+                    datetime(2024, 1, 2),
+                    datetime(2024, 1, 3),
+                ],
+                "asset": [100.0, 110.0, 121.0],
+            }
+        ),
+        prob=np.array([0.2, 0.3, 0.5]),
+    )
+
+    returns = panel.to_simple_returns()
+
+    assert returns.kind == "return"
+    assert returns.dates.to_list() == [datetime(2024, 1, 2), datetime(2024, 1, 3)]
+    np.testing.assert_allclose(
+        returns.values.get_column("asset").to_numpy(), [0.1, 0.1]
+    )
+    np.testing.assert_allclose(returns.prob, [0.375, 0.625])
+
+
+def test_to_simple_returns_rejects_log_price_panel() -> None:
+    panel = ScenarioPanel.from_prices(
+        pl.DataFrame(
+            {
+                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+                "asset": [100.0, 110.0],
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="level price values"):
+        panel.to_simple_returns()

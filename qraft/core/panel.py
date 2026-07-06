@@ -36,6 +36,28 @@ def compensate_prob(prob: ProbVector, n_remove: int) -> ProbVector:
     return redistribute_prob_mass(prob, np.arange(n_remove, dtype=np.int_))
 
 
+def expand_posterior_to_parent(
+    posterior: ProbVector, parent_prior: ProbVector, n_remove: int
+) -> ProbVector:
+    if n_remove < 0:
+        raise ValueError("n_remove must be non-negative")
+    if n_remove > parent_prior.shape[0]:
+        raise ValueError("n_remove cannot exceed parent prior length")
+    if posterior.shape[0] != parent_prior.shape[0] - n_remove:
+        raise ValueError(
+            f"posterior length {posterior.shape[0]} does not match parent length "
+            f"{parent_prior.shape[0]} minus n_remove {n_remove}"
+        )
+    if n_remove == 0:
+        return as_prob_vector(posterior, length=parent_prior.shape[0])
+
+    removed_mass = float(parent_prior[:n_remove].sum())
+    expanded = np.concatenate(
+        [parent_prior[:n_remove], posterior * (1.0 - removed_mass)]
+    )
+    return as_prob_vector(expanded, length=parent_prior.shape[0])
+
+
 @dataclass(frozen=True)
 class ScenarioPanel:
     values: pl.DataFrame
@@ -215,6 +237,28 @@ class ScenarioPanel:
         )
         return ScenarioPanel(
             values=diffed, dates=new_dates, prob=new_prob, kind=new_kind
+        )
+
+    def to_simple_returns(self, lag: int = 1) -> ScenarioPanel:
+        if lag < 1:
+            raise ValueError("lag must be >= 1")
+        if self.kind != "level":
+            raise ValueError("to_simple_returns requires level price values")
+
+        arr = self.values.to_numpy()
+        if (arr <= 0).any():
+            raise ValueError("to_simple_returns requires strictly positive prices")
+
+        returns = self.values.with_columns(
+            [
+                (pl.col(c) / pl.col(c).shift(lag) - 1.0).alias(c)
+                for c in self.values.columns
+            ]
+        ).slice(lag)
+        new_dates = self.dates.slice(lag)
+        new_prob = compensate_prob(self.prob, lag)
+        return ScenarioPanel(
+            values=returns, dates=new_dates, prob=new_prob, kind="return"
         )
 
     def with_prob(self, prob: ProbVector) -> ScenarioPanel:

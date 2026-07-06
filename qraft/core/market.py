@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Literal
+from typing import Literal, overload
 
 import numpy as np
 import polars as pl
@@ -18,6 +18,7 @@ from qraft.core.scenarios.views import (
     ViewState,
     normalize_view_event,
 )
+from qraft.core.scenarios.transforms import ViewedDistribution
 from qraft.core.snapshot import MarketSnapshot
 from qraft.core.universe import AssetUniverse
 from qraft.utils.helpers import str_to_datetime
@@ -120,26 +121,14 @@ class MarketData:
             history_weighting=history_weighting,
         )
 
-    def with_view_events(self, *events: ViewInput) -> "MarketData":
+    def with_views(self, *events: ViewInput) -> "MarketData":
         normalized = tuple(
             sorted((normalize_view_event(e) for e in events), key=lambda e: e.as_of)
         )
-        return replace(self, views=ViewState(events=normalized, current=None))
-
-    def with_current_views(self, views: ScenarioView) -> "MarketData":
-        return replace(self, views=replace(self.views, current=views))
-
-    def clear_views(self) -> "MarketData":
-        return replace(self, views=ViewState())
+        return replace(self, views=ViewState(events=normalized))
 
     def assert_backtest_safe(self) -> None:
-        if self.views.has_current_only_views:
-            raise ValueError(
-                "MarketData has current-only views. They are only valid for live/latest "
-                "analysis and cannot be used in Backtest or Validation because they "
-                "would leak today's beliefs into historical decisions. Use "
-                "with_view_events(...) for causal historical views, or clear_views()."
-            )
+        return None
 
     @property
     def trading_bars(self) -> list[datetime]:
@@ -156,23 +145,68 @@ class MarketData:
     def history_through(self, t: DateLike) -> ScenarioPanel:
         """Causal log-price window: rows with date <= t, weights from the window only."""
         t = self._as_datetime(t)
-        panel = self._raw_history_through(t)
+        panel = self._log_price_history_through(t)
         event = self.views.latest_event_at(t)
-        return event.views.apply(panel) if event is not None else panel
+        return (
+            event.views.apply(self._simple_return_history_through(t))
+            if event is not None
+            else panel
+        )
 
-    def current_history(self) -> ScenarioPanel:
-        """Latest history, including current-only views when present."""
-        panel = self.history_through(self.trading_bars[-1])
-        if self.views.current is not None:
-            return self.views.current.apply(panel)
-        return panel
+    @overload
+    def viewed_returns(
+        self, views: None = None, t: None = None
+    ) -> list[ViewedDistribution]: ...
 
-    def _raw_history_through(self, t: datetime) -> ScenarioPanel:
+    @overload
+    def viewed_returns(
+        self, views: None = None, t: DateLike = ...
+    ) -> ViewedDistribution: ...
+
+    @overload
+    def viewed_returns(
+        self, views: ScenarioView = ..., t: DateLike | None = None
+    ) -> ViewedDistribution: ...
+
+    def viewed_returns(
+        self, views: ScenarioView | None = None, t: DateLike | None = None
+    ) -> ViewedDistribution | list[ViewedDistribution]:
+        if views is not None:
+            if not hasattr(views, "view_distribution"):
+                raise TypeError("views must provide view_distribution(panel)")
+            as_of = self.trading_bars[-1] if t is None else self._as_datetime(t)
+            return views.view_distribution(
+                self._simple_return_history_through(as_of), as_of=as_of
+            )
+        if t is not None:
+            as_of = self._as_datetime(t)
+            event = self.views.latest_event_at(as_of)
+            if event is None:
+                raise ValueError(f"No views registered on or before {as_of!r}")
+            return event.views.view_distribution(
+                self._simple_return_history_through(as_of), as_of=event.as_of
+            )
+        return [
+            event.views.view_distribution(
+                self._simple_return_history_through(event.as_of), as_of=event.as_of
+            )
+            for event in self.views.events
+        ]
+
+    def _raw_history_through(self, t: datetime) -> tuple[pl.DataFrame, ProbVector]:
         window = self.frame.filter(pl.col("date") <= t)
         if window.height == 0:
             raise ValueError(f"No history on or before {t!r}")
         prob = self.history_weighting.probs(window.height)
+        return window, prob
+
+    def _log_price_history_through(self, t: datetime) -> ScenarioPanel:
+        window, prob = self._raw_history_through(t)
         return ScenarioPanel.from_prices(window, prob=prob)
+
+    def _simple_return_history_through(self, t: datetime) -> ScenarioPanel:
+        window, prob = self._raw_history_through(t)
+        return ScenarioPanel.from_levels(window, prob=prob).to_simple_returns()
 
     def cash_rate_asof(self, t: DateLike, *, step_size: int = 1) -> float:
         """Ex-ante assumption: latest rate known at t, as an ACT/day-count return."""

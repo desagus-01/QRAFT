@@ -10,6 +10,8 @@ from qraft.core.market import (
     HistoryWeighting,
 )
 from qraft.core.panel import ScenarioPanel
+from qraft.core.scenarios.transforms import Views
+from qraft.core.scenarios.view_types import MeanView
 from qraft.core.scenarios.views import ViewEvent
 from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecast_paths import AssetUniverse
@@ -57,6 +59,15 @@ class _ScaleProbView:
     def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
         weights = np.arange(1, panel.values.height + 1, dtype=float) ** self.factor
         return panel.with_prob(weights / weights.sum())
+
+
+class _CapturePanelView:
+    def __init__(self) -> None:
+        self.panel: ScenarioPanel | None = None
+
+    def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
+        self.panel = panel
+        return panel
 
 
 # ---------------------------------------------------------------------------
@@ -244,8 +255,8 @@ def test_history_through_raises_on_no_data() -> None:
         md.history_through(datetime(2020, 1, 1))
 
 
-def test_with_view_events_applies_latest_causal_event_only() -> None:
-    md = _market_data().with_view_events(
+def test_with_views_applies_latest_causal_event_only() -> None:
+    md = _market_data().with_views(
         (datetime(2024, 1, 2), _ScaleProbView(1.0)),
         ViewEvent(datetime(2024, 1, 3), _ScaleProbView(2.0)),
     )
@@ -255,33 +266,94 @@ def test_with_view_events_applies_latest_causal_event_only() -> None:
     second = md.history_through(datetime(2024, 1, 3))
 
     np.testing.assert_allclose(before.prob, [1.0])
-    np.testing.assert_allclose(first.prob, [1 / 3, 2 / 3])
-    np.testing.assert_allclose(second.prob, [1 / 14, 4 / 14, 9 / 14])
+    np.testing.assert_allclose(first.prob, [1.0])
+    np.testing.assert_allclose(second.prob, [1 / 5, 4 / 5])
 
 
-def test_current_views_only_apply_to_current_history() -> None:
-    md = _market_data().with_current_views(_ScaleProbView(2.0))
+def test_view_events_receive_simple_return_history() -> None:
+    view = _CapturePanelView()
+    md = _market_data().with_views((datetime(2024, 1, 3), view))
 
-    causal = md.history_through(datetime(2024, 1, 3))
-    current = md.current_history()
+    panel = md.history_through(datetime(2024, 1, 3))
 
-    np.testing.assert_allclose(causal.prob, [1 / 3, 1 / 3, 1 / 3])
-    np.testing.assert_allclose(current.prob, [1 / 14, 4 / 14, 9 / 14])
-
-
-def test_current_views_are_not_backtest_safe() -> None:
-    md = _market_data().with_current_views(_ScaleProbView(1.0))
-
-    with pytest.raises(ValueError, match="current-only views"):
-        md.assert_backtest_safe()
+    assert view.panel is not None
+    assert panel.kind == "return"
+    assert view.panel.kind == "return"
+    assert view.panel.dates.to_list() == [datetime(2024, 1, 2), datetime(2024, 1, 3)]
+    np.testing.assert_allclose(
+        view.panel.values.select("A", "B").to_numpy(),
+        [[0.1, 0.1], [1.0 / 11.0, 1.0 / 11.0]],
+    )
 
 
-def test_clear_views_removes_view_state() -> None:
-    md = _market_data().with_current_views(_ScaleProbView(1.0)).clear_views()
+def test_viewed_returns_exposes_simple_return_distribution() -> None:
+    md = _market_data()
+    views = Views([MeanView("A", "==", 0.1)])
 
-    md.assert_backtest_safe()
-    assert md.views.events == ()
-    assert md.views.current is None
+    viewed = md.viewed_returns(views, datetime(2024, 1, 3))
+    via_view = views.against(md)
+
+    assert viewed.panel.kind == "return"
+    assert viewed.panel.dates.to_list() == [datetime(2024, 1, 2), datetime(2024, 1, 3)]
+    np.testing.assert_allclose(
+        viewed.panel.values.get_column("A").to_numpy(), [0.1, 1.0 / 11.0]
+    )
+    assert viewed.as_of == datetime(2024, 1, 3)
+    assert set(viewed.moments()["A"]) == {
+        "prior_mean",
+        "posterior_mean",
+        "prior_std",
+        "posterior_std",
+    }
+    np.testing.assert_allclose(viewed.posterior, via_view.posterior)
+
+
+def test_viewed_returns_without_args_returns_each_registered_view_date() -> None:
+    first = Views([MeanView("A", "==", 0.1)])
+    second = Views([MeanView("A", "==", 1.0 / 11.0)])
+    md = _market_data().with_views(
+        (datetime(2024, 1, 2), first),
+        (datetime(2024, 1, 3), second),
+    )
+
+    viewed = md.viewed_returns()
+
+    assert [item.as_of for item in viewed] == [
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 3),
+    ]
+    assert viewed[0].panel.dates.to_list() == [datetime(2024, 1, 2)]
+    assert viewed[1].panel.dates.to_list() == [
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 3),
+    ]
+
+
+def test_viewed_returns_at_uses_latest_registered_view_causally() -> None:
+    md = _market_data().with_views(
+        (datetime(2024, 1, 2), Views([MeanView("A", "==", 0.1)])),
+        (datetime(2024, 1, 3), Views([MeanView("A", "==", 1.0 / 11.0)])),
+    )
+
+    viewed = md.viewed_returns(t=datetime(2024, 1, 3))
+
+    assert viewed.as_of == datetime(2024, 1, 3)
+    assert viewed.panel.dates.to_list() == [datetime(2024, 1, 2), datetime(2024, 1, 3)]
+
+
+def test_viewed_returns_at_raises_without_registered_view() -> None:
+    md = _market_data()
+
+    with pytest.raises(ValueError, match="No views registered"):
+        md.viewed_returns(t=datetime(2024, 1, 3))
+
+
+def test_views_reject_non_return_panel() -> None:
+    panel = ScenarioPanel.from_prices(_price_frame(), prob=np.array([0.2, 0.3, 0.5]))
+    views = Views([MeanView("A", "==", 0.1)])
+
+    with pytest.raises(ValueError, match="simple-return panel"):
+        views.apply(panel)
 
 
 # ---------------------------------------------------------------------------

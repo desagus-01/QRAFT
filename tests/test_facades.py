@@ -95,14 +95,6 @@ def test_backtest_facade_accepts_precomputed_source():
     np.testing.assert_allclose(facade.nav, manual.nav)
 
 
-def test_backtest_rejects_current_only_views():
-    market = _market().with_current_views(_NoopView())
-    policy = EqualWeightPolicy(target_cash_weight=0.25)
-
-    with pytest.raises(ValueError, match="current-only views"):
-        Backtest(market=market, policy=policy).run()
-
-
 def test_validation_runs_explicit_reports(monkeypatch):
     market = _market()
     policy = EqualWeightPolicy(target_cash_weight=0.0)
@@ -133,16 +125,6 @@ def test_validation_runs_explicit_reports(monkeypatch):
 
     assert isinstance(seen["walk"], WalkForwardConfig)
     assert isinstance(seen["cpcv"], CombinatorialCVConfig)
-
-
-def test_validation_rejects_current_only_views():
-    market = _market().with_current_views(_NoopView())
-    policy = EqualWeightPolicy(target_cash_weight=0.0)
-
-    with pytest.raises(ValueError, match="current-only views"):
-        SelectionValidation(
-            market, policy, {}, source={}, plan=InputPlan()
-        ).walk_forward(WalkForwardConfig())
 
 
 def test_validation_reuses_candidate_evaluation(monkeypatch):

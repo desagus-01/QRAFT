@@ -61,7 +61,7 @@ market = MarketData.from_prices(
     universe,
     cash=cash,
     history_weighting=HistoryWeighting("state_smooth", half_life=60),
-).with_view_events((prices["date"][-120], views))
+).with_views((prices["date"][-120], views))
 
 
 # %%

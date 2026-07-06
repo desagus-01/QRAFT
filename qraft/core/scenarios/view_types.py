@@ -29,6 +29,12 @@ class CorrView:
 
 @dataclass(frozen=True)
 class RankingView:
+    """Rank assets by view-panel values.
+
+    View panels use simple per-period returns; rankings can differ from log-return
+    rankings for large divergent moves.
+    """
+
     order: list[str]
 
     def __post_init__(self) -> None:

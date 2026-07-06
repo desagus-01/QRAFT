@@ -57,6 +57,21 @@ def test_entropy_pooling_confidence_blends_posterior_before_packaging() -> None:
     np.testing.assert_allclose(blended.posterior, expected)
 
 
+def test_entropy_pooling_confidence_diagnostics_describe_blended_posterior() -> None:
+    full = entropy_pooling_probs(_panel(), [MeanView("A", ">=", 1.5)])
+    blended = entropy_pooling_probs(
+        _panel(), [MeanView("A", ">=", 1.5)], confidence=0.5
+    )
+
+    expected_ens = np.exp(-np.sum(blended.posterior * np.log(blended.posterior)))
+
+    assert blended.diagnostics.ens_posterior == pytest.approx(expected_ens)
+    assert blended.diagnostics.ens_posterior != pytest.approx(
+        full.diagnostics.ens_posterior
+    )
+    assert not blended.diagnostics.constraints[0]["active"]
+
+
 def test_entropy_pooling_infeasible_views_error_names_constraints() -> None:
     with pytest.raises(InfeasibleViewsError, match="A >= 3.0"):
         entropy_pooling_probs(_panel(), [MeanView("A", ">=", 3.0)])
