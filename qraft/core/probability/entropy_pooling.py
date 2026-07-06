@@ -1,7 +1,7 @@
 import logging
 import operator
 from dataclasses import dataclass
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, NamedTuple, Sequence
 
 import cvxpy as cp
 import numpy as np
@@ -68,12 +68,53 @@ class InfeasibleViewsError(ValueError):
     pass
 
 
+class Anchor(NamedTuple):
+    mu: float
+    sigma2: float
+    source: str
+
+
+def resolve_anchors(
+    specs: Sequence[ViewSpec], panel: ScenarioPanel, prior: ProbVector
+) -> dict[str, Anchor]:
+    """Resolve per-asset mean/variance anchors used by std/corr views."""
+    mean_views: dict[str, MeanView] = {}
+    anchored_assets: set[str] = set()
+
+    for spec in specs:
+        if isinstance(spec, MeanView):
+            mean_views[spec.asset] = spec
+        elif isinstance(spec, StdView):
+            anchored_assets.add(spec.asset)
+        elif isinstance(spec, CorrView):
+            anchored_assets.update(spec.pair)
+
+    anchors: dict[str, Anchor] = {}
+    for asset in anchored_assets:
+        x = _col(panel, asset)
+        mu_prior, sd_prior = weighted_moments(x.reshape(1, -1), prior)
+        mean_view = mean_views.get(asset)
+        if mean_view is None:
+            anchors[asset] = Anchor(
+                float(mu_prior[0]), float(sd_prior[0] ** 2), "prior"
+            )
+        elif mean_view.sign == "==":
+            anchors[asset] = Anchor((mean_view.target), float(sd_prior[0] ** 2), "view")
+        else:
+            raise ValueError(
+                f"StdView on '{asset}' cannot be anchored to an inequality mean view; "
+                "use sign '==' or drop one of the views."
+            )
+
+    return anchors
+
+
 def compile_spec(
     spec: ViewSpec,
     panel: ScenarioPanel,
     posterior: cp.Variable,
     prior: ProbVector,
-    mean_targets: dict[str, float],
+    anchors: dict[str, Anchor],
 ) -> list[CompiledConstraint]:
     """Resolve a spec's data from ``panel`` and build its cvxpy constraint(s)."""
     match spec:
@@ -94,10 +135,10 @@ def compile_spec(
 
         case StdView(asset, sign, target):
             x = _col(panel, asset)
-            # anchor on a paired mean VIEW if one exists, else the prior mean
-            mu_ref: float = mean_targets.get(asset, float(x @ prior))
+            mu_ref = anchors[asset].mu
             lhs = (x**2) @ posterior
             rhs = target**2 + mu_ref**2
+            mean_lhs = x @ posterior
             return [
                 CompiledConstraint(
                     constraint=_OPS[sign](lhs, rhs),
@@ -106,15 +147,35 @@ def compile_spec(
                     risk_driver=asset,
                     sign=sign,
                     target=target,
-                )
+                ),
+                CompiledConstraint(
+                    constraint=_OPS["=="](mean_lhs, mu_ref),
+                    lhs=mean_lhs,
+                    rhs=mu_ref,
+                    risk_driver=(asset, "anchor:mean"),
+                    sign="==",
+                    target=mu_ref,
+                ),
             ]
 
         case CorrView((a_name, b_name), sign, target):
             a: NDArray[np.floating] = _col(panel, a_name)
             b: NDArray[np.floating] = _col(panel, b_name)
-            mu, sd = weighted_moments(np.vstack([a, b]), prior)
+            a_anchor = anchors[a_name]
+            b_anchor = anchors[b_name]
+            a_mu = a_anchor.mu
+            b_mu = b_anchor.mu
+            a_second = a_anchor.sigma2 + a_mu**2
+            b_second = b_anchor.sigma2 + b_mu**2
             lhs = (a * b) @ posterior
-            rhs = target * sd[0] * sd[1] + mu[0] * mu[1]
+            rhs = (
+                target * np.sqrt(a_anchor.sigma2) * np.sqrt(b_anchor.sigma2)
+                + a_mu * b_mu
+            )
+            a_mean_lhs = a @ posterior
+            b_mean_lhs = b @ posterior
+            a_second_lhs = (a**2) @ posterior
+            b_second_lhs = (b**2) @ posterior
             return [
                 CompiledConstraint(
                     constraint=_OPS[sign](lhs, rhs),
@@ -123,7 +184,39 @@ def compile_spec(
                     risk_driver=(a_name, b_name),
                     sign=sign,
                     target=target,
-                )
+                ),
+                CompiledConstraint(
+                    constraint=_OPS["=="](a_mean_lhs, a_mu),
+                    lhs=a_mean_lhs,
+                    rhs=a_mu,
+                    risk_driver=(a_name, "anchor:mean"),
+                    sign="==",
+                    target=a_mu,
+                ),
+                CompiledConstraint(
+                    constraint=_OPS["=="](b_mean_lhs, b_mu),
+                    lhs=b_mean_lhs,
+                    rhs=b_mu,
+                    risk_driver=(b_name, "anchor:mean"),
+                    sign="==",
+                    target=b_mu,
+                ),
+                CompiledConstraint(
+                    constraint=_OPS["=="](a_second_lhs, a_second),
+                    lhs=a_second_lhs,
+                    rhs=a_second,
+                    risk_driver=(a_name, "anchor:second_moment"),
+                    sign="==",
+                    target=a_second,
+                ),
+                CompiledConstraint(
+                    constraint=_OPS["=="](b_second_lhs, b_second),
+                    lhs=b_second_lhs,
+                    rhs=b_second,
+                    risk_driver=(b_name, "anchor:second_moment"),
+                    sign="==",
+                    target=b_second,
+                ),
             ]
 
         case QuantileView(asset, quantile, target_prob):
@@ -173,13 +266,11 @@ def _build_constraints(
 ) -> tuple[list[CompiledConstraint], list[CvxConstraint]]:
     """Simplex constraints + one-or-more constraints per spec."""
     base: list[CvxConstraint] = [cp.sum(posterior) == 1, posterior >= 0]  # type: ignore[list-item]
-    mean_targets: dict[str, float] = {
-        v.asset: v.target for v in specs if isinstance(v, MeanView)
-    }
+    anchors = resolve_anchors(specs, panel, prior)
 
     compiled: list[CompiledConstraint] = []
     for spec in specs:
-        compiled += compile_spec(spec, panel, posterior, prior, mean_targets)
+        compiled += compile_spec(spec, panel, posterior, prior, anchors)
 
     return compiled, [c.constraint for c in compiled] + base
 

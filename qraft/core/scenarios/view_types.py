@@ -31,6 +31,14 @@ class CorrView:
 class RankingView:
     order: list[str]
 
+    def __post_init__(self) -> None:
+        if len(self.order) < 2:
+            raise ValueError(
+                "RankingView needs at least two assets to express an ordering; got 1."
+            )
+        if len(set(self.order)) != len(self.order):
+            raise ValueError("RankingView cannot contain duplicate assets.")
+
 
 @dataclass(frozen=True)
 class QuantileView:

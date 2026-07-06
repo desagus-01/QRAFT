@@ -43,8 +43,8 @@ prices = prices.select(cols_to_keep)
 assets = list(prices.columns[10:90])
 universe = AssetUniverse(assets=assets, factors=list(factor_cols)[:4])
 prices = prices.select("date", *universe.all_tickers)
-
-views = Views([RankingView(order=assets[:1])], confidence=0.35)
+# %%
+views = Views([RankingView(order=["CUBE", "MA", "CVCO"])], confidence=0.35)
 market = MarketData.from_prices(
     prices,
     universe,
@@ -53,4 +53,3 @@ market = MarketData.from_prices(
 ).with_view_events((prices["date"][-120], views))
 
 # %%
-market.views
