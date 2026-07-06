@@ -24,7 +24,6 @@ from qraft.forecast.pipelines.fitted_universe import (
 from qraft.forecast.pipelines.forecasting import forecast_from_fit
 from qraft.utils.log import info_event
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -86,18 +85,107 @@ def build_forecast_recipe_history(
     """Build recipes from every-bar snapshots; ``refit_every`` is in bars."""
     if min_history < 1 or refit_every < 1:
         raise ValueError("min_history and refit_every must be >= 1")
-    snapshots = _forecast_snapshots_from_market(
-        market,
-        min_history=min_history,
-        cadence="every_bar",
+
+    recipe: ForecastRecipe | None = None
+    last_universe: tuple[str, ...] | None = None
+    current_period: RecipePeriod | None = None
+    periods: list[RecipePeriod] = []
+    eligible_steps = 0
+    all_bars = market.trading_bars
+    forecast_bars = {
+        d for d, _ in RebalanceSchedule("every_bar").decision_steps(all_bars)
+    }
+    n_snapshots = sum(
+        1
+        for i, bar in enumerate(all_bars)
+        if i + 1 >= min_history and bar in forecast_bars and i + 1 < len(all_bars)
     )
-    return build_forecast_recipe_history_from_snapshots(
-        snapshots,
+
+    info_event(
+        logger,
+        "forecast.recipe_build_started",
+        "Forecast recipe history build started",
+        snapshots=n_snapshots,
         refit_every=refit_every,
         reselect_on_universe_change=reselect_on_universe_change,
-        seed=seed,
-        pipeline_config=pipeline_config,
     )
+
+    for i, bar in enumerate(all_bars):
+        if i + 1 < min_history or bar not in forecast_bars:
+            continue
+        if i + 1 >= len(all_bars):
+            continue
+
+        universe_key = tuple(market.universe.all_tickers)
+        universe_changed = universe_key != last_universe
+        rebuild_recipe = (
+            recipe is None
+            or (reselect_on_universe_change and universe_changed)
+            or eligible_steps % refit_every == 0
+        )
+        if not rebuild_recipe:
+            last_universe = universe_key
+            eligible_steps += 1
+            continue
+
+        reason = (
+            "initial"
+            if recipe is None
+            else "universe_changed"
+            if reselect_on_universe_change and universe_changed
+            else "refit_every"
+        )
+
+        snapshot = forecast_snapshot_at(market, bar)
+        panel = snapshot.history
+        recipe = create_forecast_recipe(
+            data=panel.to_frame(),
+            prob=panel.prob,
+            universe=snapshot.universe,
+            pipeline_config=pipeline_config,
+            seed=_seed_for(seed, eligible_steps),
+        )
+        if current_period is not None:
+            periods[-1] = RecipePeriod(
+                start=current_period.start,
+                end=snapshot.as_of,
+                recipe=current_period.recipe,
+                universe=current_period.universe,
+                selected_at_step=current_period.selected_at_step,
+                diagnostics=current_period.diagnostics,
+                invariance_drops=current_period.invariance_drops,
+            )
+        current_period = RecipePeriod(
+            start=snapshot.as_of,
+            end=None,
+            recipe=recipe,
+            universe=universe_key,
+            selected_at_step=eligible_steps,
+            invariance_drops=getattr(recipe, "invariance_drops", ()),
+        )
+        periods.append(current_period)
+        last_universe = universe_key
+        info_event(
+            logger,
+            "forecast.recipe_selected",
+            "Forecast recipe selected",
+            step=eligible_steps,
+            as_of=snapshot.as_of,
+            reason=reason,
+            assets=len(snapshot.universe.assets),
+            factors=len(snapshot.universe.factors),
+            history_rows=panel.values.height,
+        )
+        eligible_steps += 1
+
+    info_event(
+        logger,
+        "forecast.recipe_build_completed",
+        "Forecast recipe history build completed",
+        snapshots=n_snapshots,
+        periods=len(periods),
+    )
+    return ForecastRecipeHistory(tuple(periods), pipeline_config=pipeline_config)
 
 
 def simulate_forecast_paths(

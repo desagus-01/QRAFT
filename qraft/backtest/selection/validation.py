@@ -66,7 +66,6 @@ class Validation:
     def walk_forward(self, cfg: WalkForwardConfig | None = None) -> WalkForwardReport:
         if cfg is None:
             cfg = WalkForwardConfig()
-        self.market.assert_backtest_safe()
         return walk_forward_from_evaluation(
             self._evaluation(risk_free_rate=cfg.risk_free_rate),
             walk_config=cfg,
@@ -78,7 +77,6 @@ class Validation:
     ) -> CombinatorialReport:
         if cfg is None:
             cfg = CombinatorialCVConfig()
-        self.market.assert_backtest_safe()
         return combinatorial_from_evaluation(
             self._evaluation(risk_free_rate=cfg.cv_config.risk_free_rate),
             cv_config=cfg,

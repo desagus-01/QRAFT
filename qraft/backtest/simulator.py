@@ -17,12 +17,12 @@ from qraft.backtest.execution import (
     execute_frictionless,
 )
 from qraft.backtest.inputs import PolicyInputsProvider
-from qraft.core.market import MarketData
 from qraft.construction.inputs import PolicyInputRequirements, build_policy_input_table
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
+from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecaster import Forecaster, ForecastSource
@@ -262,8 +262,32 @@ def precompute_inputs(
     step_size: int = 1,
 ) -> dict[datetime, PolicyInputs]:
     """Build and freeze policy inputs for the exact backtest decision schedule."""
-    market.assert_backtest_safe()
     points = decision_points(market, schedule, warmup, step_size=step_size)
+    return precompute_inputs_for_points(
+        points,
+        market,
+        forecaster=forecaster,
+        plan=plan,
+        source=source,
+        policy=policy,
+        dtype=dtype,
+    )
+
+
+def precompute_inputs_for_points(
+    points: list[DecisionPoint],
+    market: MarketData,
+    *,
+    forecaster: Forecaster | None = None,
+    plan: InputPlan | None = None,
+    source: ForecastSource
+    | PolicyInputsProvider
+    | dict[datetime, PolicyInputs]
+    | None = None,
+    policy: PolicyInputRequirements | None = None,
+    dtype: type = np.float64,
+) -> dict[datetime, PolicyInputs]:
+    """Build policy inputs from already-materialized decision snapshots."""
     if isinstance(source, dict):
         table = source
     elif isinstance(source, PolicyInputsProvider):
@@ -306,6 +330,7 @@ def run_backtest(
     initial_cash: float = 100.0,
     step_size: int = 1,
     costs: CostModel | None = None,
+    points: list[DecisionPoint] | None = None,
 ) -> BacktestResult:
     if costs is None:
         costs = CostModel.from_policy(policy)
@@ -314,7 +339,8 @@ def run_backtest(
 
     bars = market.trading_bars
     asset_order = list(market.universe.assets)
-    points = decision_points(market, schedule, warmup, step_size=step_size)
+    if points is None:
+        points = decision_points(market, schedule, warmup, step_size=step_size)
     points_by_bar = {p.decision_bar: p for p in points}
     exec_to_decision = {p.execution_bar: p.decision_bar for p in points}
 

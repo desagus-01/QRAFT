@@ -1,6 +1,7 @@
 # %%
 import logging
 
+import numpy as np
 import polars as pl
 
 from qraft import (
@@ -64,11 +65,13 @@ market_without_views = MarketData.from_prices(
 
 view_asset = assets[0]
 view_dates = [prices["date"][-360], prices["date"][-240], prices["date"][-120]]
-normal_averages = [
-    market_without_views.viewed_returns(Views([]), t=view_date).moments()[view_asset][
-        "prior_mean"
-    ]
+return_panels = [
+    market_without_views._simple_return_history_through(view_date)
     for view_date in view_dates
+]
+normal_averages = [
+    np.average(panel.values.get_column(view_asset).to_numpy(), weights=panel.prob)
+    for panel in return_panels
 ]
 
 view_events = [

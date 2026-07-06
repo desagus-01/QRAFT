@@ -16,7 +16,9 @@ from qraft.backtest.selection.results import (
     PolicyCandidate,
 )
 from qraft.backtest.simulator import (
-    precompute_inputs,
+    DecisionPoint,
+    decision_points,
+    precompute_inputs_for_points,
     run_backtest,
 )
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
@@ -43,6 +45,7 @@ def evaluate_candidates(
     initial_cash: float = 100.0,
     periods_per_year: float | None = None,
     risk_free_rate: float = 0.0,
+    points: list[DecisionPoint] | None = None,
 ) -> tuple[CandidateResult, ...]:
     """Backtest each candidate against a SHARED inputs provider and score it.
 
@@ -62,6 +65,7 @@ def evaluate_candidates(
                 inputs=inputs,
                 initial_cash=initial_cash,
                 step_size=step_size,
+                points=points,
             )
             summary = PerformanceSummary.from_backtest(
                 backtest,
@@ -117,15 +121,14 @@ def run_selection_window(
         raise TypeError("run_selection_window requires source or forecaster")
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
-    table = precompute_inputs(
+    points = decision_points(market, schedule, warmup, step_size=step_size)
+    table = precompute_inputs_for_points(
+        points,
         market,
-        schedule,
-        warmup,
         forecaster=forecaster,
         plan=plan,
         source=source,
         policy=base_policy,
-        step_size=step_size,
     )
     shared = PrecomputedInputsProvider(table)
     return evaluate_candidates(
@@ -137,6 +140,7 @@ def run_selection_window(
         initial_cash=initial_cash,
         periods_per_year=periods_per_year,
         risk_free_rate=risk_free_rate,
+        points=points,
     )
 
 
@@ -166,10 +170,10 @@ def evaluate_candidate_grid(
         if source is not None
         else type(forecaster).__name__,
     )
-    table = precompute_inputs(
+    points = decision_points(market, backtest_config.schedule, warmup)
+    table = precompute_inputs_for_points(
+        points,
         market,
-        backtest_config.schedule,
-        warmup,
         forecaster=forecaster,
         plan=plan,
         source=source,
@@ -191,6 +195,7 @@ def evaluate_candidate_grid(
         initial_cash=backtest_config.initial_cash,
         periods_per_year=backtest_config.periods_per_year,
         risk_free_rate=risk_free_rate,
+        points=points,
     )
     failures = sum(1 for result in candidate_results if result.failure is not None)
     info_event(

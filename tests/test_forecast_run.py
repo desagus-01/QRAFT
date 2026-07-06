@@ -230,3 +230,76 @@ def test_policy_input_precompute_refits_recipes_on_market_bars(monkeypatch):
 
     assert selected_steps == [2, 4]
     assert len(table) == 4
+
+
+def test_recipe_history_only_builds_snapshots_for_refit_bars(monkeypatch):
+    _patch_runner(monkeypatch)
+    snapshot_dates: list[datetime] = []
+
+    def forecast_snapshot_at(market, bar):
+        from qraft.core.snapshot import forecast_snapshot_at as real_snapshot_at
+
+        snapshot_dates.append(bar)
+        return real_snapshot_at(market, bar)
+
+    monkeypatch.setattr("qraft.forecast.run.forecast_snapshot_at", forecast_snapshot_at)
+
+    build_forecast_recipe_history(
+        _market(),
+        min_history=2,
+        refit_every=2,
+    )
+
+    assert snapshot_dates == [
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 4),
+    ]
+
+
+def test_selection_reuses_precomputed_decision_snapshots(monkeypatch):
+    import numpy as np
+
+    from qraft.backtest.selection.evaluate import run_selection_window
+    from qraft.construction.optimization.inputs import InputPlan
+    from qraft.construction.policies import EqualWeightPolicy
+
+    class CountingMarket:
+        def __init__(self, market):
+            self._market = market
+            self.snapshot_calls: list[datetime] = []
+
+        def snapshot_at(self, t, t_next, *, step_size=1):
+            self.snapshot_calls.append(t)
+            return self._market.snapshot_at(t, t_next, step_size=step_size)
+
+        def __getattr__(self, name):
+            return getattr(self._market, name)
+
+    class StaticProvider:
+        def for_date(self, snapshot, step):
+            from qraft.construction.optimization.inputs import PolicyInputs
+
+            assets = list(snapshot.universe.assets)
+            n_assets = len(assets)
+            return PolicyInputs(
+                assets=assets,
+                mean=np.zeros((1, n_assets)),
+                covariances=np.tile(np.eye(n_assets), (1, 1, 1)),
+            )
+
+    market = CountingMarket(_market())
+    run_selection_window(
+        market,
+        EqualWeightPolicy(target_cash_weight=0.0, min_history=2),
+        grid={},
+        source=StaticProvider(),
+        schedule=RebalanceSchedule("every_bar"),
+        plan=InputPlan(expected_returns="historical", risk="covariance"),
+    )
+
+    assert market.snapshot_calls == [
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 3),
+        datetime(2024, 1, 4),
+        datetime(2024, 1, 5),
+    ]

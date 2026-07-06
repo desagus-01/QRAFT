@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Literal, overload
@@ -22,9 +23,11 @@ from qraft.core.scenarios.views import (
 from qraft.core.snapshot import MarketSnapshot
 from qraft.core.universe import AssetUniverse
 from qraft.utils.helpers import str_to_datetime
+from qraft.utils.log import info_event
 
 WeightingScheme = Literal["uniform", "state_smooth"]
 DateLike = datetime | str
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,9 +130,6 @@ class MarketData:
         )
         return replace(self, views=ViewState(events=normalized))
 
-    def assert_backtest_safe(self) -> None:
-        return None
-
     @property
     def trading_bars(self) -> list[datetime]:
         return self.frame.get_column("date").to_list()
@@ -150,6 +150,13 @@ class MarketData:
         if event is None:
             return panel
         returns = self._simple_return_history_through(t)
+        self._log_views_applied(
+            target="history_through",
+            requested_bar=t,
+            view_as_of=event.as_of,
+            views=event.views,
+            panel=returns,
+        )
         if hasattr(event.views, "view_distribution"):
             viewed = event.views.view_distribution(returns, as_of=t)
             return panel.with_prob(viewed.prob_for(panel))
@@ -180,23 +187,70 @@ class MarketData:
             if not hasattr(views, "view_distribution"):
                 raise TypeError("views must provide view_distribution(panel)")
             as_of = self.trading_bars[-1] if t is None else self._as_datetime(t)
-            return views.view_distribution(
-                self._simple_return_history_through(as_of), as_of=as_of
+            returns = self._simple_return_history_through(as_of)
+            self._log_views_applied(
+                target="viewed_returns",
+                requested_bar=as_of,
+                view_as_of=as_of,
+                views=views,
+                panel=returns,
             )
+            return views.view_distribution(returns, as_of=as_of)
         if t is not None:
             as_of = self._as_datetime(t)
             event = self.views.latest_event_at(as_of)
             if event is None:
                 raise ValueError(f"No views registered on or before {as_of!r}")
-            return event.views.view_distribution(
-                self._simple_return_history_through(as_of), as_of=event.as_of
+            returns = self._simple_return_history_through(as_of)
+            self._log_views_applied(
+                target="viewed_returns",
+                requested_bar=as_of,
+                view_as_of=event.as_of,
+                views=event.views,
+                panel=returns,
             )
+            return event.views.view_distribution(returns, as_of=event.as_of)
         return [
-            event.views.view_distribution(
-                self._simple_return_history_through(event.as_of), as_of=event.as_of
-            )
+            self._viewed_returns_for_event(event.views, event.as_of)
             for event in self.views.events
         ]
+
+    def _viewed_returns_for_event(
+        self, views: ScenarioView, as_of: datetime
+    ) -> ViewedDistribution:
+        returns = self._simple_return_history_through(as_of)
+        self._log_views_applied(
+            target="viewed_returns",
+            requested_bar=as_of,
+            view_as_of=as_of,
+            views=views,
+            panel=returns,
+        )
+        return views.view_distribution(returns, as_of=as_of)
+
+    def _log_views_applied(
+        self,
+        *,
+        target: str,
+        requested_bar: datetime,
+        view_as_of: datetime,
+        views: ScenarioView,
+        panel: ScenarioPanel,
+    ) -> None:
+        dates = panel.dates.to_list()
+        info_event(
+            logger,
+            "views.applied",
+            "Applying scenario views",
+            target=target,
+            requested_bar=requested_bar,
+            view_as_of=view_as_of,
+            view_type=type(views).__name__,
+            panel_kind=panel.kind,
+            bar_count=len(dates),
+            first_bar=dates[0] if dates else None,
+            last_bar=dates[-1] if dates else None,
+        )
 
     def _raw_history_through(self, t: datetime) -> tuple[pl.DataFrame, ProbVector]:
         window = self.frame.filter(pl.col("date") <= t)
