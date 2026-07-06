@@ -21,7 +21,7 @@ from qraft import (
 )
 from qraft.construction import FullyInvested, LongOnly, MinCashWeight, TurnoverLimit
 from qraft.construction.policies.allocation import Allocation
-from qraft.core.scenarios.view_types import RankingView
+from qraft.core.scenarios.view_types import MeanView, QuantileView, RankingView, StdView
 from qraft.core.schedule import RebalanceSchedule
 from qraft.utils.tiingo import import_tickers_and_factors
 
@@ -55,13 +55,59 @@ assets = list(prices.columns[10:90])
 universe = AssetUniverse(assets=assets, factors=list(factor_cols)[:4])
 prices = prices.select("date", *universe.all_tickers)
 
-views = Views([RankingView(order=assets[:1])], confidence=0.35)
-market = MarketData.from_prices(
+market_without_views = MarketData.from_prices(
     prices,
     universe,
     cash=cash,
     history_weighting=HistoryWeighting("state_smooth", half_life=60),
-).with_views((prices["date"][-120], views))
+)
+
+view_asset = assets[0]
+view_dates = [prices["date"][-360], prices["date"][-240], prices["date"][-120]]
+normal_averages = [
+    market_without_views.viewed_returns(Views([]), t=view_date).moments()[view_asset][
+        "prior_mean"
+    ]
+    for view_date in view_dates
+]
+
+view_events = [
+    (
+        view_dates[0],
+        Views(
+            [
+                MeanView(view_asset, ">=", normal_averages[0] * 1.25),
+                RankingView(order=assets[:3]),
+            ],
+            confidence=0.55,
+            solver_kwargs={"eps": 1e-7, "max_iters": 50_000},
+        ),
+    ),
+    (
+        view_dates[1],
+        Views(
+            [
+                MeanView(assets[1], "<=", normal_averages[1] * 0.75),
+                RankingView(order=[assets[2], assets[0], assets[1]]),
+            ],
+            confidence=0.75,
+            solver_kwargs={"eps": 1e-7, "max_iters": 50_000},
+        ),
+    ),
+    (
+        view_dates[2],
+        Views(
+            [
+                MeanView(view_asset, "==", normal_averages[2] * 1.10),
+                StdView(view_asset, "<=", 0.035),
+                QuantileView(view_asset, 0.25, 0.20),
+            ],
+            confidence=0.90,
+            solver_kwargs={"eps": 1e-7, "max_iters": 50_000},
+        ),
+    ),
+]
+market = market_without_views.with_views(*view_events)
 
 
 # %%

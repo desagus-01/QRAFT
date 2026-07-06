@@ -266,8 +266,8 @@ def test_with_views_applies_latest_causal_event_only() -> None:
     second = md.history_through(datetime(2024, 1, 3))
 
     np.testing.assert_allclose(before.prob, [1.0])
-    np.testing.assert_allclose(first.prob, [1.0])
-    np.testing.assert_allclose(second.prob, [1 / 5, 4 / 5])
+    np.testing.assert_allclose(first.prob, [0.5, 0.5])
+    np.testing.assert_allclose(second.prob, [1 / 3, 2 / 15, 8 / 15])
 
 
 def test_view_events_receive_simple_return_history() -> None:
@@ -277,13 +277,37 @@ def test_view_events_receive_simple_return_history() -> None:
     panel = md.history_through(datetime(2024, 1, 3))
 
     assert view.panel is not None
-    assert panel.kind == "return"
+    assert panel.kind == "log_price"
     assert view.panel.kind == "return"
+    assert panel.dates.to_list() == [
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 3),
+    ]
     assert view.panel.dates.to_list() == [datetime(2024, 1, 2), datetime(2024, 1, 3)]
     np.testing.assert_allclose(
         view.panel.values.select("A", "B").to_numpy(),
         [[0.1, 0.1], [1.0 / 11.0, 1.0 / 11.0]],
     )
+
+
+def test_history_through_expands_view_posterior_to_log_price_history() -> None:
+    md = _market_data().with_views(
+        (datetime(2024, 1, 3), Views([MeanView("A", "==", 1.0 / 11.0)]))
+    )
+
+    panel = md.history_through(datetime(2024, 1, 3))
+    viewed = md.viewed_returns(t=datetime(2024, 1, 3))
+
+    assert panel.kind == "log_price"
+    assert panel.dates.to_list() == [
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 3),
+    ]
+    np.testing.assert_allclose(panel.prob, viewed.prob_for(panel))
+    assert len(panel.prob) == 3
+    assert len(viewed.posterior) == 2
 
 
 def test_viewed_returns_exposes_simple_return_distribution() -> None:

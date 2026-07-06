@@ -107,4 +107,5 @@ market = MarketData.from_prices(
 x = market.viewed_returns()
 
 # %%
-x[0].plot()
+for s in x:
+    s.plot()

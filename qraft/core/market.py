@@ -9,16 +9,16 @@ import polars as pl
 from numpy.typing import NDArray
 
 from qraft.core.cadence import resolve_periods_per_year
-from qraft.core.panel import ScenarioPanel
+from qraft.core.panel import ScenarioPanel, expand_posterior_to_parent
 from qraft.core.probability.distributions import state_smooth_probs, uniform_probs
 from qraft.core.probability.prob_vector import ProbVector
+from qraft.core.scenarios.transforms import ViewedDistribution
 from qraft.core.scenarios.views import (
     ScenarioView,
     ViewInput,
     ViewState,
     normalize_view_event,
 )
-from qraft.core.scenarios.transforms import ViewedDistribution
 from qraft.core.snapshot import MarketSnapshot
 from qraft.core.universe import AssetUniverse
 from qraft.utils.helpers import str_to_datetime
@@ -147,10 +147,15 @@ class MarketData:
         t = self._as_datetime(t)
         panel = self._log_price_history_through(t)
         event = self.views.latest_event_at(t)
-        return (
-            event.views.apply(self._simple_return_history_through(t))
-            if event is not None
-            else panel
+        if event is None:
+            return panel
+        returns = self._simple_return_history_through(t)
+        if hasattr(event.views, "view_distribution"):
+            viewed = event.views.view_distribution(returns, as_of=t)
+            return panel.with_prob(viewed.prob_for(panel))
+        viewed_panel = event.views.apply(returns)
+        return panel.with_prob(
+            expand_posterior_to_parent(viewed_panel.prob, panel.prob, 1)
         )
 
     @overload
