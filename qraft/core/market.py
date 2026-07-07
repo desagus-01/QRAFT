@@ -26,6 +26,7 @@ from qraft.utils.helpers import str_to_datetime
 from qraft.utils.log import info_event
 
 WeightingScheme = Literal["uniform", "state_smooth"]
+CashRateUnit = Literal["percent", "decimal"]
 DateLike = datetime | str
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True, slots=True)
 class MarketDataConfig:
     cash_column: str = "DFF"
+    cash_rate_unit: CashRateUnit = "percent"
     periods_per_year: float | None = None
     cash_day_count: int = 360  # ACT/360 fed-funds accrual
 
@@ -98,10 +100,6 @@ class MarketData:
             raise ValueError("MarketData prices must contain only finite values")
         if np.any(values <= 0):
             raise ValueError("MarketData prices must be strictly positive")
-        if np.all(np.max(values, axis=0) < 15.0):
-            raise ValueError(
-                "values look like log prices; from_prices expects raw adjusted-close prices."
-            )
         cash_sorted = (
             cls._normalize_date_column(cash).sort("date") if cash is not None else None
         )
@@ -111,6 +109,7 @@ class MarketData:
                 raise ValueError("Cash rates must contain only finite values")
         resolved_config = MarketDataConfig(
             cash_column=config.cash_column,
+            cash_rate_unit=config.cash_rate_unit,
             periods_per_year=resolve_periods_per_year(
                 frame.get_column("date").to_list(), config.periods_per_year
             ),
@@ -275,7 +274,13 @@ class MarketData:
         prior = self.cash.filter(pl.col("date") <= t)
         if prior.height == 0:
             raise ValueError(f"No cash rate on or before {t!r}")
-        annual = float(prior.get_column(self.config.cash_column)[-1]) / 100.0
+        raw_annual = float(prior.get_column(self.config.cash_column)[-1])
+        if self.config.cash_rate_unit == "percent":
+            annual = raw_annual / 100.0
+        elif self.config.cash_rate_unit == "decimal":
+            annual = raw_annual
+        else:
+            raise ValueError("cash_rate_unit must be 'percent' or 'decimal'")
         if not np.isfinite(annual):
             raise ValueError("Cash rate must be finite")
         return annual * step_size / self.config.cash_day_count

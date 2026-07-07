@@ -94,6 +94,14 @@ class CombinatorialReport:
     pbo: float | None = None
     deflated_sharpe: float | None = None
 
+    def require(self, *, max_pbo: float | None = None) -> "CombinatorialReport":
+        if max_pbo is not None and self.pbo is not None and self.pbo > max_pbo:
+            raise ValueError(
+                f"Combinatorial PBO {self.pbo:.3f} exceeds required maximum "
+                f"{max_pbo:.3f}."
+            )
+        return self
+
     @property
     def n_paths(self) -> int:
         return len(self.paths)

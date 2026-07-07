@@ -10,6 +10,7 @@ from qraft.backtest.configs import (
     CombinatorialCVConfig,
     WalkForwardConfig,
 )
+from qraft.backtest.execution import BacktestResult
 from qraft.backtest.inputs import PrecomputedInputsProvider
 from qraft.backtest.metrics import PerformanceSummary
 from qraft.core.market import MarketData
@@ -223,6 +224,83 @@ def test_validation_tune_returns_result_with_report() -> None:
     assert result.report is report
     assert result.selected_params == params
     assert isinstance(result.selected_policy, MPOPolicy)
+
+
+def test_validation_tune_defaults_to_most_selected_not_oos_argmax() -> None:
+    policy = MPOPolicy.preset("mean_covariance", name="template")
+    dates = [datetime(2024, 1, day) for day in range(1, 6)]
+    stable = PolicyParams.of(risk_aversion=1.0)
+    lucky = PolicyParams.of(risk_aversion=9.0)
+    stable_backtest = BacktestResult(
+        policy_name="stable",
+        asset_order=[],
+        nav_dates=dates,
+        nav=np.array([100.0, 101.0, 102.0, 103.0, 104.0]),
+        periods=[],
+    )
+    lucky_backtest = BacktestResult(
+        policy_name="lucky",
+        asset_order=[],
+        nav_dates=dates,
+        nav=np.array([100.0, 99.0, 98.0, 120.0, 150.0]),
+        periods=[],
+    )
+    candidates = (
+        CandidateResult(params=stable, backtest=stable_backtest),
+        CandidateResult(params=lucky, backtest=lucky_backtest),
+    )
+    report = WalkForwardReport(
+        folds=(
+            FoldResult(
+                fold=Fold(train=(dates[0], dates[1]), test=(dates[2], dates[3])),
+                selection=SelectionReport(
+                    candidates=candidates, selected_params=stable, rule="train"
+                ),
+                oos_summary=None,
+            ),
+            FoldResult(
+                fold=Fold(train=(dates[1], dates[2]), test=(dates[3], dates[4])),
+                selection=SelectionReport(
+                    candidates=candidates, selected_params=stable, rule="train"
+                ),
+                oos_summary=None,
+            ),
+            FoldResult(
+                fold=Fold(train=(dates[0], dates[2]), test=(dates[3], dates[4])),
+                selection=SelectionReport(
+                    candidates=candidates, selected_params=lucky, rule="train"
+                ),
+                oos_summary=None,
+            ),
+        ),
+        oos_summary=None,
+        oos_nav_dates=[],
+        oos_nav=np.array([], dtype=float),
+        evaluation=CandidateEvaluation(
+            candidate_results=candidates,
+            dates=dates,
+            backtest_config=BacktestConfig(periods_per_year=252.0),
+        ),
+    )
+
+    result = SelectionValidation(
+        _market(), policy, {}, source={}, plan=InputPlan()
+    ).tune(report, cfg=WalkForwardConfig(), score="total_return")
+
+    assert result.selected_params == stable
+
+
+def test_walk_forward_report_require_rejects_high_pbo() -> None:
+    report = WalkForwardReport(
+        folds=(),
+        oos_summary=None,
+        oos_nav_dates=[],
+        oos_nav=np.array([], dtype=float),
+        pbo=0.944,
+    )
+
+    with pytest.raises(ValueError, match="PBO"):
+        report.require(max_pbo=0.2)
 
 
 def test_validation_result_selected_policy_applies_selected_params():

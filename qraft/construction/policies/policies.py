@@ -17,7 +17,7 @@ from qraft.construction.optimization.optimization import (
     MultiPeriodOptimizer,
     OptimizationFailure,
 )
-from qraft.construction.optimization.presets import PreMadeObjectives
+from qraft.construction.optimization.presets import PreMadeObjectives, PresetCosts
 from qraft.construction.optimization.problem import MPOProblem
 from qraft.construction.policies.policy_decision import PolicyDecision
 from qraft.construction.state import PortfolioState, align_state_to_assets
@@ -74,11 +74,17 @@ class EqualWeightPolicy:
         risky_weights = 1.0 - self.target_cash_weight
         n_assets = len(state.asset_order)
         target_weights = np.full(n_assets, risky_weights / n_assets)
+        cash_return = (
+            policy_inputs.cash_return
+            if isinstance(policy_inputs, PolicyInputs)
+            and policy_inputs.cash_return is not None
+            else np.zeros(1)
+        )
         return PolicyDecision(
             asset_order=state.asset_order,
             target_weights_risk=target_weights,
             target_cash_weight=self.target_cash_weight,
-            cash_return=np.zeros(1),
+            cash_return=cash_return,
             diagnostics=None,
         )
 
@@ -110,6 +116,7 @@ class MPOPolicy:
         transaction_cost_weight: float = 1.0,
         holding_cost: HoldingCost | None = None,
         holding_cost_weight: float = 1.0,
+        costs: PresetCosts = "default",
         **solver_options: Any,
     ) -> "MPOPolicy":
         return cls(
@@ -124,6 +131,7 @@ class MPOPolicy:
                 transaction_cost_weight=transaction_cost_weight,
                 holding_cost=holding_cost,
                 holding_cost_weight=holding_cost_weight,
+                costs=costs,
                 **solver_options,
             ),
             name=name,

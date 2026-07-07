@@ -15,6 +15,7 @@ from qraft.construction.optimization.objectives.specs import (
 
 _CVAR_CUTS_SCALE_LIMIT = 1_000
 PreMadeObjectives = Literal["mean_covariance", "cvar_auto", "cvar_classic", "cvar_cuts"]
+PresetCosts = Literal["default", "none"]
 
 
 def _default_transaction_cost() -> TransactionCost:
@@ -43,17 +44,25 @@ def _mean_covariance_objectives(
     transaction_cost_weight: float = 1.0,
     holding_cost: HoldingCost | None = None,
     holding_cost_weight: float = 1.0,
+    costs: PresetCosts = "default",
 ) -> ObjectiveSpec:
-    return ObjectiveSpec(
-        terms=(
-            WeightedTerm(1.0, ExpectedReturn(decay=0.9)),
-            WeightedTerm(1.0, CashReturn()),
-            WeightedTerm(risk_aversion, CovarianceRisk()),
+    cost_terms = ()
+    if costs == "default":
+        cost_terms = (
             WeightedTerm(
                 transaction_cost_weight,
                 transaction_cost or _default_transaction_cost(),
             ),
             WeightedTerm(holding_cost_weight, holding_cost or _default_holding_cost()),
+        )
+    elif costs != "none":
+        raise ValueError("costs must be 'default' or 'none'")
+    return ObjectiveSpec(
+        terms=(
+            WeightedTerm(1.0, ExpectedReturn(decay=0.9)),
+            WeightedTerm(1.0, CashReturn()),
+            WeightedTerm(risk_aversion, CovarianceRisk()),
+            *cost_terms,
         )
     )
 
@@ -66,17 +75,25 @@ def _cvar_classical_objectives(
     transaction_cost_weight: float = 1.0,
     holding_cost: HoldingCost | None = None,
     holding_cost_weight: float = 1.0,
+    costs: PresetCosts = "default",
 ) -> ObjectiveSpec:
-    return ObjectiveSpec(
-        terms=(
-            WeightedTerm(1.0, ExpectedReturn()),
-            WeightedTerm(1.0, CashReturn()),
-            WeightedTerm(cvar_aversion, CVaRRisk(alpha=alpha)),
+    cost_terms = ()
+    if costs == "default":
+        cost_terms = (
             WeightedTerm(
                 transaction_cost_weight,
                 transaction_cost or _default_transaction_cost(),
             ),
             WeightedTerm(holding_cost_weight, holding_cost or _default_holding_cost()),
+        )
+    elif costs != "none":
+        raise ValueError("costs must be 'default' or 'none'")
+    return ObjectiveSpec(
+        terms=(
+            WeightedTerm(1.0, ExpectedReturn()),
+            WeightedTerm(1.0, CashReturn()),
+            WeightedTerm(cvar_aversion, CVaRRisk(alpha=alpha)),
+            *cost_terms,
         )
     )
 
@@ -89,17 +106,25 @@ def _cvar_cuts_objectives(
     transaction_cost_weight: float = 1.0,
     holding_cost: HoldingCost | None = None,
     holding_cost_weight: float = 1.0,
+    costs: PresetCosts = "default",
 ) -> ObjectiveSpec:
-    return ObjectiveSpec(
-        terms=(
-            WeightedTerm(1.0, ExpectedReturn()),
-            WeightedTerm(1.0, CashReturn()),
-            WeightedTerm(cvar_aversion, CVaRCuttingPlane(alpha=alpha)),
+    cost_terms = ()
+    if costs == "default":
+        cost_terms = (
             WeightedTerm(
                 transaction_cost_weight,
                 transaction_cost or _default_transaction_cost(),
             ),
             WeightedTerm(holding_cost_weight, holding_cost or _default_holding_cost()),
+        )
+    elif costs != "none":
+        raise ValueError("costs must be 'default' or 'none'")
+    return ObjectiveSpec(
+        terms=(
+            WeightedTerm(1.0, ExpectedReturn()),
+            WeightedTerm(1.0, CashReturn()),
+            WeightedTerm(cvar_aversion, CVaRCuttingPlane(alpha=alpha)),
+            *cost_terms,
         )
     )
 
@@ -120,6 +145,7 @@ def build_preset_objective(
     transaction_cost_weight: float = 1.0,
     holding_cost: HoldingCost | None = None,
     holding_cost_weight: float = 1.0,
+    costs: PresetCosts = "default",
 ) -> tuple[ObjectiveSpec, bool]:
     """Build a preset objective eagerly.
 
@@ -136,6 +162,7 @@ def build_preset_objective(
                 transaction_cost_weight=transaction_cost_weight,
                 holding_cost=holding_cost,
                 holding_cost_weight=holding_cost_weight,
+                costs=costs,
             ),
             False,
         )
@@ -155,6 +182,7 @@ def build_preset_objective(
         transaction_cost_weight=transaction_cost_weight,
         holding_cost=holding_cost,
         holding_cost_weight=holding_cost_weight,
+        costs=costs,
     )
     return objective, objective_type == "cvar_auto"
 

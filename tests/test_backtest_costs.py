@@ -149,6 +149,16 @@ def test_cost_model_from_policy_reads_preset():
     assert isinstance(model.holding, HoldingCost)
 
 
+def test_preset_policy_can_disable_default_cost_specs():
+    from qraft.construction.policies import MPOPolicy
+
+    pol = MPOPolicy.preset("mean_covariance", risk_aversion=1.0, costs="none")
+    model = CostModel.from_policy(pol)
+
+    assert model.transaction is None
+    assert model.holding is None
+
+
 def test_frictionless_override():
     res = run_backtest(
         _market(),

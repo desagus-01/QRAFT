@@ -200,7 +200,8 @@ def riccati_root(
     covariance = weighted_covariance(data, prob, center=True)
     standard_devs = np.sqrt(np.diag(covariance))
     correlation = weighted_correlation(data, prob)
-    correlation = np.nan_to_num(correlation, nan=1.0)
+    if np.isnan(correlation).any():
+        raise ValueError("riccati_root requires non-degenerate asset histories")
     return RiccatiResult(
         root=np.asarray(sqrtm(correlation).real), standard_devs=standard_devs
     )

@@ -17,6 +17,7 @@ from qraft.construction.optimization.optimization import (
 )
 from qraft.construction.optimization.presets import (
     PreMadeObjectives,
+    PresetCosts,
     build_preset_objective,
     resolve_cvar_auto,
 )
@@ -46,6 +47,7 @@ class MPOProblem:
         transaction_cost_weight: float = 1.0,
         holding_cost: HoldingCost | None = None,
         holding_cost_weight: float = 1.0,
+        costs: PresetCosts = "default",
         **solver_options: Any,
     ) -> "MPOProblem":
         objective, cvar_auto = build_preset_objective(
@@ -56,6 +58,7 @@ class MPOProblem:
             transaction_cost_weight=transaction_cost_weight,
             holding_cost=holding_cost,
             holding_cost_weight=holding_cost_weight,
+            costs=costs,
         )
 
         return cls(

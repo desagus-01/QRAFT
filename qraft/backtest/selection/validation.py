@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -35,6 +35,7 @@ from qraft.core.configs import SelectionMetric
 from qraft.core.market import MarketData
 
 ValidationReport = WalkForwardReport | CombinatorialReport
+TuneSelection = Literal["most_selected", "oos_score"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +91,7 @@ class Validation:
         cfg: WalkForwardConfig | CombinatorialCVConfig | None = None,
         score: ScoreSpec | None = None,
         agg: Agg = "mean",
+        selection: TuneSelection = "most_selected",
     ) -> ValidationResult:
         if cfg is None:
             cfg = _default_config_for_report(report)
@@ -98,6 +100,12 @@ class Validation:
         if isinstance(report, WalkForwardReport):
             if not isinstance(cfg, WalkForwardConfig):
                 raise TypeError("cfg must be WalkForwardConfig for WalkForwardReport")
+            if selection == "most_selected":
+                return ValidationResult(
+                    report=report,
+                    base_policy=self.base_policy,
+                    selected_params=report.selected_params,
+                )
             evaluation = report.evaluation or self._evaluation(
                 risk_free_rate=cfg.risk_free_rate
             )
@@ -113,6 +121,12 @@ class Validation:
                 raise TypeError(
                     "cfg must be CombinatorialCVConfig for CombinatorialReport"
                 )
+            if selection == "most_selected":
+                return ValidationResult(
+                    report=report,
+                    base_policy=self.base_policy,
+                    selected_params=report.selected_params,
+                )
             evaluation = report.evaluation or self._evaluation(
                 risk_free_rate=cfg.cv_config.risk_free_rate
             )
@@ -127,6 +141,8 @@ class Validation:
                 f"Expected WalkForwardReport or CombinatorialReport, "
                 f"got {type(report).__name__}"
             )
+        if selection != "oos_score":
+            raise ValueError("selection must be 'most_selected' or 'oos_score'")
 
         max_held_fraction = _config_max_held_fraction(cfg)
         return ValidationResult(

@@ -30,7 +30,6 @@ class Backtest:
     step_size: int = 1
 
     def run(self) -> BacktestResult:
-        self.market.assert_backtest_safe()
         inputs = None
         if self.source is not None:
             table = precompute_inputs(

@@ -5,6 +5,7 @@ import polars as pl
 import pytest
 
 from qraft.backtest.execution import execute_frictionless
+from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import (
     Allocation,
@@ -49,6 +50,18 @@ def test_policy_decide_returns_decision_without_projecting() -> None:
     assert decision.asset_order == ["A", "B"]
     np.testing.assert_allclose(decision.target_weights_risk, [0.4, 0.4])
     assert decision.target_cash_weight == 0.2
+
+
+def test_equal_weight_policy_uses_policy_input_cash_return() -> None:
+    inputs = PolicyInputs.from_arrays(
+        assets=["A", "B"],
+        mean=np.ones((1, 2)),
+        cash_return=np.array([0.001]),
+    )
+
+    decision = EqualWeightPolicy(target_cash_weight=0.2).decide(_state(), inputs)
+
+    np.testing.assert_allclose(decision.cash_return, [0.001])
 
 
 def test_portfolio_state_rejects_non_positive_prices() -> None:

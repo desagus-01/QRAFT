@@ -65,6 +65,18 @@ class WalkForwardReport:
     deflated_sharpe: float | None = None
     pbo: float | None = None
 
+    def require(self, *, max_pbo: float | None = None) -> "WalkForwardReport":
+        if max_pbo is not None and self.pbo is not None and self.pbo > max_pbo:
+            raise ValueError(
+                f"Walk-forward PBO {self.pbo:.3f} exceeds required maximum "
+                f"{max_pbo:.3f}."
+            )
+        return self
+
+    @property
+    def selected_params(self):
+        return _walk_forward_selected_params(self)
+
     @property
     def folds_df(self) -> pl.DataFrame:
         """One row per fold with selected params and train/test metrics."""
@@ -474,6 +486,17 @@ def _selection_concentration(selected: Sequence[str]) -> float:
 def _most_common(selected: Sequence[str]) -> str:
     if not selected:
         return ""
+    return max(set(selected), key=selected.count)
+
+
+def _walk_forward_selected_params(report: WalkForwardReport):
+    selected = [
+        fold.selection.selected_params
+        for fold in report.folds
+        if fold.selection.selected_params is not None
+    ]
+    if not selected:
+        return None
     return max(set(selected), key=selected.count)
 
 

@@ -17,24 +17,15 @@ logger = logging.getLogger(__name__)
 
 def str_to_datetime(date_time_str: str) -> datetime:
     formats = [
-        "%b %d %Y %I:%M%p",
         "%Y-%m-%d",
         "%Y-%m-%d %H:%M:%S",
-        "%d-%m-%Y",
-        "%d-%m-%Y %H:%M:%S",
-        "%m/%d/%Y",
-        "%m/%d/%Y %H:%M:%S",
-        "%d/%m/%Y",
-        "%d/%m/%Y %H:%M:%S",
-        "%Y/%m/%d",
-        "%Y/%m/%d %H:%M:%S",
     ]
     for fmt in formats:
         try:
             return datetime.strptime(date_time_str, fmt)
         except ValueError:
             continue
-    raise ValueError(f"time data {date_time_str!r} does not match any known format")
+    raise ValueError(f"time data {date_time_str!r} is not ISO-8601")
 
 
 class SplitDF(NamedTuple):

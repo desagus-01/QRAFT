@@ -398,6 +398,20 @@ def test_cash_rate_asof_returns_per_step_return() -> None:
     assert rate == pytest.approx(expected)
 
 
+def test_cash_rate_asof_accepts_decimal_rate_unit() -> None:
+    cash = pl.DataFrame({"date": [datetime(2024, 1, 1)], "DFF": [0.0525]})
+    md = MarketData.from_prices(
+        _price_frame(),
+        _universe(),
+        cash=cash,
+        config=MarketDataConfig(cash_rate_unit="decimal"),
+    )
+
+    assert md.cash_rate_asof(datetime(2024, 1, 2)) == pytest.approx(
+        0.0525 / md.config.cash_day_count
+    )
+
+
 def test_cash_rate_asof_raises_on_no_prior_rate() -> None:
     md = _market_data()
     with pytest.raises(ValueError, match="No cash rate"):
@@ -516,6 +530,19 @@ def test_from_prices_accepts_string_date_columns() -> None:
     assert md.cash_rate_asof("2024-01-02") == pytest.approx(
         0.05 / md.config.cash_day_count
     )
+
+
+def test_from_prices_rejects_non_iso_string_dates() -> None:
+    df = pl.DataFrame(
+        {
+            "date": ["01-02-2024", "2024-01-02"],
+            "A": [10.0, 11.0],
+            "B": [20.0, 22.0],
+        }
+    )
+
+    with pytest.raises(ValueError, match="ISO-8601"):
+        MarketData.from_prices(df, _universe())
 
 
 def test_cash_rate_asof_uses_latest_rate_before_t() -> None:
