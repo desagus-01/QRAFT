@@ -3,10 +3,11 @@ from qraft.backtest.selection.candidates import (  # noqa: F401
     expand_candidates,
     param_grid,
 )
-from qraft.backtest.selection.combinatorial import (  # noqa: F401
-    CombinatorialReport,
+from qraft.backtest.selection.validation_runs import (  # noqa: F401
     combinatorial_from_evaluation,
     combinatorial_purged,
+    walk_forward_from_evaluation,
+    walk_forward,
 )
 from qraft.backtest.selection.diagnostics import (  # noqa: F401
     candidate_block_returns,
@@ -14,12 +15,22 @@ from qraft.backtest.selection.diagnostics import (  # noqa: F401
     compute_pbo,
     trial_sharpes,
 )
-from qraft.backtest.selection.evaluate import (  # noqa: F401
+from qraft.backtest.selection.grid_eval import (  # noqa: F401
     evaluate_candidate_grid,
     evaluate_candidates,
     run_selection_window,
 )
-from qraft.backtest.selection.evaluation import CandidateEvaluation  # noqa: F401
+from qraft.backtest.selection.candidate_eval import CandidateEvaluation  # noqa: F401
+from qraft.backtest.selection.reports import (  # noqa: F401
+    CombinatorialReport,
+    FoldResult,
+    ValidationReport,
+    WalkForwardReport,
+)
+from qraft.backtest.selection.render import (  # noqa: F401
+    plot_combinatorial_report,
+    plot_walk_forward_report,
+)
 from qraft.backtest.selection.results import (  # noqa: F401
     CandidateFailure,
     CandidateResult,
@@ -44,12 +55,6 @@ from qraft.backtest.selection.splits import (  # noqa: F401
     combinatorial_purged_folds,
     walk_forward_folds,
 )
-from qraft.backtest.selection.walkforward import (  # noqa: F401
-    FoldResult,
-    WalkForwardReport,
-    walk_forward_from_evaluation,
-    walk_forward,
-)
 from qraft.backtest.selection.validation import Validation, ValidationResult  # noqa: F401
 from qraft.backtest.configs import (  # noqa: F401
     BacktestConfig,
@@ -70,6 +75,7 @@ __all__ = [
     "WalkForwardReport",
     "CombinatorialFold",
     "CombinatorialReport",
+    "ValidationReport",
     "Validation",
     "ValidationResult",
     "CVConfig",
@@ -89,6 +95,8 @@ __all__ = [
     "combinatorial_purged_folds",
     "combinatorial_purged",
     "combinatorial_from_evaluation",
+    "plot_walk_forward_report",
+    "plot_combinatorial_report",
     "returns_for_range",
     "returns_for_ranges",
     "summary_from_returns",

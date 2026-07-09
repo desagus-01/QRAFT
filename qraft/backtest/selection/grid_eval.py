@@ -6,20 +6,17 @@ from datetime import datetime
 from typing import Any, TypeAlias
 
 from qraft.backtest.configs import BacktestConfig
+from qraft.backtest.engine.loop import run_backtest
+from qraft.backtest.engine.schedule import DecisionPoint, decision_points
 from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvider
+from qraft.backtest.inputs import precompute_inputs_for_points
 from qraft.backtest.result import PerformanceSummary
+from qraft.backtest.selection.candidate_eval import CandidateEvaluation
 from qraft.backtest.selection.candidates import expand_candidates
-from qraft.backtest.selection.evaluation import CandidateEvaluation
 from qraft.backtest.selection.results import (
     CandidateFailure,
     CandidateResult,
     PolicyCandidate,
-)
-from qraft.backtest.simulator import (
-    DecisionPoint,
-    decision_points,
-    precompute_inputs_for_points,
-    run_backtest,
 )
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.policies import PolicyProtocol
@@ -47,14 +44,6 @@ def evaluate_candidates(
     risk_free_rate: float = 0.0,
     points: list[DecisionPoint] | None = None,
 ) -> tuple[CandidateResult, ...]:
-    """Backtest each candidate against a SHARED inputs provider and score it.
-
-    One forecast pass is shared across the whole sweep (the caller passes a
-    precomputed provider). A candidate that raises becomes a CandidateFailure
-    rather than aborting the run; a candidate that merely degenerates (all-cash,
-    many solver holds) still returns a CandidateResult -- that shows up in the
-    summary (held_fraction / n_solver_failures), not as a failure.
-    """
     results: list[CandidateResult] = []
     for candidate in candidates:
         try:
@@ -116,7 +105,6 @@ def run_selection_window(
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
 ) -> tuple[CandidateResult, ...]:
-    """Expand candidates, precompute moments ONCE, then evaluate them all."""
     if source is None and forecaster is None:
         raise TypeError("run_selection_window requires source or forecaster")
     candidates = expand_candidates(base_policy, grid)
@@ -154,7 +142,6 @@ def evaluate_candidate_grid(
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
 ) -> CandidateEvaluation:
-    """Expand a candidate grid, precompute shared inputs, and evaluate once."""
     if source is None and forecaster is None:
         raise TypeError("evaluate_candidate_grid requires source or forecaster")
     candidates = expand_candidates(base_policy, grid)
@@ -215,8 +202,6 @@ def evaluate_candidate_grid(
 
 
 def _shared_warmup(candidates: Sequence[PolicyCandidate]) -> int:
-    """Overlays leave min_history untouched, so every candidate shares one warm-up
-    -- which is exactly what the single shared inputs table requires."""
     warmups = {candidate.policy.min_history for candidate in candidates}
     if len(warmups) != 1:
         raise ValueError(

@@ -5,9 +5,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from qraft.backtest.execution import _target_weights_full
 from qraft.backtest.result.period import BacktestPeriod
-
+from qraft.core.weights import target_weights_full
 
 BacktestWarning = dict[str, Any]
 
@@ -155,7 +154,7 @@ class BacktestResult:
         n_assets = len(self.asset_order)
         out = np.empty((n, n_assets + 1))
         for i, p in enumerate(self.periods):
-            out[i, :-1] = _target_weights_full(p.decision, self.asset_order)
+            out[i, :-1] = target_weights_full(p.decision, self.asset_order)
             out[i, -1] = p.decision.target_cash_weight
         return out
 

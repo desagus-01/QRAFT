@@ -7,7 +7,7 @@ import pytest
 from qraft.backtest.costs import CostModel
 from qraft.core.market import MarketData, MarketDataConfig
 from qraft.core.schedule import RebalanceSchedule
-from qraft.backtest.simulator import run_backtest
+from qraft.backtest.engine.loop import run_backtest
 from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     TransactionCost,

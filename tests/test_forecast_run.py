@@ -195,7 +195,7 @@ def test_forecast_package_does_not_import_backtest_or_construction():
 
 
 def test_policy_input_precompute_refits_recipes_on_market_bars(monkeypatch):
-    from qraft.backtest.simulator import precompute_inputs
+    from qraft.backtest.inputs import precompute_inputs
     from qraft.construction.optimization.inputs import InputPlan
     from qraft.forecast.forecaster import Forecaster
 
@@ -259,7 +259,7 @@ def test_recipe_history_only_builds_snapshots_for_refit_bars(monkeypatch):
 def test_selection_reuses_precomputed_decision_snapshots(monkeypatch):
     import numpy as np
 
-    from qraft.backtest.selection.evaluate import run_selection_window
+    from qraft.backtest.selection.grid_eval import run_selection_window
     from qraft.construction.optimization.inputs import InputPlan
     from qraft.construction.policies import EqualWeightPolicy
 

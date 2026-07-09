@@ -11,7 +11,7 @@ from qraft.backtest.baselines import AllCashPolicy, NoTradePolicy
 from qraft.backtest.result import BacktestResult
 from qraft.core.market import HistoryWeighting, MarketData
 from qraft.core.snapshot import MarketSnapshot
-from qraft.backtest.simulator import run_backtest
+from qraft.backtest.engine.loop import run_backtest
 from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.construction.optimization.optimization import MPOFailure, OptimizationFailure
 from qraft.construction.policies import EqualWeightPolicy, PolicyDecision

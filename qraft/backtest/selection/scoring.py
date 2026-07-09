@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 import logging
+from collections.abc import Sequence
 from typing import Callable, Literal
 
 import numpy as np
@@ -100,7 +100,6 @@ def summary_from_returns(
     backtest_config: BacktestConfig,
     risk_free_rate: float,
     *,
-    policy_name: str = "selection_returns",
     periods_per_year: float | None = None,
 ) -> PerformanceSummary | None:
     """Build a summary directly from a synthetic NAV path."""
@@ -116,7 +115,7 @@ def summary_from_returns(
         nav,
         periods_per_year=periods_per_year or backtest_config.periods_per_year,
         risk_free_rate=risk_free_rate,
-        n_periods=int(returns.size),
+        n_periods=(returns.size),
     )
 
 

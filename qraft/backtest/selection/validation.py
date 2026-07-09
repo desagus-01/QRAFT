@@ -12,29 +12,29 @@ from qraft.backtest.configs import (
     WalkForwardConfig,
 )
 from qraft.backtest.selection.candidates import apply_hyperparameters
-from qraft.backtest.selection.combinatorial import (
-    CombinatorialReport,
+from qraft.backtest.selection.validation_runs import (
     combinatorial_from_evaluation,
+    walk_forward_from_evaluation,
 )
-from qraft.backtest.selection.evaluate import (
+from qraft.backtest.selection.candidate_eval import CandidateEvaluation
+from qraft.backtest.selection.grid_eval import (
     SelectionInputSource,
     evaluate_candidate_grid,
 )
-from qraft.backtest.selection.evaluation import CandidateEvaluation
+from qraft.backtest.selection.reports import (
+    CombinatorialReport,
+    ValidationReport,
+    WalkForwardReport,
+)
 from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.scoring import Agg, ScoreSpec
 from qraft.backtest.selection.select import _conservatism, _eligible
 from qraft.backtest.selection.splits import DateRange
-from qraft.backtest.selection.walkforward import (
-    WalkForwardReport,
-    walk_forward_from_evaluation,
-)
 from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.configs import SelectionMetric
 from qraft.core.market import MarketData
 
-ValidationReport = WalkForwardReport | CombinatorialReport
 TuneSelection = Literal["most_selected", "oos_score"]
 
 

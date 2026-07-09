@@ -7,12 +7,10 @@ from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.inputs import (
     DateCache,
     PrecomputedInputsProvider,
-)
-from qraft.core.market import MarketData
-from qraft.backtest.selection.evaluate import evaluate_candidate_grid
-from qraft.backtest.simulator import (
     precompute_inputs,
 )
+from qraft.core.market import MarketData
+from qraft.backtest.selection.grid_eval import evaluate_candidate_grid
 from qraft.construction.inputs import build_policy_input_table
 from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.optimization.inputs import (
@@ -100,7 +98,7 @@ def test_precompute_inputs_uses_snapshot_cash_rate(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "qraft.backtest.simulator.build_policy_input_table",
+        "qraft.backtest.inputs.build_policy_input_table",
         fake_build,
     )
 
@@ -186,7 +184,7 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
         }
 
     monkeypatch.setattr(
-        "qraft.backtest.simulator.build_policy_input_table",
+        "qraft.backtest.inputs.build_policy_input_table",
         fake_build,
     )
 
@@ -226,11 +224,11 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         return ()
 
     monkeypatch.setattr(
-        "qraft.backtest.selection.evaluate.precompute_inputs",
+        "qraft.backtest.selection.grid_eval.precompute_inputs_for_points",
         fake_precompute,
     )
     monkeypatch.setattr(
-        "qraft.backtest.selection.evaluate.evaluate_candidates",
+        "qraft.backtest.selection.grid_eval.evaluate_candidates",
         fake_evaluate,
     )
 

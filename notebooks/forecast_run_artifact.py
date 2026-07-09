@@ -39,7 +39,7 @@ cols_to_keep = [
 ]
 data = data.select(cols_to_keep)
 
-tradable_assets = list(data.columns[10:90])
+tradable_assets = list(data.columns[10:20])
 
 # %%
 universe = AssetUniverse(assets=tradable_assets, factors=list(factors_cols))

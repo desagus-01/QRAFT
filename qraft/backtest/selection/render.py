@@ -1,38 +1,27 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import datetime
-from typing import Any
+from typing import Sequence
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
+import polars as pl
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from qraft.backtest.result import PerformanceSummary
+from qraft.backtest.selection.reports import CombinatorialReport, WalkForwardReport
 
 
-def plot_walk_forward_report(
-    *,
-    folds: Sequence[Any],
-    folds_df: Any,
-    selection_counts_df: Any,
-    oos_summary: PerformanceSummary | None,
-    oos_nav_dates: Sequence[datetime],
-    oos_nav: Sequence[float],
-    n_trials: int,
-    deflated_sharpe: float | None,
-    pbo: float | None,
-) -> Figure:
+def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     fig, axes = plt.subplots(4, 2, figsize=(14, 13))
-    dates = list(oos_nav_dates)
-    nav = np.asarray(oos_nav, dtype=float)
+    dates = list(report.oos_nav_dates)
+    nav = np.asarray(report.oos_nav, dtype=float)
 
     ax = axes[0, 0]
     if nav.size:
         ax.plot(dates, nav, color="steelblue", linewidth=1.6)
-        for fold_result in folds:
+        for fold_result in report.folds:
             ax.axvspan(
                 fold_result.fold.test[0],
                 fold_result.fold.test[1],
@@ -53,8 +42,10 @@ def plot_walk_forward_report(
     ax.grid(True, alpha=0.3)
 
     ax = axes[1, 0]
-    fold_ids = np.arange(len(folds))
-    test_returns = _column_or_nan(folds_df, "test_total_return", len(folds))
+    fold_ids = np.arange(len(report.folds))
+    test_returns = _column_or_nan(
+        report.folds_df, "test_total_return", len(report.folds)
+    )
     colors = ["forestgreen" if r >= 0 else "crimson" for r in test_returns]
     ax.bar(fold_ids, test_returns, color=colors, alpha=0.75)
     ax.axhline(0.0, color="black", linewidth=0.8)
@@ -64,8 +55,8 @@ def plot_walk_forward_report(
     ax.grid(True, axis="y", alpha=0.3)
 
     ax = axes[1, 1]
-    train_sharpe = _column_or_nan(folds_df, "train_sharpe", len(folds))
-    test_sharpe = _column_or_nan(folds_df, "test_sharpe", len(folds))
+    train_sharpe = _column_or_nan(report.folds_df, "train_sharpe", len(report.folds))
+    test_sharpe = _column_or_nan(report.folds_df, "test_sharpe", len(report.folds))
     ax.plot(fold_ids, train_sharpe, marker="o", label="Train selected")
     ax.plot(fold_ids, test_sharpe, marker="o", label="OOS")
     ax.axhline(0.0, color="black", linewidth=0.8)
@@ -75,7 +66,7 @@ def plot_walk_forward_report(
     ax.grid(True, alpha=0.3)
 
     ax = axes[2, 0]
-    sharpe_decay = _column_or_nan(folds_df, "sharpe_decay", len(folds))
+    sharpe_decay = _column_or_nan(report.folds_df, "sharpe_decay", len(report.folds))
     colors = ["forestgreen" if d >= 0 else "crimson" for d in sharpe_decay]
     ax.bar(fold_ids, sharpe_decay, color=colors, alpha=0.75)
     ax.axhline(0.0, color="black", linewidth=0.8)
@@ -84,9 +75,9 @@ def plot_walk_forward_report(
     ax.grid(True, axis="y", alpha=0.3)
 
     ax = axes[2, 1]
-    if not selection_counts_df.is_empty():
-        labels = selection_counts_df["selected_params"].to_list()
-        values = selection_counts_df["n_folds"].to_list()
+    if not report.selection_counts_df.is_empty():
+        labels = report.selection_counts_df["selected_params"].to_list()
+        values = report.selection_counts_df["n_folds"].to_list()
         y = np.arange(len(labels))
         ax.barh(y, values, color="slateblue", alpha=0.75)
         ax.set_yticks(y, [_truncate_label(label) for label in labels])
@@ -98,24 +89,24 @@ def plot_walk_forward_report(
     _plot_diagnostics_bar(
         axes[3, 0],
         title="Multiple-Testing Diagnostics",
-        n_trials=n_trials,
-        deflated_sharpe=deflated_sharpe,
-        pbo=pbo,
+        n_trials=report.n_trials,
+        deflated_sharpe=report.deflated_sharpe,
+        pbo=report.pbo,
     )
 
     ax = axes[3, 1]
     ax.axis("off")
     diagnostic_text = [
         "Robustness read-through",
-        f"Trials tested: {n_trials}",
-        f"Deflated Sharpe: {_format_optional_float(deflated_sharpe)}",
-        f"PBO: {_format_optional_pct(pbo)}",
+        f"Trials tested: {report.n_trials}",
+        f"Deflated Sharpe: {_format_optional_float(report.deflated_sharpe)}",
+        f"PBO: {_format_optional_pct(report.pbo)}",
     ]
-    if deflated_sharpe is not None:
+    if report.deflated_sharpe is not None:
         diagnostic_text.append(
             "DSR adjusts the observed OOS Sharpe for multiple trials and non-normality."
         )
-    if pbo is not None:
+    if report.pbo is not None:
         diagnostic_text.append(
             "PBO estimates how often selection would pick a strategy that underperforms OOS."
         )
@@ -135,49 +126,35 @@ def plot_walk_forward_report(
         )
 
     title = "Walk-Forward OOS Report"
-    if oos_summary is not None:
+    if report.oos_summary is not None:
         title += (
-            f" | return {oos_summary.total_return:.1%}, "
-            f"Sharpe {oos_summary.sharpe:.2f}, "
-            f"max DD {oos_summary.max_drawdown:.1%}"
+            f" | return {report.oos_summary.total_return:.1%}, "
+            f"Sharpe {report.oos_summary.sharpe:.2f}, "
+            f"max DD {report.oos_summary.max_drawdown:.1%}"
         )
-    if deflated_sharpe is not None:
-        title += f" | DSR {deflated_sharpe:.2f}"
-    if pbo is not None:
-        title += f" | PBO {pbo:.1%}"
+    if report.deflated_sharpe is not None:
+        title += f" | DSR {report.deflated_sharpe:.2f}"
+    if report.pbo is not None:
+        title += f" | PBO {report.pbo:.1%}"
     fig.suptitle(title, fontsize=14, y=1.02)
     fig.tight_layout()
     return fig
 
 
-def plot_combinatorial_report(
-    *,
-    paths: Sequence[PerformanceSummary],
-    path_sharpes: Sequence[float],
-    path_returns: Sequence[Sequence[float]],
-    n_paths: int,
-    n_groups: int,
-    n_test_groups: int,
-    n_trials: int,
-    median_sharpe: float,
-    sharpe_iqr: tuple[float, float],
-    worst_sharpe: float,
-    deflated_sharpe: float | None,
-    pbo: float | None,
-) -> Figure:
+def plot_combinatorial_report(report: CombinatorialReport) -> Figure:
     fig, axes = plt.subplots(2, 2, figsize=(14, 9))
-    sharpes = np.asarray(path_sharpes, dtype=float)
+    sharpes = np.asarray(report.path_sharpes, dtype=float)
     finite_sharpes = sharpes[np.isfinite(sharpes)]
 
     ax = axes[0, 0]
     if finite_sharpes.size:
         ax.hist(finite_sharpes, bins="auto", color="steelblue", alpha=0.75)
         ax.axvline(
-            median_sharpe,
+            report.median_sharpe,
             color="black",
             linestyle="--",
             linewidth=1.1,
-            label=f"Median {median_sharpe:.2f}",
+            label=f"Median {report.median_sharpe:.2f}",
         )
         ax.axvline(0.0, color="crimson", linewidth=0.9, alpha=0.8)
         ax.legend(fontsize=8)
@@ -187,12 +164,12 @@ def plot_combinatorial_report(
     ax.grid(True, axis="y", alpha=0.3)
 
     ax = axes[0, 1]
-    for returns in path_returns:
+    for returns in report.path_returns:
         nav = _path_nav(returns)
         if nav.size:
             ax.plot(nav, color="steelblue", linewidth=1.0, alpha=0.3)
-    if paths:
-        terminal = np.array([p.total_return + 1.0 for p in paths], dtype=float)
+    if report.paths:
+        terminal = np.array([p.total_return + 1.0 for p in report.paths], dtype=float)
         if np.isfinite(terminal).any():
             ax.axhline(
                 float(np.nanmedian(terminal)),
@@ -210,31 +187,31 @@ def plot_combinatorial_report(
     _plot_diagnostics_bar(
         axes[1, 0],
         title="PBO / DSR Diagnostics",
-        n_trials=n_trials,
-        deflated_sharpe=deflated_sharpe,
-        pbo=pbo,
+        n_trials=report.n_trials,
+        deflated_sharpe=report.deflated_sharpe,
+        pbo=report.pbo,
     )
 
     ax = axes[1, 1]
     ax.axis("off")
-    lo, hi = sharpe_iqr
+    lo, hi = report.sharpe_iqr
     diagnostic_text = [
         "CPCV robustness read-through",
-        f"Paths: {n_paths}",
-        f"Groups: {n_groups}",
-        f"Test groups per fold: {n_test_groups}",
-        f"Trials tested: {n_trials}",
-        f"Median Sharpe: {_format_optional_float(median_sharpe)}",
+        f"Paths: {report.n_paths}",
+        f"Groups: {report.n_groups}",
+        f"Test groups per fold: {report.n_test_groups}",
+        f"Trials tested: {report.n_trials}",
+        f"Median Sharpe: {_format_optional_float(report.median_sharpe)}",
         f"Sharpe IQR: {_format_optional_float(lo)} to {_format_optional_float(hi)}",
-        f"Worst Sharpe: {_format_optional_float(worst_sharpe)}",
-        f"Deflated Sharpe: {_format_optional_float(deflated_sharpe)}",
-        f"PBO: {_format_optional_pct(pbo)}",
+        f"Worst Sharpe: {_format_optional_float(report.worst_sharpe)}",
+        f"Deflated Sharpe: {_format_optional_float(report.deflated_sharpe)}",
+        f"PBO: {_format_optional_pct(report.pbo)}",
     ]
-    if deflated_sharpe is not None:
+    if report.deflated_sharpe is not None:
         diagnostic_text.append(
             "DSR adjusts the observed path Sharpe for multiple trials and non-normality."
         )
-    if pbo is not None:
+    if report.pbo is not None:
         diagnostic_text.append(
             "PBO estimates how often selection would pick a strategy that underperforms OOS."
         )
@@ -249,20 +226,20 @@ def plot_combinatorial_report(
     )
 
     title = (
-        f"CPCV Report | paths {n_paths}, "
-        f"median Sharpe {_format_optional_float(median_sharpe)}"
+        f"CPCV Report | paths {report.n_paths}, "
+        f"median Sharpe {_format_optional_float(report.median_sharpe)}"
     )
-    if deflated_sharpe is not None:
-        title += f" | DSR {deflated_sharpe:.2f}"
-    if pbo is not None:
-        title += f" | PBO {pbo:.1%}"
+    if report.deflated_sharpe is not None:
+        title += f" | DSR {report.deflated_sharpe:.2f}"
+    if report.pbo is not None:
+        title += f" | PBO {report.pbo:.1%}"
     fig.suptitle(title, fontsize=14, y=1.02)
     fig.tight_layout()
     return fig
 
 
 def _plot_diagnostics_bar(
-    ax: Any,
+    ax: Axes,
     *,
     title: str,
     n_trials: int,
@@ -297,7 +274,7 @@ def _plot_diagnostics_bar(
     ax.grid(True, axis="y", alpha=0.3)
 
 
-def _column_or_nan(frame: Any, name: str, length: int) -> np.ndarray:
+def _column_or_nan(frame: pl.DataFrame, name: str, length: int) -> np.ndarray:
     if name not in frame.columns:
         return np.full(length, np.nan)
     return np.array(frame[name].to_list(), dtype=float)

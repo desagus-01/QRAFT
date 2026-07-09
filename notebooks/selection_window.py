@@ -18,6 +18,7 @@ from qraft import (
     setup_logging,
 )
 from qraft.backtest.configs import BacktestConfig, CombinatorialCVConfig, CVConfig
+from qraft.backtest.selection import plot_combinatorial_report
 from qraft.construction import (
     FullyInvested,
     LongOnly,
@@ -125,4 +126,4 @@ with profile():
 
 
 # %%
-results.plot()
+plot_combinatorial_report(results)

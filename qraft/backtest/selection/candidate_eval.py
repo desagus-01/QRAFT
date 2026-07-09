@@ -20,12 +20,7 @@ from qraft.backtest.selection.splits import DateRange
 
 @dataclass(frozen=True, slots=True)
 class CandidateEvaluation:
-    """Full-grid backtest artifact reused by reports and tuning.
-
-    Stores only what the grid backtest actually needs (raw results + config).
-    Scoring parameters are supplied at query time so the same artifact serves
-    every metric or custom scorer without cache invalidation.
-    """
+    """Full-grid backtest artifact reused by reports and tuning."""
 
     candidate_results: tuple[CandidateResult, ...]
     dates: list[datetime]

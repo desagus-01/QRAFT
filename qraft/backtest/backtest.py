@@ -6,10 +6,14 @@ from typing import TypeAlias
 
 from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.costs import CostModel
-from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvider
+from qraft.backtest.engine.loop import run_backtest
+from qraft.backtest.inputs import (
+    PolicyInputsProvider,
+    PrecomputedInputsProvider,
+    precompute_inputs,
+)
 from qraft.backtest.result import BacktestResult
 from qraft.core.market import MarketData
-from qraft.backtest.simulator import precompute_inputs, run_backtest
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.forecast.forecaster import ForecastSource

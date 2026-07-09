@@ -15,13 +15,16 @@ from qraft.backtest.inputs import PrecomputedInputsProvider
 from qraft.backtest.result import PerformanceSummary
 from qraft.core.market import MarketData
 from qraft.backtest.selection import __all__ as selection_all
-from qraft.backtest.selection.combinatorial import CombinatorialReport
-from qraft.backtest.selection.evaluation import CandidateEvaluation
+from qraft.backtest.selection.candidate_eval import CandidateEvaluation
+from qraft.backtest.selection.reports import (
+    CombinatorialReport,
+    FoldResult,
+    WalkForwardReport,
+)
 from qraft.backtest.selection.results import CandidateResult, SelectionReport
 from qraft.backtest.selection.splits import Fold
 from qraft.backtest.selection.validation import Validation as SelectionValidation
-from qraft.backtest.selection.walkforward import FoldResult, WalkForwardReport
-from qraft.backtest.simulator import run_backtest
+from qraft.backtest.engine.loop import run_backtest
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.policies import EqualWeightPolicy, MPOPolicy
 from qraft.core.schedule import RebalanceSchedule
