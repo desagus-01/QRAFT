@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from qraft.backtest.configs import BacktestConfig
+from qraft.backtest.selection.diagnostics import resolve_selection_periods_per_year
 from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.scoring import (
     Agg,
@@ -38,6 +39,9 @@ class CandidateEvaluation:
         agg: Agg = "mean",
     ) -> dict[PolicyParams, float]:
         scores: dict[PolicyParams, float] = {}
+        periods_per_year = resolve_selection_periods_per_year(
+            self.candidate_results, self.backtest_config.periods_per_year
+        )
         for candidate in self.candidate_results:
             if candidate.failure is not None or candidate.backtest is None:
                 continue
@@ -51,6 +55,7 @@ class CandidateEvaluation:
                     returns,
                     self.backtest_config,
                     self.risk_free_rate,
+                    periods_per_year=periods_per_year,
                 )
                 if summary is not None:
                     value = finite_score_summary(summary, score)

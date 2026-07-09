@@ -5,8 +5,7 @@ from datetime import datetime
 import numpy as np
 import pytest
 
-from qraft.backtest.execution import BacktestResult
-from qraft.backtest.metrics import PerformanceSummary
+from qraft.backtest.result import BacktestResult, PerformanceSummary
 from qraft.backtest.selection import (
     CombinatorialCVConfig,
     Fold,

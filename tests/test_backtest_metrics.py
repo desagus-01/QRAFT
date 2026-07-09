@@ -5,9 +5,7 @@ from datetime import datetime
 import numpy as np
 import pytest
 
-from qraft.backtest.execution import BacktestPeriod
-from qraft.backtest.execution import BacktestResult
-from qraft.backtest.metrics import PerformanceSummary
+from qraft.backtest.result import BacktestPeriod, BacktestResult, PerformanceSummary
 from qraft.construction.policies import PolicyDecision
 from qraft.construction.state import PortfolioState
 from qraft.core import metrics

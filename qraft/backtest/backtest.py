@@ -6,8 +6,8 @@ from typing import TypeAlias
 
 from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.costs import CostModel
-from qraft.backtest.execution import BacktestResult
 from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvider
+from qraft.backtest.result import BacktestResult
 from qraft.core.market import MarketData
 from qraft.backtest.simulator import precompute_inputs, run_backtest
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs

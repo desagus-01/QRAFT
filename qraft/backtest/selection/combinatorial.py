@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 
 from qraft.backtest.configs import BacktestConfig, CombinatorialCVConfig
 from qraft.core.market import MarketData
-from qraft.backtest.metrics import PerformanceSummary
+from qraft.backtest.result import PerformanceSummary
 from qraft.backtest.selection.diagnostics import (
     compute_deflated_sharpe,
     compute_pbo,
@@ -41,7 +41,7 @@ from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.forecast.forecaster import Forecaster
 from qraft.utils.log import info_event
-from qraft.utils.backtest_viz import plot_combinatorial_report
+from qraft.backtest.selection.render import plot_combinatorial_report
 
 
 T = TypeVar("T")
@@ -223,6 +223,14 @@ def combinatorial_from_evaluation(
         purge=cv_config.purge,
         embargo=cv_config.embargo,
     )
+    periods_per_year = resolve_selection_periods_per_year(
+        candidate_results, backtest_config.periods_per_year
+    )
+    resolved_backtest_config = BacktestConfig(
+        schedule=backtest_config.schedule,
+        initial_cash=backtest_config.initial_cash,
+        periods_per_year=periods_per_year,
+    )
     fold_test_group_returns: list[dict[int, NDArray[np.floating] | None]] = []
     fold_selected_params: list[PolicyParams | None] = []
     for fold_index, fold in enumerate(folds):
@@ -230,7 +238,7 @@ def combinatorial_from_evaluation(
             score_candidate_ranges(
                 candidate_result,
                 fold.train,
-                backtest_config,
+                resolved_backtest_config,
                 cv_config.cv_config.risk_free_rate,
             )
             for candidate_result in candidate_results
@@ -267,14 +275,6 @@ def combinatorial_from_evaluation(
 
     paths = _assign_paths(
         cv_config.n_groups, cv_config.n_test_groups, fold_test_group_returns
-    )
-    periods_per_year = resolve_selection_periods_per_year(
-        candidate_results, backtest_config.periods_per_year
-    )
-    resolved_backtest_config = BacktestConfig(
-        schedule=backtest_config.schedule,
-        initial_cash=backtest_config.initial_cash,
-        periods_per_year=periods_per_year,
     )
     path_returns = [
         np.concatenate(parts)

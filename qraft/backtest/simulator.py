@@ -10,13 +10,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from qraft.backtest.costs import CostModel
-from qraft.backtest.execution import (
-    BacktestPeriod,
-    BacktestResult,
-    BacktestWarning,
-    execute_frictionless,
-)
+from qraft.backtest.execution import execute_frictionless
 from qraft.backtest.inputs import PolicyInputsProvider
+from qraft.backtest.result import BacktestPeriod, BacktestResult, BacktestWarning
 from qraft.construction.inputs import PolicyInputRequirements, build_policy_input_table
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.optimization.optimization import OptimizationFailure

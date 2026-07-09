@@ -7,7 +7,7 @@ from typing import Any, TypeAlias
 
 from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvider
-from qraft.backtest.metrics import PerformanceSummary
+from qraft.backtest.result import PerformanceSummary
 from qraft.backtest.selection.candidates import expand_candidates
 from qraft.backtest.selection.evaluation import CandidateEvaluation
 from qraft.backtest.selection.results import (

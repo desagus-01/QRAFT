@@ -10,9 +10,8 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
-from qraft.backtest.execution import BacktestResult
+from qraft.backtest.result import BacktestResult, PerformanceSummary
 from qraft.core.market import MarketData
-from qraft.backtest.metrics import PerformanceSummary
 from qraft.backtest.selection.diagnostics import (
     compute_deflated_sharpe,
     compute_pbo,
@@ -41,7 +40,7 @@ from qraft.core import metrics
 from qraft.backtest.configs import BacktestConfig, WalkForwardConfig
 from qraft.forecast.forecaster import Forecaster
 from qraft.utils.log import info_event
-from qraft.utils.backtest_viz import plot_walk_forward_report
+from qraft.backtest.selection.render import plot_walk_forward_report
 
 
 logger = logging.getLogger(__name__)

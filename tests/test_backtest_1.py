@@ -8,7 +8,7 @@ import polars as pl
 import pytest
 
 from qraft.backtest.baselines import AllCashPolicy, NoTradePolicy
-from qraft.backtest.execution import BacktestResult
+from qraft.backtest.result import BacktestResult
 from qraft.core.market import HistoryWeighting, MarketData
 from qraft.core.snapshot import MarketSnapshot
 from qraft.backtest.simulator import run_backtest

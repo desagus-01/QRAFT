@@ -5,10 +5,9 @@ from typing import Any
 
 import polars as pl
 
-from qraft.backtest.execution import BacktestResult
-from qraft.backtest.metrics import PerformanceSummary
+from qraft.backtest.result import BacktestResult, PerformanceSummary
+from qraft.backtest.result.render import plot_nav
 from qraft.construction.policies import PolicyProtocol
-from qraft.utils.backtest_viz import plot_nav
 
 
 @dataclass(frozen=True, slots=True)

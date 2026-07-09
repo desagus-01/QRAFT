@@ -10,9 +10,9 @@ from qraft.backtest.configs import (
     CombinatorialCVConfig,
     WalkForwardConfig,
 )
-from qraft.backtest.execution import BacktestResult
+from qraft.backtest.result import BacktestResult
 from qraft.backtest.inputs import PrecomputedInputsProvider
-from qraft.backtest.metrics import PerformanceSummary
+from qraft.backtest.result import PerformanceSummary
 from qraft.core.market import MarketData
 from qraft.backtest.selection import __all__ as selection_all
 from qraft.backtest.selection.combinatorial import CombinatorialReport
