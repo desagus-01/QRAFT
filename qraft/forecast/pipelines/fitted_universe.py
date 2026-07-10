@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from qraft.core.configs import IIDConfig, PipelineConfig
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector
-from qraft.forecast.forecast_paths import AssetUniverse
+from qraft.core.universe import AssetUniverse
 from qraft.forecast.pipelines.model_selection import (
     _demean_fallback,
     residual_or_diff_scale,
@@ -466,9 +466,10 @@ def fit_diagnostics(fit: FittedUniverse) -> dict[str, FitDiagnostics]:
             else:
                 fallback_reason = None
         values["fallback_reason"] = fallback_reason
-        values["scale_degenerate"] = bool(
+        values["scale_degenerate"] = (
             quality is not None and "DEGENERATE_SCALE_FALLBACK" in quality.reason_codes
         )
+
         diagnostics[asset] = values
     return diagnostics
 

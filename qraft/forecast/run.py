@@ -5,12 +5,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Literal, Mapping
 
+import polars as pl
+
 from qraft.core.configs import (
     DEFAULT_PIPELINE_CONFIG,
     DEFAULT_SIMULATION_CONFIG,
     PipelineConfig,
     SimulationForecastConfig,
 )
+from qraft.core.market import MarketData
 from qraft.core.schedule import Cadence, RebalanceSchedule
 from qraft.core.snapshot import ForecastSnapshot, forecast_snapshot_at
 from qraft.forecast.forecast_paths import ForecastPaths
@@ -71,6 +74,35 @@ class ForecastStep:
 class ForecastRun:
     recipe_history: ForecastRecipeHistory
     steps: tuple[ForecastStep, ...]
+
+    def model_health(self) -> pl.DataFrame:
+        frames = []
+        for step in self.steps:
+            health = step.forecast.model_health()
+            if health.is_empty():
+                continue
+            frames.append(
+                health.with_columns(
+                    pl.lit(step.as_of).alias("as_of"),
+                    pl.lit(step.recipe_period_index).alias("recipe_period"),
+                )
+            )
+        if not frames:
+            return pl.DataFrame(
+                schema={
+                    "asset": pl.String,
+                    "mean_model": pl.String,
+                    "vol_model": pl.String,
+                    "quality_grade": pl.String,
+                    "quality_score": pl.Float64,
+                    "fallback_reason": pl.String,
+                    "cap_bind_rate": pl.Float64,
+                    "admissible": pl.Boolean,
+                    "as_of": pl.Datetime,
+                    "recipe_period": pl.Int64,
+                }
+            )
+        return pl.concat(frames, how="vertical_relaxed")
 
 
 def build_forecast_recipe_history(
@@ -397,7 +429,7 @@ _build_forecast_run_from_snapshots = simulate_forecast_paths_from_snapshots
 
 
 def _forecast_snapshots_from_market(
-    market,
+    market: MarketData,
     *,
     min_history: int,
     cadence: Cadence,

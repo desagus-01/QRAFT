@@ -11,6 +11,8 @@ import numpy as np
 import polars as pl
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
+from qraft.forecast.plotting import plot_simulation_results_on_ax
+
 
 def _unique_dates_np(dates: pl.DataFrame) -> np.ndarray:
     return dates.select(pl.col("date")).unique(maintain_order=True).to_numpy().ravel()
@@ -280,6 +282,7 @@ def plot_simulation_results(
     integrate: bool = False,
     logP0: float = 0.0,
     title: str | None = None,
+    ax=None,
 ):
     """
     Plot simulation paths and a fan chart.
@@ -299,71 +302,17 @@ def plot_simulation_results(
     title : str | None
         Figure title.
     """
-    y = np.asarray(y_paths, dtype=float)
-    if y.ndim != 2:
-        raise ValueError("y_paths must be a 2D array (n_paths, horizon).")
-
-    n_paths, horizon = y.shape
-
-    if integrate:
-        # cumulative log-price for steps 1..horizon, prepend logP0 at t=0
-        y_cum = logP0 + np.cumsum(y, axis=1)
-        y_plot = np.concatenate([np.full((n_paths, 1), logP0), y_cum], axis=1)
-        y_label = "Cumulative log-price (logP0 + cumsum)"
-    else:
-        # If y contains values for steps 1..horizon, prepend NaN at t=0 so the
-        # t=0 column exists but isn't included in quantile calculations/drawn
-        y_plot = np.concatenate([np.full((n_paths, 1), np.nan), y], axis=1)
-        y_label = "Simulated values"
-
-    # Use time steps starting at 0
-    x = np.arange(y_plot.shape[1])
-
-    # Select a subset of paths to plot
-    rng = np.random.default_rng(0)
-    k = min(max_paths, n_paths)
-    idx = (
-        rng.choice(n_paths, size=k, replace=False)
-        if n_paths > k
-        else np.arange(n_paths)
+    fig = plot_simulation_results_on_ax(
+        y_paths,
+        max_paths=max_paths,
+        quantiles=quantiles,
+        integrate=integrate,
+        logP0=logP0,
+        title=title,
+        ax=ax,
     )
-
-    # Compute quantiles across paths for each time step (use nanquantile if NaNs present)
-    qs = np.array(quantiles, dtype=float)
-    qvals = np.nanquantile(y_plot, qs, axis=0)  # shape (len(qs), horizon+1)
-
-    # Identify median index (must exist)
-    if not np.any(np.isclose(qs, 0.50)):
-        raise ValueError("quantiles must include 0.50 for the median.")
-    med_i = int(np.where(np.isclose(qs, 0.50))[0][0])
-
-    plt.figure(figsize=(12, 6))
-
-    # Fan chart: fill between symmetric quantiles around median if provided
-    # We'll pair (0.25,0.75), (0.05,0.95), (0.01,0.99) when available.
-    pairs = [(0.25, 0.75), (0.05, 0.95), (0.01, 0.99)]
-    for lo, hi in pairs:
-        if np.any(np.isclose(qs, lo)) and np.any(np.isclose(qs, hi)):
-            lo_i = int(np.where(np.isclose(qs, lo))[0][0])
-            hi_i = int(np.where(np.isclose(qs, hi))[0][0])
-            plt.fill_between(x, qvals[lo_i], qvals[hi_i], alpha=0.20, linewidth=0)
-
-    # Median line
-    plt.plot(x, qvals[med_i], linewidth=2, label="Median")
-
-    # Sample paths
-    for j in idx:
-        plt.plot(x, y_plot[j], alpha=0.35, linewidth=1)
-
-    plt.xlabel("Step")
-    plt.ylabel(y_label)
-    plt.title(
-        title or ("Simulated paths (integrated)" if integrate else "Simulated paths")
-    )
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    fig.tight_layout()
+    return fig
 
 
 def plot_effective_bets(effective_bets_result) -> None:

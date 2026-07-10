@@ -6,31 +6,24 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
-    BacktestConfig,
     CMAConfig,
     Forecaster,
     HistoryWeighting,
-    InputPlan,
     LogConfig,
     MarketData,
-    MPOPolicy,
     PipelineConfig,
     SimulationForecastConfig,
-    Validation,
     Views,
     setup_logging,
 )
-from qraft.construction import FullyInvested, LongOnly, MinCashWeight, TurnoverLimit
-from qraft.construction.policies.allocation import Allocation
 from qraft.core.scenarios.view_types import MeanView, QuantileView, RankingView, StdView
-from qraft.core.schedule import RebalanceSchedule
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
 setup_logging(LogConfig(level=logging.INFO))
 
 # %%
-# Data and causal market setup.
+# Load sample data and build a causal market.
 prices, factor_cols = import_tickers_and_factors(
     "./data/tiingo_sample.csv",
     "./data/tiingo_factors.csv",
@@ -63,6 +56,8 @@ market_without_views = MarketData.from_prices(
     history_weighting=HistoryWeighting("state_smooth", half_life=60),
 )
 
+# %%
+# Register time-local views. Each view applies from its date forward until replaced.
 view_asset = assets[0]
 view_dates = [prices["date"][-360], prices["date"][-240], prices["date"][-120]]
 return_panels = [
@@ -112,9 +107,8 @@ view_events = [
 ]
 market = market_without_views.with_views(*view_events)
 
-
 # %%
-# Forecast, input, and policy configuration.
+# Forecaster facade: create recipes, then create a forecast run from those recipes.
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),
     simulation=SimulationForecastConfig(
@@ -126,47 +120,80 @@ forecaster = Forecaster(
     refit_every=int(prices.height / 4),
     seed=10,
 )
-plan = InputPlan(expected_returns="forecast", risk="both")
-backtest_config = BacktestConfig(schedule=RebalanceSchedule("quarter_end"))
 
-base_policy = MPOPolicy.preset(
-    objective_type="cvar_cuts",
-    constraints=(
-        LongOnly(),
-        FullyInvested(constraint_type="soft", soft_weight=1.0),
-        MinCashWeight(limit=0.20, constraint_type="soft", soft_weight=2.0),
-        TurnoverLimit(limit=0.15, constraint_type="soft", soft_weight=2.0),
-    ),
-    min_history=252,
-    name="cvar_template",
+min_history = 252
+recipes = forecaster.recipes(market, min_history=min_history)
+run = forecaster.run(
+    market,
+    min_history=min_history,
+    cadence="quarter_end",
+    recipes=recipes,
 )
 
 # %%
-# --- Phase 4: tune --------------------------------------------------
-# The same Validation object can tune with any metric — the grid is evaluated once.
-val = Validation(
-    market=market,
-    base_policy=base_policy,
-    grid={"risk_aversion": [0.05, 0.5, 1, 3, 5, 10]},
-    source=forecaster,
-    plan=plan,
-    backtest_config=backtest_config,
+# High-level run diagnostics.
+recipe_summary = pl.DataFrame(
+    {
+        "period": list(range(len(recipes.periods))),
+        "start": [period.start for period in recipes.periods],
+        "end": [period.end for period in recipes.periods],
+        "selected_at_step": [period.selected_at_step for period in recipes.periods],
+        "n_invariance_drops": [
+            len(period.invariance_drops) for period in recipes.periods
+        ],
+    }
 )
+step_summary = pl.DataFrame(
+    {
+        "as_of": [step.as_of for step in run.steps],
+        "recipe_period": [step.recipe_period_index for step in run.steps],
+        "action": [step.action for step in run.steps],
+        "n_invariance_drops": [len(step.invariance_drops) for step in run.steps],
+    }
+)
+model_health = run.model_health()
+
+recipe_summary
 
 # %%
-# %%
-report = val.combinatorial()
-# %%
-tuned = val.tune(report, score="sortino")
-# tuned = val.tune(report, score="sharpe")
-policy = tuned.selected_policy
-tuned.selected_params
+step_summary
 
 # %%
-live = Allocation(market, policy, source=forecaster, plan=plan)
-run = live.at()
-risk = live.risk()
+model_health
 
-run.projection.plot()
 # %%
-risk.effective_bets().plot()
+# Inspect diagnostics from the latest forecast step.
+latest_step = run.steps[-1]
+latest_forecast = latest_step.forecast
+latest_step.as_of, latest_step.action, latest_step.recipe_period_index
+
+# %%
+latest_step.diagnostics
+
+# %%
+latest_step.invariance_drops
+
+# %%
+latest_forecast.model_health()
+
+# %%
+# Plot simulated paths for the latest forecast.
+fig_paths = latest_forecast.plot_asset_paths(
+    subset="tradable",
+    assets=assets[:6],
+    max_assets=6,
+    ncols=3,
+)
+fig_paths
+
+# %%
+# Plot paths for a forecast immediately after the last view date, if available.
+viewed_steps = [step for step in run.steps if step.as_of >= view_dates[-1]]
+viewed_step = viewed_steps[0] if viewed_steps else latest_step
+fig_viewed_paths = viewed_step.forecast.plot_asset_paths(
+    subset="tradable",
+    assets=assets[:6],
+    max_assets=6,
+    ncols=3,
+)
+fig_viewed_paths

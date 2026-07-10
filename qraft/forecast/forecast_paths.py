@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 from numpy.typing import NDArray
@@ -12,9 +13,8 @@ from polars import DataFrame
 from qraft.core.panel import DatetimeSeries, ScenarioPanel, normalize_datetime_series
 from qraft.core.probability.prob_vector import ProbVector, as_prob_vector
 from qraft.core.universe import AssetSubset, AssetUniverse
-
-if TYPE_CHECKING:
-    from qraft.forecast.pipelines.fitted_universe import FittedUniverse
+from qraft.forecast.plotting import plot_simulation_results_on_ax
+from qraft.forecast.pipelines.fitted_universe import FittedUniverse
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class ForecastPaths:
     initial_prices: dict[str, float]
     universe: AssetUniverse | None = None
     diagnostics: FittedUniverse | None = None
+    model_health_frame: DataFrame | None = None
 
     def __post_init__(self) -> None:
         if not self.asset_paths:
@@ -87,6 +88,10 @@ class ForecastPaths:
                 raise ValueError(f"initial price for {asset} must be finite")
             if price <= 0:
                 raise ValueError(f"initial price for {asset} must be strictly positive")
+        if self.model_health_frame is not None:
+            object.__setattr__(
+                self, "model_health_frame", self.model_health_frame.clone()
+            )
 
     @property
     def price_stack(self) -> NDArray[np.floating]:
@@ -143,11 +148,71 @@ class ForecastPaths:
             return self.factor_paths
         raise ValueError(f"Unknown subset: {subset}")
 
-    def plot_asset_paths(self) -> None:
-        from qraft.utils.visuals import plot_simulation_results
+    def model_health(self) -> DataFrame:
+        if self.model_health_frame is None:
+            return DataFrame(
+                schema={
+                    "asset": pl.String,
+                    "mean_model": pl.String,
+                    "vol_model": pl.String,
+                    "quality_grade": pl.String,
+                    "quality_score": pl.Float64,
+                    "fallback_reason": pl.String,
+                    "cap_bind_rate": pl.Float64,
+                    "admissible": pl.Boolean,
+                }
+            )
+        return self.model_health_frame.clone()
 
-        for asset, path in self.tradable_paths.items():
-            plot_simulation_results(path, title=asset)
+    def plot_asset_paths(
+        self,
+        *,
+        subset: AssetSubset = "tradable",
+        max_assets: int = 12,
+        assets: list[str] | None = None,
+        ncols: int = 3,
+    ):
+        if max_assets < 1:
+            raise ValueError("max_assets must be >= 1")
+        if ncols < 1:
+            raise ValueError("ncols must be >= 1")
+
+        paths = self._paths_for(subset)
+        if assets is None:
+            selected = list(paths)
+        else:
+            missing = set(assets) - self.asset_paths.keys()
+            if missing:
+                raise ValueError(f"Assets not found in forecast: {missing}")
+            selected = assets
+
+        if not selected:
+            raise ValueError(f"No paths available for subset={subset!r}")
+
+        if len(selected) > max_assets:
+            logger.warning(
+                "Truncating asset path plot from %d to %d assets",
+                len(selected),
+                max_assets,
+            )
+            selected = selected[:max_assets]
+
+        nrows = math.ceil(len(selected) / ncols)
+        fig, axes = plt.subplots(
+            nrows,
+            ncols,
+            figsize=(5 * ncols, 3.5 * nrows),
+            squeeze=False,
+        )
+
+        for ax, asset in zip(axes.ravel(), selected, strict=False):
+            plot_simulation_results_on_ax(self.asset_paths[asset], title=asset, ax=ax)
+
+        for ax in axes.ravel()[len(selected) :]:
+            ax.set_visible(False)
+
+        fig.tight_layout()
+        return fig
 
     def at_step(
         self,

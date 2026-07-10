@@ -11,8 +11,10 @@ from qraft.core.configs import (
     SimulationForecastConfig,
 )
 from qraft.core.panel import ScenarioPanel
-from qraft.forecast.forecast_paths import AssetUniverse, InnovationPaths
+from qraft.core.universe import AssetUniverse
+from qraft.forecast.forecast_paths import InnovationPaths
 from qraft.forecast.pipelines import forecasting
+from qraft.forecast.pipelines.fitted_universe import ForecastRecipe
 
 
 def test_innovation_paths_rejects_invalid_path_probs() -> None:
@@ -33,11 +35,44 @@ class DummyFittedUniverse:
         )
         self.inverse_specs = {"asset": []}
         self.preprocess = SimpleNamespace(assets_already_iid=["asset"])
+        self.assets = ["asset"]
+        self.models = {
+            "asset": SimpleNamespace(
+                volatility_res=SimpleNamespace(
+                    admissible=False,
+                    fallback_reason="garch_refit_failed",
+                ),
+                quality=SimpleNamespace(
+                    grade="C",
+                    score=55.0,
+                    reason_codes=("VOL_FALLBACK_BEST_IC_NO_DIAG_PASS",),
+                ),
+            )
+        }
+        self.simulation_forecasts = {
+            "asset": SimpleNamespace(variance_cap_diagnostics={"bind_rate": 0.25})
+        }
 
     def simulate(self, innovation_paths):
         return {
             "asset": np.ones((innovation_paths.shape[0], innovation_paths.shape[1]))
         }
+
+    def recipe(self):
+        return ForecastRecipe(
+            detrend={},
+            deseason={},
+            needs_modelling=["asset"],
+            mean_orders={"asset": (1, 0)},
+            vol_orders={"asset": (1, 0, 1)},
+            mean_fallback_identity={"asset": None},
+            vol_distributions={"asset": "normal"},
+            quality={"asset": self.models["asset"].quality},
+            admissible={"asset": False},
+            fallback_reason={"asset": "garch_refit_failed"},
+            variance_cap_diagnostics={"asset": {"bind_rate": 0.25}},
+            survivors=["asset"],
+        )
 
 
 def _panel() -> ScenarioPanel:

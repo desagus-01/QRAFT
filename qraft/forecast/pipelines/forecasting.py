@@ -17,11 +17,13 @@ from qraft.core.configs import (
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.sampling import weighted_bootstrapping_idx
 from qraft.core.scenarios.copula_marginal import CMAConfig, CopulaMarginalModel
-from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths, InnovationPaths
+from qraft.core.universe import AssetUniverse
+from qraft.forecast.forecast_paths import ForecastPaths, InnovationPaths
 from qraft.forecast.pipelines.fitted_universe import (
     FittedUniverse,
     apply_forecast_recipe,
     create_forecast_recipe,
+    fit_diagnostics,
 )
 from qraft.forecast.time_series.transforms.inverses import apply_inverse_transforms
 from qraft.utils.log import warning_event
@@ -122,6 +124,38 @@ def _forecast_dates_from_history(dates: pl.Series, horizon: int) -> pl.Series:
     return pl.Series("date", [last_date + step * i for i in range(1, horizon + 1)])
 
 
+def _model_name(order: object, distribution: object | None = None) -> str | None:
+    if order is None:
+        return None
+    if distribution is None:
+        return str(order)
+    return f"{order} {distribution}"
+
+
+def _model_health_frame(fit: FittedUniverse) -> DataFrame:
+    recipe = fit.recipe()
+    diagnostics = fit_diagnostics(fit)
+    rows = []
+    for asset in fit.assets:
+        quality = recipe.quality.get(asset)
+        values = diagnostics.get(asset, {})
+        rows.append(
+            {
+                "asset": asset,
+                "mean_model": _model_name(recipe.mean_orders.get(asset)),
+                "vol_model": _model_name(
+                    recipe.vol_orders.get(asset), recipe.vol_distributions.get(asset)
+                ),
+                "quality_grade": getattr(quality, "grade", None),
+                "quality_score": getattr(quality, "score", None),
+                "fallback_reason": values.get("fallback_reason"),
+                "cap_bind_rate": values.get("bind_rate"),
+                "admissible": values.get("admissible"),
+            }
+        )
+    return DataFrame(rows)
+
+
 def forecast_from_fit(
     panel: ScenarioPanel,
     asset_universe: AssetUniverse,
@@ -182,6 +216,7 @@ def forecast_from_fit(
         universe=forecast_universe,
         initial_prices=initial_prices,
         diagnostics=None if not include_fit_diagnostics else universe_fit,
+        model_health_frame=_model_health_frame(universe_fit),
     )
 
 

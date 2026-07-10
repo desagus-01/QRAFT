@@ -4,7 +4,9 @@ import polars as pl
 
 from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
+from qraft.core.snapshot import forecast_snapshot_at
 from qraft.core.universe import AssetUniverse
+from qraft.forecast.forecaster import Forecaster
 from qraft.forecast.run import (
     ForecastRecipeHistory,
     RecipePeriod,
@@ -26,6 +28,18 @@ def _forecast_paths(universe: AssetUniverse | None = None):
         path_probs=np.array([0.5, 0.5]),
         initial_prices={"A": 14.0},
         universe=universe,
+        model_health_frame=pl.DataFrame(
+            {
+                "asset": ["A"],
+                "mean_model": ["(1, 0)"],
+                "vol_model": ["(1, 0, 1) normal"],
+                "quality_grade": ["C"],
+                "quality_score": [55.0],
+                "fallback_reason": ["garch_refit_failed"],
+                "cap_bind_rate": [0.25],
+                "admissible": [False],
+            }
+        ),
     )
 
 
@@ -106,6 +120,126 @@ def test_forecast_run_applies_existing_recipe_history(monkeypatch):
     ]
     assert len(run.recipe_history.periods) == 1
     assert run.steps[0].as_of == datetime(2024, 1, 3)
+
+
+def test_forecaster_run_returns_forecast_run(monkeypatch):
+    _patch_runner(monkeypatch)
+
+    run = Forecaster(refit_every=12).run(
+        _market(AssetUniverse.factors_free(["A", "B"])),
+        min_history=3,
+        cadence="every_bar",
+    )
+
+    assert [step.action for step in run.steps] == [
+        "selected_recipe",
+        "applied_recipe",
+        "applied_recipe",
+    ]
+    assert len(run.recipe_history.periods) == 1
+
+
+def test_forecaster_run_reuses_supplied_recipes(monkeypatch):
+    selected, applied = _patch_runner(monkeypatch)
+    market = _market(AssetUniverse.factors_free(["A", "B"]))
+    forecaster = Forecaster(refit_every=12)
+    recipes = forecaster.recipes(market, min_history=3)
+    selected_count = len(selected)
+    applied.clear()
+
+    run = forecaster.run(
+        market,
+        min_history=3,
+        cadence="every_bar",
+        recipes=recipes,
+    )
+
+    assert len(selected) == selected_count
+    assert len(applied) == 3
+    assert run.recipe_history is recipes
+
+
+def test_forecaster_run_from_snapshots_reuses_recipes(monkeypatch):
+    selected, applied = _patch_runner(monkeypatch)
+    market = _market(AssetUniverse.factors_free(["A", "B"]))
+    forecaster = Forecaster(refit_every=1)
+    recipes = forecaster.recipes(market, min_history=3)
+    selected_count = len(selected)
+    applied.clear()
+    snapshots = [forecast_snapshot_at(market, bar) for bar in market.trading_bars[2:]]
+
+    run = forecaster.run_from_snapshots(snapshots, recipes)
+
+    assert len(selected) == selected_count
+    assert len(applied) == 4
+    assert run.recipe_history is recipes
+
+
+def test_forecast_paths_model_health_returns_stored_frame():
+    health = _forecast_paths().model_health()
+
+    assert health.columns == [
+        "asset",
+        "mean_model",
+        "vol_model",
+        "quality_grade",
+        "quality_score",
+        "fallback_reason",
+        "cap_bind_rate",
+        "admissible",
+    ]
+    assert health.to_dicts() == [
+        {
+            "asset": "A",
+            "mean_model": "(1, 0)",
+            "vol_model": "(1, 0, 1) normal",
+            "quality_grade": "C",
+            "quality_score": 55.0,
+            "fallback_reason": "garch_refit_failed",
+            "cap_bind_rate": 0.25,
+            "admissible": False,
+        }
+    ]
+
+
+def test_forecast_run_model_health_stacks_steps_with_recipe_period():
+    from qraft.forecast.run import ForecastRun, ForecastStep
+
+    run = ForecastRun(
+        recipe_history=ForecastRecipeHistory(periods=(), pipeline_config=object()),
+        steps=(
+            ForecastStep(
+                as_of=datetime(2024, 1, 3),
+                recipe_period_index=0,
+                forecast=_forecast_paths(),
+                action="selected_recipe",
+            ),
+            ForecastStep(
+                as_of=datetime(2024, 1, 4),
+                recipe_period_index=0,
+                forecast=_forecast_paths(),
+                action="applied_recipe",
+            ),
+        ),
+    )
+
+    health = run.model_health()
+
+    assert health.select("asset", "as_of", "recipe_period").to_dicts() == [
+        {"asset": "A", "as_of": datetime(2024, 1, 3), "recipe_period": 0},
+        {"asset": "A", "as_of": datetime(2024, 1, 4), "recipe_period": 0},
+    ]
+
+
+def test_forecast_paths_plot_asset_paths_returns_figure():
+    import matplotlib
+    from matplotlib.figure import Figure
+
+    matplotlib.use("Agg")
+
+    fig = _forecast_paths().plot_asset_paths(max_assets=1)
+
+    assert isinstance(fig, Figure)
 
 
 def test_forecast_cadence_selects_backtest_style_market_bars(monkeypatch):
