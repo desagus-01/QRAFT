@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -10,7 +9,6 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
 import polars as pl
-from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
@@ -18,6 +16,17 @@ from qraft.backtest.result import PerformanceSummary
 from qraft.backtest.selection.candidate_eval import CandidateEvaluation
 from qraft.backtest.selection.results import PolicyParams, SelectionReport
 from qraft.backtest.selection.splits import CombinatorialFold, Fold
+from qraft.utils.helpers import (
+    column_or_nan,
+    format_optional_float,
+    format_optional_pct,
+    most_common,
+    path_nav,
+    plot_diagnostics_bar,
+    safe_div,
+    selection_concentration,
+    truncate_label,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,11 +55,11 @@ class WalkForwardReport:
             )
         return self
 
-    def plot(self):
+    def plot(self) -> Figure:
         return plot_walk_forward_report(self)
 
     @property
-    def selected_params(self):
+    def selected_params(self) -> PolicyParams | None:
         return _walk_forward_selected_params(self)
 
     @property
@@ -92,7 +101,7 @@ class WalkForwardReport:
                         - selected.summary.sharpe,
                         "return_decay": fold_result.oos_summary.annualised_return
                         - selected.summary.annualised_return,
-                        "vol_ratio": _safe_div(
+                        "vol_ratio": safe_div(
                             fold_result.oos_summary.annualised_vol,
                             selected.summary.annualised_vol,
                         ),
@@ -130,8 +139,8 @@ class WalkForwardReport:
             if "selected_params" in fold_rows.columns:
                 selected = [p for p in fold_rows["selected_params"].to_list() if p]
                 row["n_unique_selected"] = len(set(selected))
-                row["selection_concentration"] = _selection_concentration(selected)
-                row["most_selected_params"] = _most_common(selected)
+                row["selection_concentration"] = selection_concentration(selected)
+                row["most_selected_params"] = most_common(selected)
         return pl.DataFrame([row])
 
     @property
@@ -235,7 +244,7 @@ class CombinatorialReport:
             )
         return self
 
-    def plot(self):
+    def plot(self) -> Figure:
         return plot_combinatorial_report(self)
 
     @property
@@ -284,26 +293,7 @@ class CombinatorialReport:
 ValidationReport = WalkForwardReport | CombinatorialReport
 
 
-def _safe_div(numerator: float, denominator: float) -> float:
-    if denominator == 0:
-        return float("nan")
-    return numerator / denominator
-
-
-def _selection_concentration(selected: Sequence[str]) -> float:
-    if not selected:
-        return 0.0
-    counts = [selected.count(params) for params in set(selected)]
-    return max(counts) / len(selected)
-
-
-def _most_common(selected: Sequence[str]) -> str:
-    if not selected:
-        return ""
-    return max(set(selected), key=selected.count)
-
-
-def _walk_forward_selected_params(report: WalkForwardReport):
+def _walk_forward_selected_params(report: WalkForwardReport) -> PolicyParams | None:
     selected = [
         fold.selection.selected_params
         for fold in report.folds
@@ -344,7 +334,7 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
 
     ax = axes[1, 0]
     fold_ids = np.arange(len(report.folds))
-    test_returns = _column_or_nan(
+    test_returns = column_or_nan(
         report.folds_df, "test_total_return", len(report.folds)
     )
     colors = ["forestgreen" if r >= 0 else "crimson" for r in test_returns]
@@ -356,8 +346,8 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     ax.grid(True, axis="y", alpha=0.3)
 
     ax = axes[1, 1]
-    train_sharpe = _column_or_nan(report.folds_df, "train_sharpe", len(report.folds))
-    test_sharpe = _column_or_nan(report.folds_df, "test_sharpe", len(report.folds))
+    train_sharpe = column_or_nan(report.folds_df, "train_sharpe", len(report.folds))
+    test_sharpe = column_or_nan(report.folds_df, "test_sharpe", len(report.folds))
     ax.plot(fold_ids, train_sharpe, marker="o", label="Train selected")
     ax.plot(fold_ids, test_sharpe, marker="o", label="OOS")
     ax.axhline(0.0, color="black", linewidth=0.8)
@@ -367,7 +357,7 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     ax.grid(True, alpha=0.3)
 
     ax = axes[2, 0]
-    sharpe_decay = _column_or_nan(report.folds_df, "sharpe_decay", len(report.folds))
+    sharpe_decay = column_or_nan(report.folds_df, "sharpe_decay", len(report.folds))
     colors = ["forestgreen" if d >= 0 else "crimson" for d in sharpe_decay]
     ax.bar(fold_ids, sharpe_decay, color=colors, alpha=0.75)
     ax.axhline(0.0, color="black", linewidth=0.8)
@@ -381,13 +371,13 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
         values = report.selection_counts_df["n_folds"].to_list()
         y = np.arange(len(labels))
         ax.barh(y, values, color="slateblue", alpha=0.75)
-        ax.set_yticks(y, [_truncate_label(label) for label in labels])
+        ax.set_yticks(y, [truncate_label(label) for label in labels])
         ax.invert_yaxis()
     ax.set_title("Selected Parameter Stability")
     ax.set_xlabel("Folds selected")
     ax.grid(True, axis="x", alpha=0.3)
 
-    _plot_diagnostics_bar(
+    plot_diagnostics_bar(
         axes[3, 0],
         title="Multiple-Testing Diagnostics",
         n_trials=report.n_trials,
@@ -400,8 +390,8 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     diagnostic_text = [
         "Robustness read-through",
         f"Trials tested: {report.n_trials}",
-        f"Deflated Sharpe: {_format_optional_float(report.deflated_sharpe)}",
-        f"PBO: {_format_optional_pct(report.pbo)}",
+        f"Deflated Sharpe: {format_optional_float(report.deflated_sharpe)}",
+        f"PBO: {format_optional_pct(report.pbo)}",
     ]
     if report.deflated_sharpe is not None:
         diagnostic_text.append(
@@ -466,7 +456,7 @@ def plot_combinatorial_report(report: CombinatorialReport) -> Figure:
 
     ax = axes[0, 1]
     for returns in report.path_returns:
-        nav = _path_nav(returns)
+        nav = path_nav(returns)
         if nav.size:
             ax.plot(nav, color="steelblue", linewidth=1.0, alpha=0.3)
     if report.paths:
@@ -485,7 +475,7 @@ def plot_combinatorial_report(report: CombinatorialReport) -> Figure:
     ax.set_ylabel("Normalized NAV")
     ax.grid(True, alpha=0.3)
 
-    _plot_diagnostics_bar(
+    plot_diagnostics_bar(
         axes[1, 0],
         title="PBO / DSR Diagnostics",
         n_trials=report.n_trials,
@@ -502,11 +492,11 @@ def plot_combinatorial_report(report: CombinatorialReport) -> Figure:
         f"Groups: {report.n_groups}",
         f"Test groups per fold: {report.n_test_groups}",
         f"Trials tested: {report.n_trials}",
-        f"Median Sharpe: {_format_optional_float(report.median_sharpe)}",
-        f"Sharpe IQR: {_format_optional_float(lo)} to {_format_optional_float(hi)}",
-        f"Worst Sharpe: {_format_optional_float(report.worst_sharpe)}",
-        f"Deflated Sharpe: {_format_optional_float(report.deflated_sharpe)}",
-        f"PBO: {_format_optional_pct(report.pbo)}",
+        f"Median Sharpe: {format_optional_float(report.median_sharpe)}",
+        f"Sharpe IQR: {format_optional_float(lo)} to {format_optional_float(hi)}",
+        f"Worst Sharpe: {format_optional_float(report.worst_sharpe)}",
+        f"Deflated Sharpe: {format_optional_float(report.deflated_sharpe)}",
+        f"PBO: {format_optional_pct(report.pbo)}",
     ]
     if report.deflated_sharpe is not None:
         diagnostic_text.append(
@@ -528,7 +518,7 @@ def plot_combinatorial_report(report: CombinatorialReport) -> Figure:
 
     title = (
         f"CPCV Report | paths {report.n_paths}, "
-        f"median Sharpe {_format_optional_float(report.median_sharpe)}"
+        f"median Sharpe {format_optional_float(report.median_sharpe)}"
     )
     if report.deflated_sharpe is not None:
         title += f" | DSR {report.deflated_sharpe:.2f}"
@@ -537,70 +527,3 @@ def plot_combinatorial_report(report: CombinatorialReport) -> Figure:
     fig.suptitle(title, fontsize=14, y=1.02)
     fig.tight_layout()
     return fig
-
-
-def _plot_diagnostics_bar(
-    ax: Axes,
-    *,
-    title: str,
-    n_trials: int,
-    deflated_sharpe: float | None,
-    pbo: float | None,
-) -> None:
-    diagnostic_labels = ["Deflated\nSharpe", "PBO", "Trials"]
-    diagnostic_values = [
-        deflated_sharpe if deflated_sharpe is not None else np.nan,
-        pbo if pbo is not None else np.nan,
-        float(n_trials),
-    ]
-    colors = ["forestgreen", "crimson", "steelblue"]
-    bars = ax.bar(diagnostic_labels, diagnostic_values, color=colors, alpha=0.75)
-    for bar, value, label in zip(
-        bars, diagnostic_values, diagnostic_labels, strict=True
-    ):
-        if np.isfinite(value):
-            text = f"{value:.1%}" if label == "PBO" else f"{value:.2f}"
-            if label == "Trials":
-                text = f"{int(value)}"
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height(),
-                text,
-                ha="center",
-                va="bottom",
-                fontsize=9,
-            )
-    ax.axhline(0.0, color="black", linewidth=0.8)
-    ax.set_title(title)
-    ax.grid(True, axis="y", alpha=0.3)
-
-
-def _column_or_nan(frame: pl.DataFrame, name: str, length: int) -> np.ndarray:
-    if name not in frame.columns:
-        return np.full(length, np.nan)
-    return np.array(frame[name].to_list(), dtype=float)
-
-
-def _truncate_label(label: str, max_len: int = 42) -> str:
-    if len(label) <= max_len:
-        return label
-    return f"{label[: max_len - 3]}..."
-
-
-def _path_nav(returns: Sequence[float]) -> np.ndarray:
-    returns = np.asarray(returns, dtype=float)
-    if returns.size == 0:
-        return np.array([], dtype=float)
-    return np.concatenate(([1.0], np.cumprod(1.0 + returns)))
-
-
-def _format_optional_float(value: float | None) -> str:
-    if value is None or not np.isfinite(value):
-        return "n/a"
-    return f"{value:.2f}"
-
-
-def _format_optional_pct(value: float | None) -> str:
-    if value is None or not np.isfinite(value):
-        return "n/a"
-    return f"{value:.1%}"

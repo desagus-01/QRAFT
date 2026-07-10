@@ -1,5 +1,6 @@
 import logging
 import time
+from collections.abc import Sequence
 from datetime import datetime
 from functools import wraps
 from typing import NamedTuple
@@ -7,6 +8,7 @@ from typing import NamedTuple
 import numpy as np
 import polars as pl
 import polars.selectors as cs
+from matplotlib.axes import Axes
 from numpy.typing import NDArray
 
 from qraft.core.metrics import tail_cutoff
@@ -86,3 +88,89 @@ def timeit(func):
         return result
 
     return wrapper
+
+
+def safe_div(numerator: float, denominator: float) -> float:
+    if denominator == 0:
+        return float("nan")
+    return numerator / denominator
+
+
+def selection_concentration(selected: Sequence[str]) -> float:
+    if not selected:
+        return 0.0
+    counts = [selected.count(params) for params in set(selected)]
+    return max(counts) / len(selected)
+
+
+def most_common(selected: Sequence[str]) -> str:
+    if not selected:
+        return ""
+    return max(set(selected), key=selected.count)
+
+
+def plot_diagnostics_bar(
+    ax: Axes,
+    *,
+    title: str,
+    n_trials: int,
+    deflated_sharpe: float | None,
+    pbo: float | None,
+) -> None:
+    diagnostic_labels = ["Deflated\nSharpe", "PBO", "Trials"]
+    diagnostic_values = [
+        deflated_sharpe if deflated_sharpe is not None else np.nan,
+        pbo if pbo is not None else np.nan,
+        float(n_trials),
+    ]
+    colors = ["forestgreen", "crimson", "steelblue"]
+    bars = ax.bar(diagnostic_labels, diagnostic_values, color=colors, alpha=0.75)
+    for bar, value, label in zip(
+        bars, diagnostic_values, diagnostic_labels, strict=True
+    ):
+        if np.isfinite(value):
+            text = f"{value:.1%}" if label == "PBO" else f"{value:.2f}"
+            if label == "Trials":
+                text = f"{int(value)}"
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height(),
+                text,
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
+    ax.axhline(0.0, color="black", linewidth=0.8)
+    ax.set_title(title)
+    ax.grid(True, axis="y", alpha=0.3)
+
+
+def column_or_nan(frame: pl.DataFrame, name: str, length: int) -> NDArray[np.floating]:
+    if name not in frame.columns:
+        return np.full(length, np.nan)
+    return np.array(frame[name].to_list(), dtype=float)
+
+
+def truncate_label(label: str, max_len: int = 42) -> str:
+    if len(label) <= max_len:
+        return label
+    return f"{label[: max_len - 3]}..."
+
+
+def path_nav(returns: Sequence[float] | NDArray[np.floating]) -> NDArray[np.floating]:
+    returns_array = np.asarray(returns, dtype=float)
+    if returns_array.size == 0:
+        return np.array([], dtype=float)
+    return np.concatenate(([1.0], np.cumprod(1.0 + returns_array)))
+
+
+def format_optional_float(value: float | None) -> str:
+    if value is None or not np.isfinite(value):
+        return "n/a"
+    return f"{value:.2f}"
+
+
+def format_optional_pct(value: float | None) -> str:
+    if value is None or not np.isfinite(value):
+        return "n/a"
+    return f"{value:.1%}"
