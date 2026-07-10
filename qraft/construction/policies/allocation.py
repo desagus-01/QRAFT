@@ -52,6 +52,7 @@ class Allocation:
             state,
             forecasts=forecasts,
             policy_inputs=table.get(snapshot.t),
+            as_of=snapshot.t,
         )
 
     def risk(self, as_of: datetime | None = None, **kw: Any) -> PortfolioRisk:

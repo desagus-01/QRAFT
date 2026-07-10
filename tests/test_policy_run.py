@@ -3,13 +3,17 @@ from datetime import datetime
 import numpy as np
 import polars as pl
 import pytest
+from matplotlib.figure import Figure
 
 from qraft.backtest.execution import execute_frictionless
 from qraft.construction.optimization.inputs import PolicyInputs
 from qraft.construction.optimization.inputs import InputPlan
+from qraft.construction.optimization.objectives.specs import ExpectedReturn
+from qraft.construction.optimization.problem import MPOProblemBuilder
 from qraft.construction.policies import (
     Allocation,
     EqualWeightPolicy,
+    MPOPolicy,
     PolicyDecision,
     PolicyProjection,
     PolicyRun,
@@ -101,21 +105,73 @@ def test_projection_is_created_independently_from_decision() -> None:
 
 
 def test_run_policy_orchestrates_decision_and_projection() -> None:
+    policy_inputs = PolicyInputs.from_arrays(
+        assets=["A", "B"],
+        mean=np.ones((1, 2)),
+        cash_return=np.array([0.001]),
+    )
     result = run_policy(
         EqualWeightPolicy(target_cash_weight=0.2),
         _state(),
         _forecasts(),
+        policy_inputs=policy_inputs,
+        as_of=datetime(2024, 1, 2),
     )
 
     assert isinstance(result, PolicyRun)
     assert isinstance(result.decision, PolicyDecision)
     assert isinstance(result.projection, PolicyProjection)
     assert result.forecasts is not None
+    assert result.policy_inputs is policy_inputs
+    assert result.as_of == datetime(2024, 1, 2)
+    assert result.target_weights == {"A": 0.4, "B": 0.4}
     assert result.projection.target_cash_weight == result.decision.target_cash_weight
     np.testing.assert_allclose(
         result.projection.target_weights_risk,
         result.decision.target_weights_risk,
     )
+
+
+def test_policy_run_exposes_mpo_diagnostics() -> None:
+    policy = MPOPolicy(problem=MPOProblemBuilder().add(ExpectedReturn()).build())
+    policy_inputs = PolicyInputs.from_arrays(
+        assets=["A"],
+        mean=np.array([[0.01]]),
+        covariances=np.array([[[0.04]]]),
+        scenario_returns=np.array([[[0.02]], [[-0.01]]]),
+        scenario_probs=np.array([0.5, 0.5]),
+        cash_return=np.array([0.0]),
+    )
+
+    run = run_policy(policy, _state(), _forecasts(), policy_inputs=policy_inputs)
+
+    metrics = run.plan_metrics()
+    assert set(metrics) == {"expected_return", "volatility"}
+    assert isinstance(run.terminal_cvar(), float)
+    assert isinstance(run.in_model_cvar(), float)
+
+
+def test_policy_run_diagnostics_error_without_mpo_result() -> None:
+    run = run_policy(
+        EqualWeightPolicy(target_cash_weight=0.2),
+        _state(),
+        _forecasts(),
+    )
+
+    with pytest.raises(ValueError, match="MPOResult diagnostics"):
+        run.plan_metrics()
+
+
+def test_policy_run_plot_weights_returns_figure() -> None:
+    run = run_policy(
+        EqualWeightPolicy(target_cash_weight=0.2),
+        _state(),
+        _forecasts(),
+    )
+
+    fig = run.plot_weights()
+
+    assert isinstance(fig, Figure)
 
 
 def test_allocation_returns_run_with_same_forecasts(monkeypatch) -> None:
@@ -152,6 +208,8 @@ def test_allocation_returns_run_with_same_forecasts(monkeypatch) -> None:
 
     assert run.forecasts is forecasts
     assert run.projection is not None
+    assert run.policy_inputs is None
+    assert run.as_of == datetime(2024, 1, 2)
     assert captured["source"] == [forecasts]
     assert captured["snapshot"].t == datetime(2024, 1, 2)
     assert captured["snapshot"].t_next == datetime(2024, 1, 2)
