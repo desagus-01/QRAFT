@@ -26,8 +26,6 @@ from qraft.backtest.selection.reports import (  # noqa: F401
     FoldResult,
     ValidationReport,
     WalkForwardReport,
-)
-from qraft.backtest.selection.render import (  # noqa: F401
     plot_combinatorial_report,
     plot_walk_forward_report,
 )

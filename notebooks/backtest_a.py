@@ -28,7 +28,7 @@ from qraft.construction.optimization.inputs import InputPlan
 from qraft.core import state_smooth_probs
 from qraft.core.configs import SimulationForecastConfig
 from qraft.core.schedule import RebalanceSchedule
-from qraft.backtest.result.render import plot_backtest_dashboard
+from qraft.backtest.result.result import plot_backtest_dashboard
 from qraft.utils.tiingo import import_tickers_and_factors
 
 _fault_log = open("/tmp/backtest_fault.log", "w")

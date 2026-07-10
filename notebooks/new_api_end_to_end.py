@@ -52,7 +52,7 @@ cols_to_keep = [
 ]
 prices = prices.select(cols_to_keep)
 
-assets = list(prices.columns[10:90])
+assets = list(prices.columns[10:20])
 universe = AssetUniverse(assets=assets, factors=list(factor_cols)[:4])
 prices = prices.select("date", *universe.all_tickers)
 

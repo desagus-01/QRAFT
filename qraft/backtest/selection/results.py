@@ -6,7 +6,7 @@ from typing import Any
 import polars as pl
 
 from qraft.backtest.result import BacktestResult, PerformanceSummary
-from qraft.backtest.result.render import plot_nav
+from qraft.backtest.result.result import plot_nav
 from qraft.construction.policies import PolicyProtocol
 
 

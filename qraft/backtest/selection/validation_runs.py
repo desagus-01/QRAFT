@@ -14,13 +14,13 @@ from qraft.backtest.configs import (
     WalkForwardConfig,
 )
 from qraft.backtest.result import BacktestResult, PerformanceSummary
+from qraft.backtest.selection.candidate_eval import CandidateEvaluation
 from qraft.backtest.selection.diagnostics import (
     compute_deflated_sharpe,
     compute_pbo,
     resolve_selection_periods_per_year,
     trial_sharpes,
 )
-from qraft.backtest.selection.candidate_eval import CandidateEvaluation
 from qraft.backtest.selection.grid_eval import (
     SelectionInputSource,
     evaluate_candidate_grid,
@@ -280,7 +280,6 @@ def combinatorial_from_evaluation(
             r,
             resolved_backtest_config,
             cv_config.cv_config.risk_free_rate,
-            policy_name="cpcv_path",
         )
         for r in path_returns
     ]

@@ -11,12 +11,8 @@ from qraft.backtest.configs import (
     CombinatorialCVConfig,
     WalkForwardConfig,
 )
-from qraft.backtest.selection.candidates import apply_hyperparameters
-from qraft.backtest.selection.validation_runs import (
-    combinatorial_from_evaluation,
-    walk_forward_from_evaluation,
-)
 from qraft.backtest.selection.candidate_eval import CandidateEvaluation
+from qraft.backtest.selection.candidates import apply_hyperparameters
 from qraft.backtest.selection.grid_eval import (
     SelectionInputSource,
     evaluate_candidate_grid,
@@ -30,6 +26,10 @@ from qraft.backtest.selection.results import CandidateResult, PolicyParams
 from qraft.backtest.selection.scoring import Agg, ScoreSpec
 from qraft.backtest.selection.select import _conservatism, _eligible
 from qraft.backtest.selection.splits import DateRange
+from qraft.backtest.selection.validation_runs import (
+    combinatorial_from_evaluation,
+    walk_forward_from_evaluation,
+)
 from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.configs import SelectionMetric
