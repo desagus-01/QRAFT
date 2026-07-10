@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -24,9 +23,6 @@ from qraft.risk.factor_ols import (
 from qraft.risk.feature_selection import (
     Criterion,
 )
-
-if TYPE_CHECKING:
-    from qraft.construction.policies import PolicyProjection
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +50,7 @@ class PortfolioPerformanceAttribution:
 
     @property
     def full_exposures(self) -> dict[str, float]:
-        return {**self.model.exposures, "z0": 1.0}
+        return {**self.model.exposures, "idiosyncratic": 1.0}
 
     @property
     def joint_distribution(self) -> DataFrame:
@@ -63,7 +59,7 @@ class PortfolioPerformanceAttribution:
     @cached_property
     def joint_panel(self) -> ScenarioPanel:
         values = DataFrame(self.factor_performance_forecast).with_columns(
-            z0=self.model.residuals + self.model.shift_term,
+            idiosyncratic=self.model.residuals + self.model.shift_term,
             portfolio_performance=self.portfolio_performance_forecast,
         )
 
@@ -75,7 +71,8 @@ class PortfolioPerformanceAttribution:
 
 
 def portfolio_factor_attribution(
-    policy_projection: PolicyProjection,
+    portfolio_performance_forecast: NDArray[np.floating],
+    path_probs: ProbVector,
     factors_forecast: dict[str, NDArray[np.floating]],
     initial_prices: dict[str, float],
     horizon: int,
@@ -93,15 +90,13 @@ def portfolio_factor_attribution(
         end_horizon=horizon,
     )
 
-    portfolio_cum = policy_projection.performance_at_period(period=horizon)
-
     factor_result = factor_ols_regression(
         factors_cum_forecast=factors_cum,
-        portfolio_cum_forecast=portfolio_cum,
+        portfolio_cum_forecast=portfolio_performance_forecast,
         factor_names=factor_names,
         auto_select_factors=auto_select_factors,
         criterion=criterion,
-        prob=policy_projection.path_probs,
+        prob=path_probs,
         eq_type=eq_type,
     )
 
@@ -123,7 +118,7 @@ def portfolio_factor_attribution(
         horizon=horizon,
         model=model,
         factor_performance_forecast={k: factors_cum[k] for k in selected},
-        portfolio_performance_forecast=portfolio_cum,
-        path_probs=policy_projection.path_probs,
-        dates=pl.Series("date", [date] * len(policy_projection.path_probs)),
+        portfolio_performance_forecast=portfolio_performance_forecast,
+        path_probs=path_probs,
+        dates=pl.Series("date", [date] * len(path_probs)),
     )

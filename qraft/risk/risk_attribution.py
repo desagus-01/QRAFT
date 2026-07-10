@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Literal
 
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 from numpy.typing import NDArray
@@ -24,6 +25,26 @@ class RiskContributions:
     risk_measure: str
     value: float
     contributions: dict[str, float]
+
+    def plot(self):
+        items = list(self.contributions.items())
+
+        labels = [label for label, _ in items]
+        values = [value for _, value in items]
+        starts = np.cumsum([0.0, *values[:-1]])
+
+        fig, ax = plt.subplots()
+        colors = [
+            "tab:orange" if label in {"idiosyncratic"} else "tab:blue"
+            for label in labels
+        ]
+        ax.bar(labels, values, bottom=starts, color=colors)
+        ax.axhline(self.value, color="black", linewidth=1, linestyle="--")
+        ax.set_ylabel(self.risk_measure.upper())
+        ax.set_title(f"{self.risk_measure.upper()} risk contribution")
+        ax.tick_params(axis="x", rotation=45)
+        fig.tight_layout()
+        return fig
 
 
 @dataclass(frozen=True)

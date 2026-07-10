@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
+import polars as pl
 from numpy.typing import NDArray
 
 from qraft.core.metrics import cvar, var
@@ -44,7 +45,10 @@ class PortfolioRisk:
 
         horizon = forecasts.n_horizons - 1
         performance_attribution = portfolio_factor_attribution(
-            policy_projection=policy_projection,
+            portfolio_performance_forecast=policy_projection.performance_at_period(
+                horizon
+            ),
+            path_probs=policy_projection.path_probs,
             factors_forecast=forecasts.factor_paths,
             initial_prices=forecasts.initial_prices,
             horizon=horizon,
@@ -71,6 +75,60 @@ class PortfolioRisk:
             if risk_metric == "var"
             else self.risk_attribution.cvar(alpha=alpha)
         )
+
+    def summary_df(self, alpha: float = 0.05) -> pl.DataFrame:
+        var_contrib = self.risk_contribution("var", alpha=alpha)
+        cvar_contrib = self.risk_contribution("cvar", alpha=alpha)
+        enb = self.effective_bets().effective_bets
+
+        rows = [
+            {
+                "metric": "VaR",
+                "value": var_contrib.value,
+                "contribution": None,
+                "pct_of_total": None,
+            },
+            {
+                "metric": "CVaR",
+                "value": cvar_contrib.value,
+                "contribution": None,
+                "pct_of_total": None,
+            },
+            {
+                "metric": "ENB",
+                "value": enb,
+                "contribution": None,
+                "pct_of_total": None,
+            },
+            {
+                "metric": "r2",
+                "value": self.r2,
+                "contribution": None,
+                "pct_of_total": None,
+            },
+        ]
+
+        total = cvar_contrib.value
+        for name, contribution in cvar_contrib.contributions.items():
+            rows.append(
+                {
+                    "metric": name,
+                    "value": None,
+                    "contribution": contribution,
+                    "pct_of_total": contribution / total if total != 0.0 else None,
+                }
+            )
+
+        rows.append(
+            {
+                "metric": "factor_explained_fraction",
+                "value": self.r2,
+                "contribution": None,
+                "pct_of_total": None,
+            }
+        )
+
+        return pl.DataFrame(rows)
 
     def risk_at_horizon(
         self,
