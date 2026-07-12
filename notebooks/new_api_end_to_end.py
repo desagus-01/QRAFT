@@ -148,7 +148,7 @@ val = Validation(
     market=market,
     base_policy=base_policy,
     grid={"risk_aversion": [0.05, 0.5, 1, 3, 5, 10]},
-    source=forecaster,
+    forecasts=forecaster,
     plan=plan,
     backtest_config=backtest_config,
 )
@@ -163,7 +163,7 @@ policy = tuned.selected_policy
 tuned.selected_params
 
 # %%
-live = Allocation(market, policy, source=forecaster, plan=plan)
+live = Allocation(market, policy, forecasts=forecaster, plan=plan)
 run = live.at()
 risk = run.risk()
 

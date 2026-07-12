@@ -87,6 +87,6 @@ class Forecaster:
         )
 
 
-ForecastSource: TypeAlias = (
+ForecastSpec: TypeAlias = (
     Forecaster | ForecastRun | ForecastRecipeHistory | Iterable[ForecastPaths]
 )

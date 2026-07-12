@@ -92,7 +92,7 @@ plan = InputPlan(expected_returns="forecast", risk="both", max_horizons=10)
 
 # %%
 # Allocation.at() returns the policy result object.
-run = Allocation(market, policy, source=forecaster, plan=plan).at()
+run = Allocation(market, policy, forecasts=forecaster, plan=plan).at()
 
 run.target_weights
 

@@ -202,7 +202,7 @@ def test_allocation_returns_run_with_same_forecasts(monkeypatch) -> None:
     run = Allocation(
         market,
         EqualWeightPolicy(target_cash_weight=0.2),
-        source=forecasts,
+        forecasts=forecasts,
         plan=InputPlan(),
     ).at()
 

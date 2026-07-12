@@ -115,7 +115,7 @@ with profile():
         market=market,
         base_policy=base_policy,
         grid=grid,
-        source=forecaster,
+        forecasts=forecaster,
         plan=plan,
         backtest_config=BacktestConfig(schedule=RebalanceSchedule("quarter_end")),
     ).combinatorial(

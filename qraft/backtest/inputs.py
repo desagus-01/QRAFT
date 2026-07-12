@@ -16,7 +16,7 @@ from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import (
     MarketSnapshot,
 )
-from qraft.forecast.forecaster import Forecaster, ForecastSource
+from qraft.forecast.forecaster import Forecaster, ForecastSpec
 from qraft.utils.log import info_event
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ def precompute_inputs(
     *,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
-    source: ForecastSource
+    forecasts: ForecastSpec
     | PolicyInputsProvider
     | dict[datetime, PolicyInputs]
     | None = None,
@@ -86,7 +86,7 @@ def precompute_inputs(
         market,
         forecaster=forecaster,
         plan=plan,
-        source=source,
+        forecasts=forecasts,
         policy=policy,
         dtype=dtype,
     )
@@ -98,7 +98,7 @@ def precompute_inputs_for_points(
     *,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
-    source: ForecastSource
+    forecasts: ForecastSpec
     | PolicyInputsProvider
     | dict[datetime, PolicyInputs]
     | None = None,
@@ -106,22 +106,22 @@ def precompute_inputs_for_points(
     dtype: type = np.float64,
 ) -> dict[datetime, PolicyInputs]:
     """Build policy inputs from already-materialized decision snapshots."""
-    if isinstance(source, dict):
-        table = source
-    elif isinstance(source, PolicyInputsProvider):
+    if isinstance(forecasts, dict):
+        table = forecasts
+    elif isinstance(forecasts, PolicyInputsProvider):
         table = {
-            point.decision_bar: source.for_date(point.snapshot, point.index)
+            point.decision_bar: forecasts.for_date(point.snapshot, point.index)
             for point in points
         }
     else:
-        forecast_source = source if source is not None else forecaster
-        if forecast_source is None:
-            raise TypeError("precompute_inputs requires source or forecaster")
+        forecast_input = forecasts if forecasts is not None else forecaster
+        if forecast_input is None:
+            raise TypeError("precompute_inputs requires forecasts or forecaster")
         if plan is None:
             raise TypeError("forecast-backed precompute_inputs requires plan")
         table = build_policy_input_table(
             (point.snapshot for point in points),
-            forecast_source,
+            forecast_input,
             plan=plan,
             policy=policy,
             dtype=dtype,
@@ -132,8 +132,8 @@ def precompute_inputs_for_points(
         "policy_inputs.completed",
         "Policy inputs precomputed",
         decisions=len(table),
-        source_type=type(source).__name__
-        if source is not None
+        source_type=type(forecasts).__name__
+        if forecasts is not None
         else type(forecaster).__name__,
     )
     return table

@@ -56,7 +56,7 @@ class Validation:
     market: MarketData
     base_policy: PolicyProtocol
     grid: Mapping[str, Sequence[Any]]
-    source: SelectionInputSource
+    forecasts: SelectionInputSource
     plan: InputPlan
     backtest_config: BacktestConfig = field(default_factory=BacktestConfig)
     score: ScoreSpec | None = None
@@ -164,7 +164,7 @@ class Validation:
                 self.grid,
                 self.backtest_config,
                 risk_free_rate,
-                source=self.source,
+                forecasts=self.forecasts,
                 plan=self.plan,
             )
         return self._evaluation_cache[key]
@@ -177,7 +177,7 @@ class Validation:
             id(self.market),
             id(self.base_policy),
             _freeze_mapping(self.grid),
-            id(self.source),
+            id(self.forecasts),
             self.plan,
             self.backtest_config,
             risk_free_rate,

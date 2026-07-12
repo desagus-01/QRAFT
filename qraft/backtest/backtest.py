@@ -16,10 +16,10 @@ from qraft.backtest.result import BacktestResult
 from qraft.core.market import MarketData
 from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.policies import PolicyProtocol
-from qraft.forecast.forecaster import ForecastSource
+from qraft.forecast.forecaster import ForecastSpec
 
 BacktestSource: TypeAlias = (
-    ForecastSource | PolicyInputsProvider | dict[datetime, PolicyInputs]
+    ForecastSpec | PolicyInputsProvider | dict[datetime, PolicyInputs]
 )
 
 
@@ -27,7 +27,7 @@ BacktestSource: TypeAlias = (
 class Backtest:
     market: MarketData
     policy: PolicyProtocol
-    source: BacktestSource | None = None
+    forecasts: BacktestSource | None = None
     plan: InputPlan | None = None
     config: BacktestConfig = field(default_factory=BacktestConfig)
     costs: CostModel | None = None
@@ -35,17 +35,17 @@ class Backtest:
 
     def run(self) -> BacktestResult:
         inputs = None
-        if self.source is not None:
+        if self.forecasts is not None:
             table = precompute_inputs(
                 self.market,
                 self.config.schedule,
                 self.policy.min_history,
                 plan=self.plan,
-                source=self.source,
+                forecasts=self.forecasts,
                 policy=self.policy,
                 step_size=self.step_size,
             )
-            if table or isinstance(self.source, dict):
+            if table or isinstance(self.forecasts, dict):
                 inputs = PrecomputedInputsProvider(table)
 
         return run_backtest(

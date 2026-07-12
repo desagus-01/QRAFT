@@ -16,7 +16,7 @@ from qraft.construction.optimization.inputs import (
 from qraft.core.market import MarketData
 from qraft.core.snapshot import MarketSnapshot, forecast_snapshot_from_decision_snapshot
 from qraft.forecast.forecast_paths import ForecastPaths
-from qraft.forecast.forecaster import Forecaster, ForecastSource
+from qraft.forecast.forecaster import Forecaster, ForecastSpec
 from qraft.forecast.run import (
     ForecastRecipeHistory,
     ForecastRun,
@@ -66,7 +66,7 @@ def validate_policy_risk_source(risk, policy: PolicyInputRequirements | None) ->
 
 def build_policy_input_table(
     snapshots: Iterable[MarketSnapshot],
-    forecast_source: ForecastSource,
+    forecasts: ForecastSpec,
     *,
     plan: InputPlan,
     policy=None,
@@ -103,9 +103,7 @@ def build_policy_input_table(
             )
             return {}
 
-    forecasts = forecast_run_for_source(
-        market_snapshots, forecast_source, market=market
-    )
+    forecasts = forecast_run_for_source(market_snapshots, forecasts, market=market)
     forecast_paths = (
         [step.forecast for step in forecasts.steps]
         if isinstance(forecasts, ForecastRun)
@@ -175,30 +173,30 @@ def build_policy_input_table(
 
 def forecast_run_for_source(
     market_snapshots: list[MarketSnapshot],
-    forecast_source: ForecastSource,
+    forecasts: ForecastSpec,
     *,
     market: MarketData | None = None,
 ) -> ForecastRun | Iterable[ForecastPaths]:
-    if isinstance(forecast_source, ForecastRun):
-        return forecast_source
-    if isinstance(forecast_source, ForecastRecipeHistory):
+    if isinstance(forecasts, ForecastRun):
+        return forecasts
+    if isinstance(forecasts, ForecastRecipeHistory):
         forecast_snapshots = [
             forecast_snapshot_from_decision_snapshot(snapshot)
             for snapshot in market_snapshots
         ]
         return simulate_forecast_paths_from_snapshots(
             forecast_snapshots,
-            forecast_source,
-            pipeline_config=forecast_source.pipeline_config,
+            forecasts,
+            pipeline_config=forecasts.pipeline_config,
         )
-    if not isinstance(forecast_source, Forecaster):
-        return forecast_source
+    if not isinstance(forecasts, Forecaster):
+        return forecasts
 
     if not market_snapshots:
         return ForecastRun(
             recipe_history=ForecastRecipeHistory(
                 periods=(),
-                pipeline_config=forecast_source.pipeline,
+                pipeline_config=forecasts.pipeline,
             ),
             steps=(),
         )
@@ -208,13 +206,13 @@ def forecast_run_for_source(
         for snapshot in market_snapshots
     ]
     if market is None:
-        return forecast_source.run_from_snapshots(forecast_snapshots)
+        return forecasts.run_from_snapshots(forecast_snapshots)
     else:
         min_history = min(
             snapshot.history.values.height for snapshot in market_snapshots
         )
-        recipe_history = forecast_source.recipes(market, min_history=min_history)
-        return forecast_source.run_from_snapshots(forecast_snapshots, recipe_history)
+        recipe_history = forecasts.recipes(market, min_history=min_history)
+        return forecasts.run_from_snapshots(forecast_snapshots, recipe_history)
 
 
 _forecast_run_for_source = forecast_run_for_source

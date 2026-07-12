@@ -22,11 +22,11 @@ from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
-from qraft.forecast.forecaster import Forecaster, ForecastSource
+from qraft.forecast.forecaster import Forecaster, ForecastSpec
 from qraft.utils.log import debug_event, info_event, warning_event
 
 SelectionInputSource: TypeAlias = (
-    ForecastSource | PolicyInputsProvider | dict[datetime, PolicyInputs]
+    ForecastSpec | PolicyInputsProvider | dict[datetime, PolicyInputs]
 )
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ def run_selection_window(
     base_policy: PolicyProtocol,
     grid: Mapping[str, Sequence[Any]],
     *,
-    source: SelectionInputSource | None = None,
+    forecasts: SelectionInputSource | None = None,
     schedule: RebalanceSchedule = RebalanceSchedule(),
     step_size: int = 1,
     initial_cash: float = 100.0,
@@ -105,8 +105,8 @@ def run_selection_window(
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
 ) -> tuple[CandidateResult, ...]:
-    if source is None and forecaster is None:
-        raise TypeError("run_selection_window requires source or forecaster")
+    if forecasts is None and forecaster is None:
+        raise TypeError("run_selection_window requires forecasts or forecaster")
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
     points = decision_points(market, schedule, warmup, step_size=step_size)
@@ -115,7 +115,7 @@ def run_selection_window(
         market,
         forecaster=forecaster,
         plan=plan,
-        source=source,
+        forecasts=forecasts,
         policy=base_policy,
     )
     shared = PrecomputedInputsProvider(table)
@@ -138,12 +138,12 @@ def evaluate_candidate_grid(
     grid: Mapping[str, Sequence[Any]],
     backtest_config: BacktestConfig,
     risk_free_rate: float,
-    source: SelectionInputSource | None = None,
+    forecasts: SelectionInputSource | None = None,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
 ) -> CandidateEvaluation:
-    if source is None and forecaster is None:
-        raise TypeError("evaluate_candidate_grid requires source or forecaster")
+    if forecasts is None and forecaster is None:
+        raise TypeError("evaluate_candidate_grid requires forecasts or forecaster")
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
     info_event(
@@ -153,8 +153,8 @@ def evaluate_candidate_grid(
         candidates=len(candidates),
         grid_keys=tuple(sorted(grid)),
         warmup=warmup,
-        source_type=type(source).__name__
-        if source is not None
+        source_type=type(forecasts).__name__
+        if forecasts is not None
         else type(forecaster).__name__,
     )
     points = decision_points(market, backtest_config.schedule, warmup)
@@ -163,7 +163,7 @@ def evaluate_candidate_grid(
         market,
         forecaster=forecaster,
         plan=plan,
-        source=source,
+        forecasts=forecasts,
         policy=base_policy,
     )
     info_event(

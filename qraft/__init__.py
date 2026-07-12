@@ -11,7 +11,7 @@ __all__ = [
     "AssetUniverse",
     "ForecastPaths",
     "Forecaster",
-    "ForecastSource",
+    "ForecastSpec",
     "forecast_from_fit",
     "run_forecast",
     "LogConfig",
@@ -85,7 +85,7 @@ from qraft.core.scenarios.transforms import CMA, Views
 from qraft.core.scenarios.views import ViewEvent, ViewState
 from qraft.core.universe import AssetUniverse
 from qraft.forecast.forecast_paths import ForecastPaths
-from qraft.forecast.forecaster import ForecastSource, Forecaster
+from qraft.forecast.forecaster import ForecastSpec, Forecaster
 from qraft.forecast.pipelines.forecasting import forecast_from_fit, run_forecast
 from qraft.helper import profile
 from qraft.core.metrics import cvar, var

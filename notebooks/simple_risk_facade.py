@@ -93,7 +93,7 @@ policy = MPOPolicy.preset(
     min_history=252,
 )
 
-run = Allocation(market, policy, source=forecaster, plan=plan).at()
+run = Allocation(market, policy, forecasts=forecaster, plan=plan).at()
 
 
 # %%

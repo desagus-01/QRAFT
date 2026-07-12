@@ -4,7 +4,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from qraft import Backtest, ForecastSource, Validation
+from qraft import Backtest, ForecastSpec, Validation
 from qraft.backtest.configs import (
     BacktestConfig,
     CombinatorialCVConfig,
@@ -87,7 +87,7 @@ def test_backtest_facade_accepts_precomputed_source():
         for t in market.trading_bars[:-1]
     }
 
-    facade = Backtest(market, policy, source=source, config=config).run()
+    facade = Backtest(market, policy, forecasts=source, config=config).run()
     manual = run_backtest(
         market,
         policy,
@@ -106,7 +106,7 @@ def test_backtest_facade_empty_precompute_table_means_no_inputs(monkeypatch):
 
     monkeypatch.setattr("qraft.backtest.backtest.precompute_inputs", lambda *a, **k: {})
 
-    result = Backtest(market, policy, source=[], config=config).run()
+    result = Backtest(market, policy, forecasts=[], config=config).run()
 
     assert result.periods
 
@@ -134,7 +134,7 @@ def test_validation_runs_explicit_reports(monkeypatch):
         fake_combinatorial,
     )
 
-    validation = SelectionValidation(market, policy, {}, source={}, plan=InputPlan())
+    validation = SelectionValidation(market, policy, {}, forecasts={}, plan=InputPlan())
 
     assert isinstance(validation.walk_forward(WalkForwardConfig()), _FakeWalkReport)
     assert isinstance(validation.combinatorial(), _FakeCpcvReport)
@@ -177,7 +177,7 @@ def test_validation_reuses_candidate_evaluation(monkeypatch):
         fake_cpcv_from_evaluation,
     )
 
-    validation = SelectionValidation(market, policy, {}, source={}, plan=InputPlan())
+    validation = SelectionValidation(market, policy, {}, forecasts={}, plan=InputPlan())
 
     assert isinstance(validation.walk_forward(WalkForwardConfig()), _FakeWalkReport)
     assert isinstance(
@@ -191,7 +191,7 @@ def test_validation_tune_requires_oos_report() -> None:
         _market(),
         EqualWeightPolicy(target_cash_weight=0.0),
         {},
-        source={},
+        forecasts={},
         plan=InputPlan(),
     )
 
@@ -233,7 +233,7 @@ def test_validation_tune_returns_result_with_report() -> None:
     )
 
     result = SelectionValidation(
-        _market(), policy, {}, source={}, plan=InputPlan()
+        _market(), policy, {}, forecasts={}, plan=InputPlan()
     ).tune(report, cfg=WalkForwardConfig(), score="total_return")
 
     assert result.report is report
@@ -299,7 +299,7 @@ def test_validation_tune_defaults_to_most_selected_not_oos_argmax() -> None:
     )
 
     result = SelectionValidation(
-        _market(), policy, {}, source={}, plan=InputPlan()
+        _market(), policy, {}, forecasts={}, plan=InputPlan()
     ).tune(report, cfg=WalkForwardConfig(), score="total_return")
 
     assert result.selected_params == stable
@@ -346,7 +346,7 @@ def test_validation_result_selected_policy_raises_without_selection():
 def test_public_facade_exports():
     assert Backtest.__name__ == "Backtest"
     assert Validation.__name__ == "Validation"
-    assert ForecastSource is not None
+    assert ForecastSpec is not None
     assert WalkForwardReport is not None
     assert CombinatorialReport is not None
     assert "combinatorial_purged" in selection_all

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Literal, Mapping
@@ -74,6 +75,20 @@ class ForecastStep:
 class ForecastRun:
     recipe_history: ForecastRecipeHistory
     steps: tuple[ForecastStep, ...]
+
+    def step_at(self, as_of: datetime) -> ForecastStep:
+        for step in self.steps:
+            if step.as_of == as_of:
+                return step
+        first = self.steps[0].as_of if self.steps else None
+        last = self.steps[-1].as_of if self.steps else None
+        raise KeyError(
+            f"No forecast step available for {as_of!r}; forecast run spans "
+            f"{first!r} to {last!r}"
+        )
+
+    def forecast_at(self, as_of: datetime) -> ForecastPaths:
+        return self.step_at(as_of).forecast
 
     def model_health(self) -> pl.DataFrame:
         frames = []
@@ -175,7 +190,7 @@ def build_forecast_recipe_history(
             prob=panel.prob,
             universe=snapshot.universe,
             pipeline_config=pipeline_config,
-            seed=_seed_for(seed, eligible_steps),
+            seed=_seed_for_date(seed, snapshot.as_of, "recipe"),
         )
         if current_period is not None:
             periods[-1] = RecipePeriod(
@@ -297,7 +312,7 @@ def build_forecast_recipe_history_from_snapshots(
             prob=panel.prob,
             universe=snapshot.universe,
             pipeline_config=pipeline_config,
-            seed=_seed_for(seed, step),
+            seed=_seed_for_date(seed, snapshot.as_of, "recipe"),
         )
         if current_period is not None:
             periods[-1] = RecipePeriod(
@@ -374,7 +389,7 @@ def simulate_forecast_paths_from_snapshots(
             universe_fit=fit,
             last_data=data.tail(1),
             n_rows=data.height,
-            seed=_seed_for(seed, step),
+            seed=_seed_for_date(seed, snapshot.as_of, "forecast"),
             simulation_config=simulation_config,
         )
         if getattr(fit, "simulation_forecasts", None):
@@ -447,5 +462,9 @@ def _forecast_snapshots_from_market(
     return snapshots
 
 
-def _seed_for(seed: int | None, step: int) -> int | None:
-    return None if seed is None else seed + step
+def _seed_for_date(seed: int | None, as_of: datetime, stage: str) -> int | None:
+    if seed is None:
+        return None
+    key = f"{seed}|{stage}|{as_of.isoformat()}".encode()
+    digest = hashlib.blake2s(key, digest_size=4).digest()
+    return int.from_bytes(digest, "big")

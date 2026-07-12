@@ -133,7 +133,7 @@ config = BacktestConfig(
 result = Backtest(
     market=market,
     policy=policy,
-    source=forecaster,
+    forecasts=forecaster,
     plan=plan,
     config=config,
 ).run()

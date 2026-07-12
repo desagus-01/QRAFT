@@ -12,7 +12,7 @@ from qraft.construction.state import PortfolioState
 from qraft.core.market import MarketData
 from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecast_paths import ForecastPaths
-from qraft.forecast.forecaster import ForecastSource
+from qraft.forecast.forecaster import ForecastSpec
 from qraft.forecast.run import ForecastRun
 from qraft.risk.risk_report import PortfolioRisk
 
@@ -21,7 +21,7 @@ from qraft.risk.risk_report import PortfolioRisk
 class Allocation:
     market: MarketData
     policy: PolicyProtocol
-    source: ForecastSource | ForecastPaths
+    forecasts: ForecastSpec | ForecastPaths
     plan: InputPlan | None = None
     state: PortfolioState | None = None
     initial_cash: float = 100.0
@@ -64,12 +64,16 @@ class Allocation:
         return self.at(as_of).risk(**kw)
 
     def _forecast_for(self, snapshot: MarketSnapshot) -> ForecastPaths:
-        if isinstance(self.source, ForecastPaths):
-            return self.source
+        if isinstance(self.forecasts, ForecastPaths):
+            return self.forecasts
 
-        forecast_run = forecast_run_for_source([snapshot], self.source)
+        forecast_run = forecast_run_for_source(
+            [snapshot],
+            self.forecasts,
+            market=self.market,
+        )
         if isinstance(forecast_run, ForecastRun):
-            return forecast_run.steps[0].forecast
+            return forecast_run.forecast_at(snapshot.t)
         return next(iter(forecast_run))
 
     def _input_table(

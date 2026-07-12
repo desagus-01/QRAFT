@@ -12,6 +12,7 @@ from qraft.forecast.run import (
     RecipePeriod,
     build_forecast_recipe_history,
     simulate_forecast_paths,
+    simulate_forecast_paths_from_snapshots,
 )
 
 
@@ -264,11 +265,11 @@ def test_forecast_cadence_selects_backtest_style_market_bars(monkeypatch):
     ]
 
 
-def test_forecast_run_passes_seed_to_each_forecast_step(monkeypatch):
-    captured: list[int | None] = []
+def test_forecast_run_seeds_each_forecast_step_by_date(monkeypatch):
+    captured: list[tuple[int | None, int]] = []
 
     def forecast_from_fit(**kwargs):
-        captured.append(kwargs["seed"])
+        captured.append((kwargs["seed"], kwargs["n_rows"]))
         return object()
 
     _patch_runner(monkeypatch)
@@ -279,15 +280,25 @@ def test_forecast_run_passes_seed_to_each_forecast_step(monkeypatch):
         refit_every=12,
     )
 
-    simulate_forecast_paths(
+    full_run = simulate_forecast_paths(
         _market(),
         history,
         min_history=2,
         forecast_cadence="every_bar",
         seed=7,
     )
+    full_seeds = captured.copy()
+    captured.clear()
 
-    assert captured == [7, 8, 9, 10]
+    simulate_forecast_paths_from_snapshots(
+        [forecast_snapshot_at(_market(), full_run.steps[2].as_of)],
+        history,
+        pipeline_config=history.pipeline_config,
+        seed=7,
+    )
+
+    assert len({seed for seed, _ in full_seeds}) == len(full_seeds)
+    assert captured == [full_seeds[2]]
 
 
 def test_recipe_history_period_at_reports_available_bounds():
@@ -358,7 +369,7 @@ def test_policy_input_precompute_refits_recipes_on_market_bars(monkeypatch):
         market,
         schedule=RebalanceSchedule("every_bar"),
         warmup=2,
-        source=Forecaster(refit_every=2),
+        forecasts=Forecaster(refit_every=2),
         plan=InputPlan(expected_returns="forecast", risk="cvar"),
     )
 
@@ -426,7 +437,7 @@ def test_selection_reuses_precomputed_decision_snapshots(monkeypatch):
         market,
         EqualWeightPolicy(target_cash_weight=0.0, min_history=2),
         grid={},
-        source=StaticProvider(),
+        forecasts=StaticProvider(),
         schedule=RebalanceSchedule("every_bar"),
         plan=InputPlan(expected_returns="historical", risk="covariance"),
     )

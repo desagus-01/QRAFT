@@ -218,7 +218,7 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
         RebalanceSchedule("every_bar"),
         warmup=2,
         plan=InputPlan(),
-        source=recipe_history,
+        forecasts=recipe_history,
     )
 
     assert captured["build"][1] is recipe_history
@@ -237,7 +237,7 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
     captured = {}
 
     def fake_precompute(*args, **kwargs):
-        captured["recipe_history"] = kwargs["source"]
+        captured["recipe_history"] = kwargs["forecasts"]
         return {
             dates[1]: PolicyInputs.from_arrays(
                 assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
@@ -263,7 +263,7 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         {},
         BacktestConfig(),
         risk_free_rate=0.0,
-        source=recipe_history,
+        forecasts=recipe_history,
         plan=InputPlan(),
     )
 

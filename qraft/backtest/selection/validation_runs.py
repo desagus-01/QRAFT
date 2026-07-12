@@ -66,7 +66,7 @@ def walk_forward(
     *,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
-    source: SelectionInputSource | None = None,
+    forecasts: SelectionInputSource | None = None,
     walk_config: WalkForwardConfig,
     backtest_config: BacktestConfig = BacktestConfig(),
     score: ScoreSpec | None = None,
@@ -78,7 +78,7 @@ def walk_forward(
         backtest_config,
         walk_config.risk_free_rate,
         forecaster=forecaster,
-        source=source,
+        forecasts=forecasts,
         plan=plan,
     )
     return walk_forward_from_evaluation(
@@ -169,7 +169,7 @@ def combinatorial_purged(
     *,
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
-    source: SelectionInputSource | None = None,
+    forecasts: SelectionInputSource | None = None,
     cv_config: CombinatorialCVConfig,
     backtest_config: BacktestConfig = BacktestConfig(),
     score: ScoreSpec | None = None,
@@ -181,7 +181,7 @@ def combinatorial_purged(
         backtest_config,
         cv_config.cv_config.risk_free_rate,
         forecaster=forecaster,
-        source=source,
+        forecasts=forecasts,
         plan=plan,
     )
     return combinatorial_from_evaluation(
