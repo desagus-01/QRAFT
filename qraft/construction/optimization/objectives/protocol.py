@@ -53,7 +53,7 @@ class RefineableMPOObjectiveHandler(MPOObjectiveHandler, Protocol):
         spec,
         params: dict[str, Any],
         weights_val: NDArray[np.floating],
-        moments: Any,
+        optimizer_inputs: Any,
     ) -> bool:
         """
         Called after each solve to tighten the approximation.

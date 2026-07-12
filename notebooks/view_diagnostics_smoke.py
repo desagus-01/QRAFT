@@ -9,7 +9,7 @@ from qraft import (
     Backtest,
     BacktestConfig,
     Forecaster,
-    HistoryWeighting,
+    Prior,
     InputPlan,
     LogConfig,
     MarketData,
@@ -57,7 +57,7 @@ market0 = MarketData.from_prices(
     prices,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=60),
+    prior=Prior.time_conditioned(half_life=60),
 )
 
 # %%
@@ -106,7 +106,7 @@ if report is not None:
     report.plot()
 
 # %%
-# Backtest path: diagnostics ride on PolicyInputs -> BacktestPeriod -> BacktestResult.
+# Backtest path: diagnostics ride on OptimizerInputs -> BacktestPeriod -> BacktestResult.
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),
     simulation=SimulationForecastConfig(horizon=5, n_sims=500),

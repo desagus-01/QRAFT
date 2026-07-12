@@ -51,7 +51,7 @@ class Allocation:
             self.policy,
             state,
             forecasts=forecasts,
-            policy_inputs=table.get(snapshot.t),
+            optimizer_inputs=table.get(snapshot.t),
             as_of=snapshot.t,
         )
 

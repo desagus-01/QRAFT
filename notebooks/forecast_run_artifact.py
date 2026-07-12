@@ -10,7 +10,7 @@ from qraft import (
     PipelineConfig,
     setup_logging,
 )
-from qraft.core.market import HistoryWeighting, MarketData
+from qraft.core.market import MarketData, Prior
 from qraft.forecast.run import build_forecast_recipe_history
 from qraft.utils.tiingo import import_tickers_and_factors
 
@@ -49,7 +49,7 @@ market = MarketData.from_prices(
     data,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=60),
+    prior=Prior.time_conditioned(half_life=60),
 )
 
 

@@ -2,7 +2,7 @@ __all__ = [
     "ScenarioPanel",
     "MarketData",
     "MarketDataConfig",
-    "HistoryWeighting",
+    "Prior",
     "Views",
     "ViewEvent",
     "ViewState",
@@ -34,10 +34,9 @@ __all__ = [
     "PortfolioState",
     "MPOProblem",
     "MPOProblemBuilder",
-    "PolicyInputs",
+    "OptimizerInputs",
     "InputPlan",
     "ExpectedReturnSource",
-    "RiskSource",
     "PortfolioRisk",
     "var",
     "cvar",
@@ -52,8 +51,7 @@ from qraft.construction.optimization.problem import (
 from qraft.construction.optimization.inputs import (
     ExpectedReturnSource,
     InputPlan,
-    PolicyInputs,
-    RiskSource,
+    OptimizerInputs,
 )
 from qraft.construction.policies import (
     Allocation,
@@ -80,7 +78,7 @@ from qraft.core.configs import (
     SimulationForecastConfig,
 )
 from qraft.core.panel import ScenarioPanel
-from qraft.core.market import HistoryWeighting, MarketData, MarketDataConfig
+from qraft.core.market import MarketData, MarketDataConfig, Prior
 from qraft.core.scenarios.transforms import CMA, Views
 from qraft.core.scenarios.views import ViewEvent, ViewState
 from qraft.core.universe import AssetUniverse

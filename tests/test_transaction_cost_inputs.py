@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from qraft.construction.inputs import policy_risk_source
-from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
+from qraft.construction.inputs import required_optimizer_inputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.objectives.specs import TransactionCost
 from qraft.construction.policies import MPOPolicy
 from qraft.construction.state import PortfolioState
@@ -17,8 +17,8 @@ def _state() -> PortfolioState:
     )
 
 
-def _cvar_inputs_without_covariance() -> PolicyInputs:
-    return PolicyInputs.from_arrays(
+def _cvar_inputs_without_covariance() -> OptimizerInputs:
+    return OptimizerInputs.from_arrays(
         assets=["A"],
         mean=np.array([[0.01]]),
         scenario_returns=np.array([[[0.02]], [[-0.01]], [[0.005]]]),
@@ -63,9 +63,7 @@ def test_forecast_provider_infers_both_for_cvar_with_market_impact() -> None:
         risk_aversion=0.01,
         transaction_cost=TransactionCost(cost=0.0005, market_impact=0.3),
     )
-    input_config = InputPlan()
-
-    assert policy_risk_source(input_config, policy) == "both"
+    assert required_optimizer_inputs(policy).risk_source == "both"
 
 
 def test_forecast_provider_infers_cvar_for_cvar_without_market_impact() -> None:
@@ -74,18 +72,16 @@ def test_forecast_provider_infers_cvar_for_cvar_without_market_impact() -> None:
         risk_aversion=0.01,
         transaction_cost=TransactionCost(cost=0.0005, market_impact=0.0),
     )
-    input_config = InputPlan()
-
-    assert policy_risk_source(input_config, policy) == "cvar"
+    assert required_optimizer_inputs(policy).risk_source == "cvar"
 
 
-def test_forecast_provider_rejects_explicit_risk_missing_policy_requirements() -> None:
+def test_forecast_provider_has_no_explicit_risk_override() -> None:
     policy = MPOPolicy.preset(
         objective_type="cvar_cuts",
         risk_aversion=0.01,
         transaction_cost=TransactionCost(cost=0.0005, market_impact=0.3),
     )
-    input_config = InputPlan(risk="cvar")
+    required = required_optimizer_inputs(policy)
 
-    with pytest.raises(ValueError, match="missing covariances"):
-        policy_risk_source(input_config, policy)
+    assert required.covariances
+    assert required.scenarios

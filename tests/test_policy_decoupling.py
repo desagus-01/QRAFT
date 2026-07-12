@@ -5,7 +5,7 @@ import polars as pl
 import pytest
 
 from qraft.construction.market_snapshot import MarketSnapshot
-from qraft.construction.optimization.inputs import PolicyInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.objectives.specs import ExpectedReturn
 from qraft.construction.optimization.problem import MPOProblemBuilder
 from qraft.construction.policies import MPOPolicy
@@ -42,18 +42,18 @@ def _snapshot() -> MarketSnapshot:
     )
 
 
-def test_mpo_policy_requires_explicit_policy_inputs() -> None:
+def test_mpo_policy_requires_explicit_optimizer_inputs() -> None:
     problem = MPOProblemBuilder().add(ExpectedReturn()).build()
     policy = MPOPolicy(problem=problem)
 
-    with pytest.raises(ValueError, match="explicit PolicyInputs"):
+    with pytest.raises(ValueError, match="explicit OptimizerInputs"):
         policy.decide(_snapshot(), _state())
 
 
-def test_mpo_policy_optimizes_user_supplied_policy_inputs() -> None:
+def test_mpo_policy_optimizes_user_supplied_optimizer_inputs() -> None:
     problem = MPOProblemBuilder().add(ExpectedReturn()).build()
     policy = MPOPolicy(problem=problem)
-    inputs = PolicyInputs.from_arrays(
+    inputs = OptimizerInputs.from_arrays(
         assets=["A"],
         mean=np.array([[0.01]]),
         cash_return=np.array([0.0]),

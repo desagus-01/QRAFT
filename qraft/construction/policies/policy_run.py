@@ -9,7 +9,7 @@ from qraft.construction.optimization.diagnostics import (
     forecast_terminal_cvar,
     in_model_cvar,
 )
-from qraft.construction.optimization.inputs import PolicyInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.optimization import MPOResult
 from qraft.construction.policies.policies import PolicyProtocol
 from qraft.construction.policies.policy_decision import PolicyDecision
@@ -28,7 +28,7 @@ class PolicyRun:
     decision: PolicyDecision
     projection: PolicyProjection
     forecasts: ForecastPaths | None = None
-    policy_inputs: PolicyInputs | None = None
+    optimizer_inputs: OptimizerInputs | None = None
     as_of: datetime | None = None
 
     @property
@@ -42,7 +42,7 @@ class PolicyRun:
 
     @property
     def view_diagnostics(self) -> ViewDiagnostics | None:
-        return getattr(self.policy_inputs, "view_diagnostics", None)
+        return getattr(self.optimizer_inputs, "view_diagnostics", None)
 
     def _mpo_result(self) -> MPOResult:
         diagnostics = self.decision.diagnostics
@@ -51,21 +51,21 @@ class PolicyRun:
                 "PolicyRun diagnostics require MPOResult diagnostics; this policy "
                 "did not produce optimizer diagnostics."
             )
-        if self.policy_inputs is None:
+        if self.optimizer_inputs is None:
             raise ValueError(
-                "PolicyRun diagnostics require policy_inputs. Pass policy_inputs to "
+                "PolicyRun diagnostics require optimizer_inputs. Pass optimizer_inputs to "
                 "run_policy() or use Allocation.at() with an input plan."
             )
         return diagnostics
 
     def plan_metrics(self) -> dict[str, float]:
-        return forecast_plan_metrics(self._mpo_result(), self.policy_inputs)
+        return forecast_plan_metrics(self._mpo_result(), self.optimizer_inputs)
 
     def terminal_cvar(self, alpha: float = 0.05) -> float:
-        return forecast_terminal_cvar(self._mpo_result(), self.policy_inputs, alpha)
+        return forecast_terminal_cvar(self._mpo_result(), self.optimizer_inputs, alpha)
 
     def in_model_cvar(self, alpha: float = 0.05) -> float:
-        return in_model_cvar(self._mpo_result(), self.policy_inputs, alpha)
+        return in_model_cvar(self._mpo_result(), self.optimizer_inputs, alpha)
 
     def plot_weights(self, top_n: int | None = None):
         weights = {**self.target_weights, "cash": self.decision.target_cash_weight}
@@ -103,13 +103,13 @@ def run_policy(
     policy: PolicyProtocol,
     state: PortfolioState,
     forecasts: ForecastPaths,
-    policy_inputs: PolicyInputs | None = None,
+    optimizer_inputs: OptimizerInputs | None = None,
     inputs: dict[str, Any] | None = None,
     as_of: datetime | None = None,
 ) -> PolicyRun:
     """Make a policy decision and optionally project it through supplied forecasts."""
 
-    decision = policy.decide(state, policy_inputs, inputs=inputs)
+    decision = policy.decide(state, optimizer_inputs, inputs=inputs)
 
     projection = PolicyProjection.from_decision(decision, forecasts, state)
 
@@ -117,6 +117,6 @@ def run_policy(
         decision=decision,
         projection=projection,
         forecasts=forecasts,
-        policy_inputs=policy_inputs,
+        optimizer_inputs=optimizer_inputs,
         as_of=as_of,
     )

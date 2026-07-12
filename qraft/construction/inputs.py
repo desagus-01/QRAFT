@@ -10,8 +10,8 @@ import logging
 from qraft.construction.optimization.inputs import (
     AssetDiagnostics,
     InputPlan,
-    PolicyInputs,
-    RequiredPolicyInputs,
+    OptimizerInputs,
+    RequiredOptimizerInputs,
 )
 from qraft.core.market import MarketData
 from qraft.core.snapshot import MarketSnapshot, forecast_snapshot_from_decision_snapshot
@@ -29,39 +29,16 @@ logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
-class PolicyInputRequirements(Protocol):
-    def required_inputs(self) -> RequiredPolicyInputs: ...
+class OptimizerInputRequirements(Protocol):
+    def required_inputs(self) -> RequiredOptimizerInputs: ...
 
 
-def policy_risk_source(
-    plan: InputPlan,
-    policy: PolicyInputRequirements | None = None,
-):
-    if plan.risk is not None:
-        validate_policy_risk_source(plan.risk, policy)
-        return plan.risk
+def required_optimizer_inputs(
+    policy: OptimizerInputRequirements | None = None,
+) -> RequiredOptimizerInputs:
     if policy is None:
-        return "both"
-    return policy.required_inputs().risk_source
-
-
-def validate_policy_risk_source(risk, policy: PolicyInputRequirements | None) -> None:
-    if policy is None:
-        return
-    required = policy.required_inputs()
-    has_covariance = risk in {"covariance", "both"}
-    has_scenarios = risk in {"cvar", "both"}
-    missing: list[str] = []
-    if required.covariances and not has_covariance:
-        missing.append("covariances")
-    if required.scenarios and not has_scenarios:
-        missing.append("scenario_returns")
-    if missing:
-        raise ValueError(
-            f"plan.risk={risk!r} does not satisfy policy requirements: "
-            f"missing {', '.join(missing)}. Omit risk to infer it from the "
-            "policy, or use risk='both'."
-        )
+        return RequiredOptimizerInputs(mean=True, covariances=True, scenarios=True)
+    return policy.required_inputs()
 
 
 def build_policy_input_table(
@@ -72,21 +49,21 @@ def build_policy_input_table(
     policy=None,
     dtype: type = np.float64,
     market: MarketData | None = None,
-) -> dict[datetime, PolicyInputs]:
-    """Build ``{date: PolicyInputs}`` from decision snapshots and a forecast source."""
+) -> dict[datetime, OptimizerInputs]:
+    """Build ``{date: OptimizerInputs}`` from decision snapshots and a forecast source."""
     market_snapshots = list(snapshots)
+    required = required_optimizer_inputs(policy)
     info_event(
         logger,
-        "policy_inputs.started",
-        "Building policy input table",
+        "optimizer_inputs.started",
+        "Building optimizer input table",
         decisions=len(market_snapshots),
         expected_returns=plan.expected_returns,
-        risk=policy_risk_source(plan, policy),
+        required_inputs=required.risk_source,
         max_horizons=plan.max_horizons,
         dtype=getattr(dtype, "__name__", str(dtype)),
     )
     if policy is not None:
-        required = policy.required_inputs()
         if (
             not required.mean
             and not required.covariances
@@ -95,11 +72,11 @@ def build_policy_input_table(
         ):
             info_event(
                 logger,
-                "policy_inputs.completed",
-                "Policy inputs not required by policy",
+                "optimizer_inputs.completed",
+                "Optimizer inputs not required by policy",
                 decisions=0,
                 expected_returns=plan.expected_returns,
-                risk=policy_risk_source(plan, policy),
+                required_inputs=required.risk_source,
             )
             return {}
 
@@ -116,7 +93,7 @@ def build_policy_input_table(
         forecast_diagnostics = [None] * len(forecast_paths)
         forecast_invariance_drops = [()] * len(forecast_paths)
 
-    table: dict[datetime, PolicyInputs] = {}
+    table: dict[datetime, OptimizerInputs] = {}
     for snapshot, forecast, diagnostics, invariance_drops in zip(
         market_snapshots,
         forecast_paths,
@@ -134,10 +111,10 @@ def build_policy_input_table(
         if market is not None and market.views.events:
             report = market.view_report(snapshot.t)
             view_diag = report.diagnostics if report is not None else None
-        inputs = PolicyInputs.from_policy_sources(
+        inputs = OptimizerInputs.from_policy_sources(
             forecasts=forecast,
             expected_returns=plan.expected_returns,
-            risk=policy_risk_source(plan, policy),
+            required_inputs=required,
             history=snapshot.history,
             max_horizons=plan.max_horizons,
             subset=plan.subset,
@@ -158,14 +135,14 @@ def build_policy_input_table(
     n_assets = len(next(iter(table.values())).assets) if table else 0
     info_event(
         logger,
-        "policy_inputs.completed",
-        "Policy input table built",
+        "optimizer_inputs.completed",
+        "Optimizer input table built",
         decisions=len(table),
         assets=n_assets,
         first_date=first_date,
         last_date=last_date,
         expected_returns=plan.expected_returns,
-        risk=policy_risk_source(plan, policy),
+        required_inputs=required.risk_source,
     )
 
     return table

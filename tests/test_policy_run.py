@@ -6,7 +6,7 @@ import pytest
 from matplotlib.figure import Figure
 
 from qraft.backtest.execution import execute_frictionless
-from qraft.construction.optimization.inputs import PolicyInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.optimization.objectives.specs import ExpectedReturn
 from qraft.construction.optimization.problem import MPOProblemBuilder
@@ -57,7 +57,7 @@ def test_policy_decide_returns_decision_without_projecting() -> None:
 
 
 def test_equal_weight_policy_uses_policy_input_cash_return() -> None:
-    inputs = PolicyInputs.from_arrays(
+    inputs = OptimizerInputs.from_arrays(
         assets=["A", "B"],
         mean=np.ones((1, 2)),
         cash_return=np.array([0.001]),
@@ -105,7 +105,7 @@ def test_projection_is_created_independently_from_decision() -> None:
 
 
 def test_run_policy_orchestrates_decision_and_projection() -> None:
-    policy_inputs = PolicyInputs.from_arrays(
+    optimizer_inputs = OptimizerInputs.from_arrays(
         assets=["A", "B"],
         mean=np.ones((1, 2)),
         cash_return=np.array([0.001]),
@@ -114,7 +114,7 @@ def test_run_policy_orchestrates_decision_and_projection() -> None:
         EqualWeightPolicy(target_cash_weight=0.2),
         _state(),
         _forecasts(),
-        policy_inputs=policy_inputs,
+        optimizer_inputs=optimizer_inputs,
         as_of=datetime(2024, 1, 2),
     )
 
@@ -122,7 +122,7 @@ def test_run_policy_orchestrates_decision_and_projection() -> None:
     assert isinstance(result.decision, PolicyDecision)
     assert isinstance(result.projection, PolicyProjection)
     assert result.forecasts is not None
-    assert result.policy_inputs is policy_inputs
+    assert result.optimizer_inputs is optimizer_inputs
     assert result.as_of == datetime(2024, 1, 2)
     assert result.target_weights == {"A": 0.4, "B": 0.4}
     assert result.projection.target_cash_weight == result.decision.target_cash_weight
@@ -134,7 +134,7 @@ def test_run_policy_orchestrates_decision_and_projection() -> None:
 
 def test_policy_run_exposes_mpo_diagnostics() -> None:
     policy = MPOPolicy(problem=MPOProblemBuilder().add(ExpectedReturn()).build())
-    policy_inputs = PolicyInputs.from_arrays(
+    optimizer_inputs = OptimizerInputs.from_arrays(
         assets=["A"],
         mean=np.array([[0.01]]),
         covariances=np.array([[[0.04]]]),
@@ -143,7 +143,7 @@ def test_policy_run_exposes_mpo_diagnostics() -> None:
         cash_return=np.array([0.0]),
     )
 
-    run = run_policy(policy, _state(), _forecasts(), policy_inputs=policy_inputs)
+    run = run_policy(policy, _state(), _forecasts(), optimizer_inputs=optimizer_inputs)
 
     metrics = run.plan_metrics()
     assert set(metrics) == {"expected_return", "volatility"}
@@ -208,7 +208,7 @@ def test_allocation_returns_run_with_same_forecasts(monkeypatch) -> None:
 
     assert run.forecasts is forecasts
     assert run.projection is not None
-    assert run.policy_inputs is None
+    assert run.optimizer_inputs is None
     assert run.as_of == datetime(2024, 1, 2)
     assert captured["source"] == [forecasts]
     assert captured["snapshot"].t == datetime(2024, 1, 2)

@@ -14,7 +14,7 @@ from qraft.backtest.engine.policy_step import (
 )
 from qraft.backtest.engine.schedule import DecisionPoint, decision_points
 from qraft.backtest.execution import execute_frictionless
-from qraft.backtest.inputs import PolicyInputsProvider
+from qraft.backtest.inputs import OptimizerInputsProvider
 from qraft.backtest.result import BacktestPeriod, BacktestResult, BacktestWarning
 from qraft.construction.policies import PolicyProtocol
 from qraft.construction.state import PortfolioState
@@ -30,7 +30,7 @@ def run_backtest(
     policy: PolicyProtocol,
     *,
     schedule: RebalanceSchedule = RebalanceSchedule(),
-    inputs: PolicyInputsProvider | None = None,
+    inputs: OptimizerInputsProvider | None = None,
     initial_cash: float = 100.0,
     step_size: int = 1,
     costs: CostModel | None = None,
@@ -107,9 +107,9 @@ def run_backtest(
             point = points_by_bar[bar]
             state = PortfolioState(asset_order, point.snapshot.prices_t, shares, cash)
             policy_step = decide_or_hold(policy, inputs, state, point, asset_order)
-            if policy_step.policy_inputs is not None:
+            if policy_step.optimizer_inputs is not None:
                 invariance_drops.extend(
-                    getattr(policy_step.policy_inputs, "invariance_drops", ())
+                    getattr(policy_step.optimizer_inputs, "invariance_drops", ())
                 )
             if policy_step.warning is not None:
                 warnings_log.append(policy_step.warning)
@@ -120,7 +120,7 @@ def run_backtest(
                 decision_error=policy_step.decision_error,
                 sigma=policy_step.sigma,
                 view_diagnostics=getattr(
-                    policy_step.policy_inputs, "view_diagnostics", None
+                    policy_step.optimizer_inputs, "view_diagnostics", None
                 ),
             )
 

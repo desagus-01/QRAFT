@@ -2,7 +2,7 @@ __all__ = [
     "ScenarioPanel",
     "MarketData",
     "MarketDataConfig",
-    "HistoryWeighting",
+    "Prior",
     "AssetUniverse",
     "ForecastSnapshot",
     "ProbVector",
@@ -34,7 +34,7 @@ __all__ = [
 ]
 
 from qraft.core.panel import ScenarioPanel  # noqa: F401
-from qraft.core.market import HistoryWeighting, MarketData, MarketDataConfig  # noqa: F401
+from qraft.core.market import MarketData, MarketDataConfig, Prior  # noqa: F401
 from qraft.core.snapshot import ForecastSnapshot  # noqa: F401
 from qraft.core.universe import AssetUniverse  # noqa: F401
 from qraft.core.probability.prob_vector import ProbVector  # noqa: F401

@@ -5,7 +5,7 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
-    HistoryWeighting,
+    Prior,
     LogConfig,
     MarketData,
     Views,
@@ -50,7 +50,7 @@ market_without_views = MarketData.from_prices(
     prices,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=60),
+    prior=Prior.time_conditioned(half_life=60),
 )
 normal_averages = [
     market_without_views.viewed_returns(Views([]), t=view_date).moments()[view_asset][
@@ -99,7 +99,7 @@ market = MarketData.from_prices(
     prices,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=60),
+    prior=Prior.time_conditioned(half_life=60),
 ).with_views(*view_events)
 
 # %%

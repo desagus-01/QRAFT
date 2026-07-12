@@ -8,7 +8,7 @@ from qraft import (
     AssetUniverse,
     CMAConfig,
     Forecaster,
-    HistoryWeighting,
+    Prior,
     LogConfig,
     MarketData,
     MPOPolicy,
@@ -68,7 +68,7 @@ market = MarketData.from_prices(
     data,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=35),
+    prior=Prior.time_conditioned(half_life=35),
 )
 
 # %%

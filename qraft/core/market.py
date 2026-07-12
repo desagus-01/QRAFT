@@ -25,7 +25,7 @@ from qraft.core.universe import AssetUniverse
 from qraft.utils.helpers import str_to_datetime
 from qraft.utils.log import info_event
 
-WeightingScheme = Literal["uniform", "state_smooth"]
+PriorScheme = Literal["uniform", "state_smooth"]
 CashRateUnit = Literal["percent", "decimal"]
 DateLike = datetime | str
 logger = logging.getLogger(__name__)
@@ -40,15 +40,21 @@ class MarketDataConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class HistoryWeighting:
-    scheme: WeightingScheme = "uniform"
+class Prior:
+    scheme: PriorScheme = "uniform"
     half_life: float | None = None
+
+    @classmethod
+    def uniform(cls) -> "Prior":
+        return cls(scheme="uniform")
+
+    @classmethod
+    def time_conditioned(cls, *, half_life: float) -> "Prior":
+        return cls(scheme="state_smooth", half_life=half_life)
 
     def __post_init__(self) -> None:
         if self.scheme == "state_smooth" and self.half_life is None:
-            raise ValueError(
-                "HistoryWeighting(scheme='state_smooth') requires a half_life"
-            )
+            raise ValueError("Prior.time_conditioned() requires a half_life")
 
     def probs(self, n: int) -> ProbVector:
         if self.scheme == "uniform":
@@ -64,7 +70,7 @@ class MarketData:
     universe: AssetUniverse
     cash: pl.DataFrame | None
     config: MarketDataConfig
-    history_weighting: HistoryWeighting
+    prior: Prior
     views: ViewState = ViewState()
 
     @classmethod
@@ -74,10 +80,10 @@ class MarketData:
         universe: AssetUniverse,
         *,
         cash: pl.DataFrame | None = None,
-        history_weighting: HistoryWeighting = HistoryWeighting(),
+        prior: Prior = Prior.uniform(),
         config: MarketDataConfig = MarketDataConfig(),
     ) -> "MarketData":
-        return cls._from_frame(data, universe, cash, history_weighting, config)
+        return cls._from_frame(data, universe, cash, prior, config)
 
     @classmethod
     def _from_frame(
@@ -85,7 +91,7 @@ class MarketData:
         data: pl.DataFrame,
         universe: AssetUniverse,
         cash: pl.DataFrame | None,
-        history_weighting: HistoryWeighting,
+        prior: Prior,
         config: MarketDataConfig,
     ) -> "MarketData":
         if "date" not in data.columns:
@@ -120,7 +126,7 @@ class MarketData:
             universe=universe,
             cash=cash_sorted,
             config=resolved_config,
-            history_weighting=history_weighting,
+            prior=prior,
         )
 
     def with_views(self, *events: ViewInput) -> "MarketData":
@@ -279,7 +285,7 @@ class MarketData:
         window = self.frame.filter(pl.col("date") <= t)
         if window.height == 0:
             raise ValueError(f"No history on or before {t!r}")
-        prob = self.history_weighting.probs(window.height)
+        prob = self.prior.probs(window.height)
         return window, prob
 
     def _log_price_history_through(self, t: datetime) -> ScenarioPanel:

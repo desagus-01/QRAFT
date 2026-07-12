@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
-from qraft.construction.optimization.inputs import RequiredPolicyInputs
+from qraft.construction.optimization.inputs import RequiredOptimizerInputs
 from qraft.construction.optimization.objectives.specs import (
     CovarianceRisk,
     CVaRCuttingPlane,
@@ -87,20 +87,20 @@ class MPOProblem:
                 holding = term.spec
         return transaction, holding
 
-    def required_inputs(self) -> RequiredPolicyInputs:
-        required = RequiredPolicyInputs()
+    def required_inputs(self) -> RequiredOptimizerInputs:
+        required = RequiredOptimizerInputs()
         for term in self.objective.terms:
             if isinstance(term.spec, ExpectedReturn):
-                required = required.merge(RequiredPolicyInputs(mean=True))
+                required = required.merge(RequiredOptimizerInputs(mean=True))
             elif isinstance(term.spec, CovarianceRisk):
-                required = required.merge(RequiredPolicyInputs(covariances=True))
+                required = required.merge(RequiredOptimizerInputs(covariances=True))
             elif isinstance(term.spec, (CVaRRisk, CVaRCuttingPlane)):
-                required = required.merge(RequiredPolicyInputs(scenarios=True))
+                required = required.merge(RequiredOptimizerInputs(scenarios=True))
             elif (
                 isinstance(term.spec, TransactionCost)
                 and term.spec.market_impact != 0.0
             ):
-                required = required.merge(RequiredPolicyInputs(covariances=True))
+                required = required.merge(RequiredOptimizerInputs(covariances=True))
         return required
 
     def compile(

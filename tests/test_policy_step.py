@@ -10,7 +10,7 @@ import numpy as np
 
 from qraft.backtest.engine.policy_step import decide_or_hold
 from qraft.backtest.engine.schedule import DecisionPoint
-from qraft.construction.optimization.inputs import RequiredPolicyInputs
+from qraft.construction.optimization.inputs import RequiredOptimizerInputs
 from qraft.construction.policies.policy_decision import PolicyDecision
 from qraft.construction.state import PortfolioState
 
@@ -31,14 +31,14 @@ class _RaisingPolicy:
     def decide(
         self,
         state: PortfolioState,
-        policy_inputs: Any = None,
+        optimizer_inputs: Any = None,
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
         raise self._exc
 
-    def required_inputs(self) -> RequiredPolicyInputs:
-        return RequiredPolicyInputs()
+    def required_inputs(self) -> RequiredOptimizerInputs:
+        return RequiredOptimizerInputs()
 
 
 @dataclass
@@ -56,7 +56,7 @@ class _HappyPolicy:
     def decide(
         self,
         state: PortfolioState,
-        policy_inputs: Any = None,
+        optimizer_inputs: Any = None,
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
@@ -66,8 +66,8 @@ class _HappyPolicy:
             target_cash_weight=0.5,
         )
 
-    def required_inputs(self) -> RequiredPolicyInputs:
-        return RequiredPolicyInputs()
+    def required_inputs(self) -> RequiredOptimizerInputs:
+        return RequiredOptimizerInputs()
 
 
 def _state() -> PortfolioState:

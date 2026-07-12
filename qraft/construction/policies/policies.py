@@ -6,7 +6,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
-from qraft.construction.optimization.inputs import PolicyInputs, RequiredPolicyInputs
+from qraft.construction.optimization.inputs import (
+    OptimizerInputs,
+    RequiredOptimizerInputs,
+)
 from qraft.construction.optimization.objectives.specs import (
     HoldingCost,
     TransactionCost,
@@ -35,12 +38,12 @@ class PolicyProtocol(Protocol):
     def decide(
         self,
         state: PortfolioState,
-        policy_inputs: PolicyInputs | None = None,
+        optimizer_inputs: OptimizerInputs | None = None,
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision: ...
 
-    def required_inputs(self) -> RequiredPolicyInputs: ...
+    def required_inputs(self) -> RequiredOptimizerInputs: ...
 
 
 def _decision_from_mpo(
@@ -61,13 +64,13 @@ class EqualWeightPolicy:
     name: str = "equal_weight"
     min_history: int = 0
 
-    def required_inputs(self) -> RequiredPolicyInputs:
-        return RequiredPolicyInputs()
+    def required_inputs(self) -> RequiredOptimizerInputs:
+        return RequiredOptimizerInputs()
 
     def decide(
         self,
         state: PortfolioState,
-        policy_inputs: PolicyInputs | None = None,
+        optimizer_inputs: OptimizerInputs | None = None,
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
@@ -75,9 +78,9 @@ class EqualWeightPolicy:
         n_assets = len(state.asset_order)
         target_weights = np.full(n_assets, risky_weights / n_assets)
         cash_return = (
-            policy_inputs.cash_return
-            if isinstance(policy_inputs, PolicyInputs)
-            and policy_inputs.cash_return is not None
+            optimizer_inputs.cash_return
+            if isinstance(optimizer_inputs, OptimizerInputs)
+            and optimizer_inputs.cash_return is not None
             else np.zeros(1)
         )
         return PolicyDecision(
@@ -91,7 +94,7 @@ class EqualWeightPolicy:
 
 @dataclass(frozen=True, slots=True)
 class MPOPolicy:
-    """Multi-period optimizer policy over explicit, pre-built policy inputs."""
+    """Multi-period optimizer policy over explicit, pre-built optimizer inputs."""
 
     problem: MPOProblem
     min_history: int = 0
@@ -141,17 +144,21 @@ class MPOPolicy:
     def cost_specs(self) -> tuple[TransactionCost | None, HoldingCost | None]:
         return self.problem.cost_specs()
 
-    def required_inputs(self) -> RequiredPolicyInputs:
+    def required_inputs(self) -> RequiredOptimizerInputs:
         return self.problem.required_inputs()
 
-    def _get_optimizer(self, moments: PolicyInputs) -> MultiPeriodOptimizer:
-        key = (tuple(moments.assets), moments.n_horizons, moments.n_scenarios)
+    def _get_optimizer(self, optimizer_inputs: OptimizerInputs) -> MultiPeriodOptimizer:
+        key = (
+            tuple(optimizer_inputs.assets),
+            optimizer_inputs.n_horizons,
+            optimizer_inputs.n_scenarios,
+        )
         optimizer = self._optimizer_cache.get(key)
         if optimizer is None:
             optimizer = self.problem.compile(
-                horizons=moments.n_horizons,
-                n_assets=moments.n_assets,
-                n_scenarios=moments.n_scenarios,
+                horizons=optimizer_inputs.n_horizons,
+                n_assets=optimizer_inputs.n_assets,
+                n_scenarios=optimizer_inputs.n_scenarios,
             )
             self._optimizer_cache[key] = optimizer
         return optimizer
@@ -159,39 +166,41 @@ class MPOPolicy:
     def decide(
         self,
         state: PortfolioState,
-        policy_inputs: PolicyInputs | None = None,
+        optimizer_inputs: OptimizerInputs | None = None,
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
-        if not isinstance(policy_inputs, PolicyInputs):
+        if not isinstance(optimizer_inputs, OptimizerInputs):
             raise ValueError(
-                "MPOPolicy requires explicit PolicyInputs. Call decide() (or "
-                "optimize()) with pre-built PolicyInputs."
+                "MPOPolicy requires explicit OptimizerInputs. Call decide() (or "
+                "optimize()) with pre-built OptimizerInputs."
             )
-        return self.optimize(state=state, policy_inputs=policy_inputs, inputs=inputs)
+        return self.optimize(
+            state=state, optimizer_inputs=optimizer_inputs, inputs=inputs
+        )
 
     def optimize(
         self,
         state: PortfolioState,
-        policy_inputs: PolicyInputs,
+        optimizer_inputs: OptimizerInputs,
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
         current_weights, current_cash, dropped, dropped_weight = align_state_to_assets(
-            state, policy_inputs.assets
+            state, optimizer_inputs.assets
         )
         if dropped:
             logger.warning(
-                "optimize(): %d asset(s) dropped by PolicyInputs %s — "
+                "optimize(): %d asset(s) dropped by OptimizerInputs %s — "
                 "their combined weight (%.4f) transferred to cash for reallocation.",
                 len(dropped),
                 sorted(dropped),
                 dropped_weight,
             )
 
-        optimizer = self._get_optimizer(policy_inputs)
+        optimizer = self._get_optimizer(optimizer_inputs)
         result = optimizer.solve_auto(
-            moments=policy_inputs,
+            optimizer_inputs=optimizer_inputs,
             current_weights=current_weights,
             current_cash=current_cash,
             inputs=inputs,
@@ -201,4 +210,4 @@ class MPOPolicy:
         if isinstance(result, MPOFailure):
             raise OptimizationFailure(result)
 
-        return _decision_from_mpo(result, cash_return=policy_inputs.cash_return)
+        return _decision_from_mpo(result, cash_return=optimizer_inputs.cash_return)

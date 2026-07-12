@@ -19,7 +19,6 @@ from qraft.forecast.forecast_paths import AssetSubset, ForecastPaths
 logger = logging.getLogger(__name__)
 PnL_OPTIONS = Literal["relative", "absolute", "log"]
 ExpectedReturnSource = Literal["historical", "forecast"]
-RiskSource = Literal["covariance", "cvar", "both"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,13 +36,13 @@ class AssetDiagnostics:
 
 
 @dataclass(frozen=True, slots=True)
-class RequiredPolicyInputs:
+class RequiredOptimizerInputs:
     mean: bool = False
     covariances: bool = False
     scenarios: bool = False
 
     @property
-    def risk_source(self) -> RiskSource:
+    def risk_source(self) -> Literal["covariance", "cvar", "both"]:
         if self.covariances and self.scenarios:
             return "both"
         if self.covariances:
@@ -52,8 +51,8 @@ class RequiredPolicyInputs:
             return "cvar"
         return "both"
 
-    def merge(self, other: "RequiredPolicyInputs") -> "RequiredPolicyInputs":
-        return RequiredPolicyInputs(
+    def merge(self, other: "RequiredOptimizerInputs") -> "RequiredOptimizerInputs":
+        return RequiredOptimizerInputs(
             mean=self.mean or other.mean,
             covariances=self.covariances or other.covariances,
             scenarios=self.scenarios or other.scenarios,
@@ -164,9 +163,9 @@ def incremental_returns_from_forecast_paths(
 
 
 @dataclass(frozen=True, slots=True)
-class PolicyInputs:
+class OptimizerInputs:
     """
-    Optimizer-ready horizon-indexed policy inputs.
+    Optimizer-ready horizon-indexed inputs.
     """
 
     assets: list[str]
@@ -184,7 +183,7 @@ class PolicyInputs:
 
     def __post_init__(self) -> None:
         if not self.assets:
-            raise ValueError("PolicyInputs.assets cannot be empty.")
+            raise ValueError("OptimizerInputs.assets cannot be empty.")
 
         n_a = len(self.assets)
         horizon_counts: list[int] = []
@@ -247,7 +246,7 @@ class PolicyInputs:
 
         if not horizon_counts:
             raise ValueError(
-                "PolicyInputs must contain at least one horizon-indexed input."
+                "OptimizerInputs must contain at least one horizon-indexed input."
             )
 
         first = horizon_counts[0]
@@ -278,12 +277,12 @@ class PolicyInputs:
 
     def require_mean(self) -> NDArray[np.floating]:
         if self.mean is None:
-            raise ValueError("This objective requires PolicyInputs.mean.")
+            raise ValueError("This objective requires OptimizerInputs.mean.")
         return self.mean
 
     def require_covariances(self) -> NDArray[np.floating]:
         if self.covariances is None:
-            raise ValueError("This objective requires PolicyInputs.covariances.")
+            raise ValueError("This objective requires OptimizerInputs.covariances.")
         return self.covariances
 
     def require_scenarios(
@@ -298,10 +297,10 @@ class PolicyInputs:
 
     def require_cash_return(self) -> NDArray[np.floating]:
         if self.cash_return is None:
-            raise ValueError("This objective requires PolicyInputs.cash_return.")
+            raise ValueError("This objective requires OptimizerInputs.cash_return.")
         return self.cash_return
 
-    def astype(self, dtype: type) -> "PolicyInputs":
+    def astype(self, dtype: type) -> "OptimizerInputs":
         """Cast large optimization arrays to ``dtype``; keep small vectors stable."""
 
         def cast(a: NDArray[np.floating] | None) -> NDArray[np.floating] | None:
@@ -329,7 +328,7 @@ class PolicyInputs:
             return int(self.scenario_returns.shape[1])
         if self.cash_return is not None:
             return np.asarray(self.cash_return).size
-        raise RuntimeError("PolicyInputs has no horizon-indexed input.")
+        raise RuntimeError("OptimizerInputs has no horizon-indexed input.")
 
     @property
     def n_assets(self) -> int:
@@ -364,7 +363,7 @@ class PolicyInputs:
 
     def correlation_frame(self, horizon: int = 0) -> pl.DataFrame:
         if self.correlations is None:
-            raise ValueError("PolicyInputs.correlations is required.")
+            raise ValueError("OptimizerInputs.correlations is required.")
         return self._matrix_frame(self.correlations, horizon)
 
     def covariance_frame(self, horizon: int = 0) -> pl.DataFrame:
@@ -608,7 +607,7 @@ class PolicyInputs:
         forecasts: ForecastPaths,
         cash_return: NDArray[np.floating] | float,
         expected_returns: ExpectedReturnSource = "forecast",
-        risk: RiskSource = "both",
+        required_inputs: RequiredOptimizerInputs = RequiredOptimizerInputs(),
         history: ScenarioPanel | None = None,
         max_horizons: int | None = None,
         subset: AssetSubset = "tradable",
@@ -618,20 +617,14 @@ class PolicyInputs:
         asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
         invariance_drops: tuple[object, ...] = (),
         view_diagnostics: ViewDiagnostics | None = None,
-    ) -> "PolicyInputs":
+    ) -> "OptimizerInputs":
         """
-        Build policy inputs from two simple choices: expected returns and risk.
-
-        ``expected_returns`` selects the source of the optimizer mean. ``risk``
-        always uses ``ForecastPaths`` and selects which risk representation is
-        included.
+        Build optimizer inputs from forecasts and inferred policy requirements.
         """
         if expected_returns not in {"historical", "forecast"}:
             raise ValueError(
                 "expected_returns must be one of 'historical' or 'forecast'."
             )
-        if risk not in {"covariance", "cvar", "both"}:
-            raise ValueError("risk must be one of 'covariance', 'cvar', or 'both'.")
         if pnl_type == "log":
             raise ValueError(
                 "pnl_type='log' is not supported for optimizer inputs; use "
@@ -684,7 +677,7 @@ class PolicyInputs:
             )
 
         covariances = correlations = cov_factor = None
-        if risk in {"covariance", "both"}:
+        if required_inputs.covariances:
             covariances = np.empty((n_horizons, n_assets, n_assets), dtype=float)
             correlations = np.empty((n_horizons, n_assets, n_assets), dtype=float)
             for h in range(n_horizons):
@@ -695,7 +688,7 @@ class PolicyInputs:
                 [psd_sqrt_factor(covariances[h]) for h in range(n_horizons)]
             )
 
-        scenario_returns = inc_returns if risk in {"cvar", "both"} else None
+        scenario_returns = inc_returns if required_inputs.scenarios else None
         scenario_probs = prob if scenario_returns is not None else None
 
         (
@@ -748,7 +741,7 @@ class PolicyInputs:
         asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
         invariance_drops: tuple[object, ...] = (),
         view_diagnostics: ViewDiagnostics | None = None,
-    ) -> "PolicyInputs":
+    ) -> "OptimizerInputs":
         cash_array = (
             None if cash_return is None else np.asarray(cash_return, dtype=float)
         )
@@ -775,7 +768,6 @@ class PolicyInputs:
 @dataclass(frozen=True, slots=True)
 class InputPlan:
     expected_returns: ExpectedReturnSource = "forecast"
-    risk: RiskSource | None = None
     max_horizons: int | None = None
     subset: AssetSubset = "tradable"
     pnl_type: PnL_OPTIONS = "relative"

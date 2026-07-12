@@ -25,7 +25,7 @@ from qraft.backtest.selection.results import CandidateResult, SelectionReport
 from qraft.backtest.selection.splits import Fold
 from qraft.backtest.selection.validation import Validation as SelectionValidation
 from qraft.backtest.engine.loop import run_backtest
-from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
+from qraft.construction.optimization.inputs import InputPlan, OptimizerInputs
 from qraft.construction.policies import EqualWeightPolicy, MPOPolicy
 from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.forecast_paths import AssetUniverse
@@ -81,7 +81,7 @@ def test_backtest_facade_accepts_precomputed_source():
     policy = EqualWeightPolicy(target_cash_weight=0.0)
     config = BacktestConfig(schedule=RebalanceSchedule("every_bar"), initial_cash=100.0)
     source = {
-        t: PolicyInputs.from_arrays(
+        t: OptimizerInputs.from_arrays(
             assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
         )
         for t in market.trading_bars[:-1]

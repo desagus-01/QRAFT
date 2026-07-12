@@ -8,9 +8,12 @@ from typing import Mapping, Protocol, runtime_checkable
 import numpy as np
 
 from qraft.backtest.engine.schedule import DecisionPoint, decision_points
-from qraft.construction.inputs import PolicyInputRequirements, build_policy_input_table
+from qraft.construction.inputs import (
+    OptimizerInputRequirements,
+    build_policy_input_table,
+)
 from qraft.construction.optimization.inputs import InputPlan
-from qraft.construction.optimization.inputs import PolicyInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import (
@@ -23,19 +26,19 @@ logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
-class PolicyInputsProvider(Protocol):
-    """Maps a decision snapshot to the PolicyInputs the policy optimises against."""
+class OptimizerInputsProvider(Protocol):
+    """Maps a decision snapshot to the OptimizerInputs the policy optimises against."""
 
-    def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs: ...
+    def for_date(self, snapshot: MarketSnapshot, step: int) -> OptimizerInputs: ...
 
 
 @dataclass
 class DateCache:
-    inner: PolicyInputsProvider
-    _table: dict[datetime, PolicyInputs] = field(default_factory=dict, init=False)
+    inner: OptimizerInputsProvider
+    _table: dict[datetime, OptimizerInputs] = field(default_factory=dict, init=False)
     _universe: tuple[str, ...] | None = field(default=None, init=False)
 
-    def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
+    def for_date(self, snapshot: MarketSnapshot, step: int) -> OptimizerInputs:
         universe = tuple(snapshot.universe.all_tickers)
         if self._universe is None:
             self._universe = universe
@@ -53,14 +56,14 @@ class DateCache:
 
 @dataclass(frozen=True, slots=True)
 class PrecomputedInputsProvider:
-    """Serve PolicyInputs from a ``{date: PolicyInputs}`` table (BYO moments)."""
+    """Serve OptimizerInputs from a ``{date: OptimizerInputs}`` table."""
 
-    table: Mapping[datetime, PolicyInputs]
+    table: Mapping[datetime, OptimizerInputs]
 
-    def for_date(self, snapshot: MarketSnapshot, step: int) -> PolicyInputs:
+    def for_date(self, snapshot: MarketSnapshot, step: int) -> OptimizerInputs:
         inputs = self.table.get(snapshot.t)
         if inputs is None:
-            raise KeyError(f"No precomputed PolicyInputs for {snapshot.t!r}")
+            raise KeyError(f"No precomputed OptimizerInputs for {snapshot.t!r}")
         return inputs
 
 
@@ -72,14 +75,14 @@ def precompute_inputs(
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
     forecasts: ForecastSpec
-    | PolicyInputsProvider
-    | dict[datetime, PolicyInputs]
+    | OptimizerInputsProvider
+    | dict[datetime, OptimizerInputs]
     | None = None,
-    policy: PolicyInputRequirements | None = None,
+    policy: OptimizerInputRequirements | None = None,
     dtype: type = np.float64,
     step_size: int = 1,
-) -> dict[datetime, PolicyInputs]:
-    """Build and freeze policy inputs for the exact backtest decision schedule."""
+) -> dict[datetime, OptimizerInputs]:
+    """Build and freeze optimizer inputs for the exact backtest decision schedule."""
     points = decision_points(market, schedule, warmup, step_size=step_size)
     return precompute_inputs_for_points(
         points,
@@ -99,16 +102,16 @@ def precompute_inputs_for_points(
     forecaster: Forecaster | None = None,
     plan: InputPlan | None = None,
     forecasts: ForecastSpec
-    | PolicyInputsProvider
-    | dict[datetime, PolicyInputs]
+    | OptimizerInputsProvider
+    | dict[datetime, OptimizerInputs]
     | None = None,
-    policy: PolicyInputRequirements | None = None,
+    policy: OptimizerInputRequirements | None = None,
     dtype: type = np.float64,
-) -> dict[datetime, PolicyInputs]:
-    """Build policy inputs from already-materialized decision snapshots."""
+) -> dict[datetime, OptimizerInputs]:
+    """Build optimizer inputs from already-materialized decision snapshots."""
     if isinstance(forecasts, dict):
         table = forecasts
-    elif isinstance(forecasts, PolicyInputsProvider):
+    elif isinstance(forecasts, OptimizerInputsProvider):
         table = {
             point.decision_bar: forecasts.for_date(point.snapshot, point.index)
             for point in points
@@ -129,8 +132,8 @@ def precompute_inputs_for_points(
         )
     info_event(
         logger,
-        "policy_inputs.completed",
-        "Policy inputs precomputed",
+        "optimizer_inputs.completed",
+        "Optimizer inputs precomputed",
         decisions=len(table),
         source_type=type(forecasts).__name__
         if forecasts is not None

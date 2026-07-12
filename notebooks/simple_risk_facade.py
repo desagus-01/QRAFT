@@ -8,7 +8,7 @@ from qraft import (
     AssetUniverse,
     CMAConfig,
     Forecaster,
-    HistoryWeighting,
+    Prior,
     InputPlan,
     LogConfig,
     MarketData,
@@ -61,7 +61,7 @@ market = MarketData.from_prices(
     prices,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=60),
+    prior=Prior.time_conditioned(half_life=60),
 )
 
 
@@ -78,7 +78,7 @@ forecaster = Forecaster(
     refit_every=int(prices.height / 4),
     seed=10,
 )
-plan = InputPlan(expected_returns="forecast", risk="both")
+plan = InputPlan(expected_returns="forecast")
 
 policy = MPOPolicy.preset(
     "cvar_auto",

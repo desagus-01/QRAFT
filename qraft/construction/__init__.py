@@ -12,12 +12,11 @@ __all__ = [
     "MPOResult",
     "MultiPeriodOptimizer",
     "SolverStatus",
-    "PolicyInputs",
+    "OptimizerInputs",
     "InputPlan",
     "DroppedAsset",
     "PnL_OPTIONS",
     "ExpectedReturnSource",
-    "RiskSource",
     "PortfolioConstraint",
     "LongOnly",
     "FullyInvested",
@@ -63,8 +62,7 @@ from qraft.construction.optimization.inputs import (  # noqa: F401
     ExpectedReturnSource,
     InputPlan,
     PnL_OPTIONS,
-    PolicyInputs,
-    RiskSource,
+    OptimizerInputs,
 )
 from qraft.construction.optimization.objectives.specs import (  # noqa: F401
     CashReturn,

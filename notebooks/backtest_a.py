@@ -9,7 +9,7 @@ from qraft import (
     BacktestConfig,
     CMAConfig,
     Forecaster,
-    HistoryWeighting,
+    Prior,
     LogConfig,
     MarketData,
     MPOPolicy,
@@ -84,7 +84,7 @@ mkt_dt = MarketData.from_prices(
     data,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=60),
+    prior=Prior.time_conditioned(half_life=60),
 )
 
 # %%
@@ -104,7 +104,6 @@ policy = MPOPolicy.preset(
 
 plan = InputPlan(
     expected_returns="forecast",
-    risk="both",
 )
 schedule = RebalanceSchedule("year_end")
 

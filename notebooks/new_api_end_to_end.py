@@ -9,7 +9,7 @@ from qraft import (
     BacktestConfig,
     CMAConfig,
     Forecaster,
-    HistoryWeighting,
+    Prior,
     InputPlan,
     LogConfig,
     MarketData,
@@ -60,7 +60,7 @@ market_without_views = MarketData.from_prices(
     prices,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=60),
+    prior=Prior.time_conditioned(half_life=60),
 )
 
 view_asset = assets[0]
@@ -126,7 +126,7 @@ forecaster = Forecaster(
     refit_every=int(prices.height / 4),
     seed=10,
 )
-plan = InputPlan(expected_returns="forecast", risk="both")
+plan = InputPlan(expected_returns="forecast")
 backtest_config = BacktestConfig(schedule=RebalanceSchedule("quarter_end"))
 
 base_policy = MPOPolicy.preset(

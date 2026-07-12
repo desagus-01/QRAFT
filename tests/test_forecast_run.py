@@ -370,7 +370,7 @@ def test_policy_input_precompute_refits_recipes_on_market_bars(monkeypatch):
         schedule=RebalanceSchedule("every_bar"),
         warmup=2,
         forecasts=Forecaster(refit_every=2),
-        plan=InputPlan(expected_returns="forecast", risk="cvar"),
+        plan=InputPlan(expected_returns="forecast"),
     )
 
     assert selected_steps == [2, 4]
@@ -422,11 +422,11 @@ def test_selection_reuses_precomputed_decision_snapshots(monkeypatch):
 
     class StaticProvider:
         def for_date(self, snapshot, step):
-            from qraft.construction.optimization.inputs import PolicyInputs
+            from qraft.construction.optimization.inputs import OptimizerInputs
 
             assets = list(snapshot.universe.assets)
             n_assets = len(assets)
-            return PolicyInputs(
+            return OptimizerInputs(
                 assets=assets,
                 mean=np.zeros((1, n_assets)),
                 covariances=np.tile(np.eye(n_assets), (1, 1, 1)),
@@ -439,7 +439,7 @@ def test_selection_reuses_precomputed_decision_snapshots(monkeypatch):
         grid={},
         forecasts=StaticProvider(),
         schedule=RebalanceSchedule("every_bar"),
-        plan=InputPlan(expected_returns="historical", risk="covariance"),
+        plan=InputPlan(expected_returns="historical"),
     )
 
     assert market.snapshot_calls == [

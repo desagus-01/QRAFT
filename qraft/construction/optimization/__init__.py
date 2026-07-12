@@ -1,10 +1,9 @@
 __all__ = [
-    "PolicyInputs",
+    "OptimizerInputs",
     "InputPlan",
     "DroppedAsset",
     "PnL_OPTIONS",
     "ExpectedReturnSource",
-    "RiskSource",
 ]
 
 from qraft.construction.optimization.inputs import (  # noqa: F401
@@ -12,6 +11,5 @@ from qraft.construction.optimization.inputs import (  # noqa: F401
     ExpectedReturnSource,
     InputPlan,
     PnL_OPTIONS,
-    PolicyInputs,
-    RiskSource,
+    OptimizerInputs,
 )

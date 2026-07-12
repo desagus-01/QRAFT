@@ -4,7 +4,7 @@ import cvxpy as cp
 import numpy as np
 from numpy.typing import NDArray
 
-from qraft.construction.optimization.inputs import PolicyInputs, psd_sqrt_factor
+from qraft.construction.optimization.inputs import OptimizerInputs, psd_sqrt_factor
 from qraft.construction.optimization.objectives.protocol import register_objective
 from qraft.construction.optimization.objectives.specs import (
     CashReturn,
@@ -56,9 +56,9 @@ class ExpectedReturnHandler:
     ) -> None:
         """
         Expected ``inputs`` keys:
-          ``"moments"``  – a ``PolicyInputs`` instance.
+          ``"optimizer_inputs"``  – a ``OptimizerInputs`` instance.
         """
-        params["mean"].value = inputs["moments"].require_mean()
+        params["mean"].value = inputs["optimizer_inputs"].require_mean()
 
 
 @register_objective(CashReturn)
@@ -96,15 +96,17 @@ class CashReturnHandler:
         self, spec: CashReturn, params: dict[str, Any], inputs: dict[str, Any]
     ) -> None:
         """
-        Populate the cash return parameter from ``inputs["moments"].cash_return``.
+        Populate the cash return parameter from ``inputs["optimizer_inputs"].cash_return``.
 
         Expected ``inputs`` keys:
-          ``"moments"`` – a :class:`PolicyInputs` instance whose
+          ``"optimizer_inputs"`` – a :class:`OptimizerInputs` instance whose
           ``cash_return`` field is a 1-D array of shape ``(1,)`` or
           ``(horizons,)``.
         """
-        moments = inputs["moments"]
-        cash_ret = np.asarray(moments.require_cash_return(), dtype=float).ravel()
+        optimizer_inputs = inputs["optimizer_inputs"]
+        cash_ret = np.asarray(
+            optimizer_inputs.require_cash_return(), dtype=float
+        ).ravel()
         horizons = params["cash_return"].shape[0]
 
         if cash_ret.size == 1:
@@ -112,7 +114,7 @@ class CashReturnHandler:
             cash_ret = np.full(horizons, cash_ret[0])
         elif cash_ret.size != horizons:
             raise ValueError(
-                f"PolicyInputs.cash_return has {cash_ret.size} value(s) but "
+                f"OptimizerInputs.cash_return has {cash_ret.size} value(s) but "
                 f"the optimizer was built with {horizons} horizon(s). "
                 "Provide either a scalar or a vector of length horizons."
             )
@@ -173,12 +175,12 @@ class CVaRCuttingPlaneHandler:
         params: dict[str, Any],
         inputs: dict[str, Any],
     ) -> None:
-        moments = inputs["moments"]
-        scenario_returns, scenario_probs = moments.require_scenarios()
+        optimizer_inputs = inputs["optimizer_inputs"]
+        scenario_returns, scenario_probs = optimizer_inputs.require_scenarios()
         probs = np.asarray(scenario_probs, dtype=float)
 
-        for h in range(moments.n_horizons):
-            n = moments.n_assets
+        for h in range(optimizer_inputs.n_horizons):
+            n = optimizer_inputs.n_assets
             R_h = np.asarray(scenario_returns[:, h, :], dtype=float)
 
             if R_h.shape != (params["n_scenarios"], n):
@@ -305,12 +307,12 @@ class CVaRCuttingPlaneHandler:
         spec: CVaRCuttingPlane,
         params: dict[str, Any],
         weights_val: NDArray[np.floating],
-        moments: PolicyInputs,
+        optimizer_inputs: OptimizerInputs,
     ) -> bool:
-        scenario_returns, probs = moments.require_scenarios()
+        scenario_returns, probs = optimizer_inputs.require_scenarios()
 
         converged = True
-        for h in range(moments.n_horizons):
+        for h in range(optimizer_inputs.n_horizons):
             h_converged = self._refine_horizon(
                 spec,
                 params,
@@ -379,10 +381,10 @@ class CVaRRiskHandler:
         params: dict[str, Any],
         inputs: dict[str, Any],
     ) -> None:
-        moments = inputs["moments"]
-        scenario_returns, scenario_probs = moments.require_scenarios()
+        optimizer_inputs = inputs["optimizer_inputs"]
+        scenario_returns, scenario_probs = optimizer_inputs.require_scenarios()
         params["probs"].value = np.asarray(scenario_probs, dtype=float)
-        for h in range(moments.n_horizons):
+        for h in range(optimizer_inputs.n_horizons):
             key = f"R_{h}"
             if key in params:
                 params[key].value = scenario_returns[:, h, :]
@@ -422,12 +424,14 @@ class CovarianceRiskHandler:
     ) -> None:
         """
         Expected ``inputs`` keys:
-          ``"moments"``  – a ``PolicyInputs`` instance.
+          ``"optimizer_inputs"``  – a ``OptimizerInputs`` instance.
         """
-        moments = inputs["moments"]
-        cov_factor = getattr(moments, "cov_factor", None)
-        covariances = None if cov_factor is not None else moments.require_covariances()
-        for h in range(moments.n_horizons):
+        optimizer_inputs = inputs["optimizer_inputs"]
+        cov_factor = getattr(optimizer_inputs, "cov_factor", None)
+        covariances = (
+            None if cov_factor is not None else optimizer_inputs.require_covariances()
+        )
+        for h in range(optimizer_inputs.n_horizons):
             key = f"cov_sqrt_{h}"
             if key not in params:
                 continue
@@ -514,21 +518,21 @@ class TransactionCostHandler:
     def update(
         self, spec: TransactionCost, params: dict[str, Any], inputs: dict[str, Any]
     ) -> None:
-        moments = inputs["moments"]
+        optimizer_inputs = inputs["optimizer_inputs"]
         sigma = None
         if spec.market_impact != 0.0:
             try:
-                covariances = moments.require_covariances()
+                covariances = optimizer_inputs.require_covariances()
             except ValueError as exc:
                 raise ValueError(
-                    "TransactionCost.market_impact requires PolicyInputs.covariances. "
-                    "Use input_config risk='both'/'covariance', or set "
+                    "TransactionCost.market_impact requires OptimizerInputs.covariances. "
+                    "Use a policy whose required_inputs() include covariances, or set "
                     "transaction_cost=TransactionCost(..., market_impact=0.0)."
                 ) from exc
             sigma = np.sqrt(np.maximum(np.diag(covariances[0]), 0.0))
         linear, impact, bias = transaction_cost_coeffs(
             spec,
-            n_assets=moments.n_assets,
+            n_assets=optimizer_inputs.n_assets,
             prices=inputs.get("prices"),
             sigma=sigma,
             volume=inputs.get("volume"),

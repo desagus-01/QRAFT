@@ -7,7 +7,7 @@ from qraft import (
     Allocation,
     AssetUniverse,
     Forecaster,
-    HistoryWeighting,
+    Prior,
     InputPlan,
     LogConfig,
     MarketData,
@@ -60,7 +60,7 @@ market = MarketData.from_prices(
     prices,
     universe,
     cash=cash,
-    history_weighting=HistoryWeighting("state_smooth", half_life=60),
+    prior=Prior.time_conditioned(half_life=60),
 )
 
 
@@ -88,7 +88,7 @@ policy = MPOPolicy.preset(
     min_history=252,
 )
 
-plan = InputPlan(expected_returns="forecast", risk="both", max_horizons=10)
+plan = InputPlan(expected_returns="forecast", max_horizons=10)
 
 # %%
 # Allocation.at() returns the policy result object.

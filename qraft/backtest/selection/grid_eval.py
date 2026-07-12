@@ -8,7 +8,7 @@ from typing import Any, TypeAlias
 from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.engine.loop import run_backtest
 from qraft.backtest.engine.schedule import DecisionPoint, decision_points
-from qraft.backtest.inputs import PolicyInputsProvider, PrecomputedInputsProvider
+from qraft.backtest.inputs import OptimizerInputsProvider, PrecomputedInputsProvider
 from qraft.backtest.inputs import precompute_inputs_for_points
 from qraft.backtest.result import PerformanceSummary
 from qraft.backtest.selection.candidate_eval import CandidateEvaluation
@@ -18,7 +18,7 @@ from qraft.backtest.selection.results import (
     CandidateResult,
     PolicyCandidate,
 )
-from qraft.construction.optimization.inputs import InputPlan, PolicyInputs
+from qraft.construction.optimization.inputs import InputPlan, OptimizerInputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
@@ -26,7 +26,7 @@ from qraft.forecast.forecaster import Forecaster, ForecastSpec
 from qraft.utils.log import debug_event, info_event, warning_event
 
 SelectionInputSource: TypeAlias = (
-    ForecastSpec | PolicyInputsProvider | dict[datetime, PolicyInputs]
+    ForecastSpec | OptimizerInputsProvider | dict[datetime, OptimizerInputs]
 )
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 def evaluate_candidates(
     candidates: Sequence[PolicyCandidate],
     market: MarketData,
-    inputs: PolicyInputsProvider,
+    inputs: OptimizerInputsProvider,
     *,
     schedule: RebalanceSchedule = RebalanceSchedule(),
     step_size: int = 1,
@@ -169,7 +169,7 @@ def evaluate_candidate_grid(
     info_event(
         logger,
         "validation.candidates_precomputed",
-        "Validation policy inputs precomputed",
+        "Validation optimizer inputs precomputed",
         candidates=len(candidates),
         decisions=len(table),
     )

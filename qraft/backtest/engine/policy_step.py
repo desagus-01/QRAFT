@@ -11,9 +11,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from qraft.backtest.engine.schedule import DecisionPoint
-from qraft.backtest.inputs import PolicyInputsProvider
+from qraft.backtest.inputs import OptimizerInputsProvider
 from qraft.backtest.result import BacktestWarning
-from qraft.construction.optimization.inputs import PolicyInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.optimization import OptimizationFailure
 from qraft.construction.policies import PolicyDecision, PolicyProtocol
 from qraft.construction.state import PortfolioState
@@ -29,7 +29,7 @@ class PolicyStepResult:
     sigma: NDArray[np.floating] | None
     decision_error: str | None
     warning: BacktestWarning | None
-    policy_inputs: PolicyInputs | None
+    optimizer_inputs: OptimizerInputs | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,19 +44,19 @@ class PendingDecision:
 
 def decide_or_hold(
     policy: PolicyProtocol,
-    inputs: PolicyInputsProvider | None,
+    inputs: OptimizerInputsProvider | None,
     state: PortfolioState,
     point: DecisionPoint,
     asset_order: list[str],
 ) -> PolicyStepResult:
     try:
-        policy_inputs = (
+        optimizer_inputs = (
             inputs.for_date(point.snapshot, point.index) if inputs is not None else None
         )
-        decision = policy.decide(state, policy_inputs)
+        decision = policy.decide(state, optimizer_inputs)
         status = getattr(decision.diagnostics, "status", "ok")
-        sigma = _aligned_sigma(policy_inputs, asset_order)
-        return PolicyStepResult(decision, status, sigma, None, None, policy_inputs)
+        sigma = _aligned_sigma(optimizer_inputs, asset_order)
+        return PolicyStepResult(decision, status, sigma, None, None, optimizer_inputs)
     except (OptimizationFailure, RuntimeError, ValueError, cp.error.SolverError) as exc:
         bar = point.decision_bar
         warning_event(
@@ -103,12 +103,12 @@ def make_warning(
 
 
 def _aligned_sigma(
-    policy_inputs: PolicyInputs | None,
+    optimizer_inputs: OptimizerInputs | None,
     asset_order: list[str],
 ) -> NDArray[np.floating] | None:
     """Forecast per-asset sigma aligned to ``asset_order`` for the impact term."""
-    if policy_inputs is None or policy_inputs.covariances is None:
+    if optimizer_inputs is None or optimizer_inputs.covariances is None:
         return None
-    diag = np.sqrt(np.maximum(np.diag(policy_inputs.covariances[0]), 0.0))
-    sig = dict(zip(policy_inputs.assets, diag))
+    diag = np.sqrt(np.maximum(np.diag(optimizer_inputs.covariances[0]), 0.0))
+    sig = dict(zip(optimizer_inputs.assets, diag))
     return np.array([sig.get(asset, 0.0) for asset in asset_order], dtype=float)

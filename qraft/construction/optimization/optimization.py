@@ -10,7 +10,7 @@ from cvxpy import Constraint, Expression
 from numpy.typing import NDArray
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
-from qraft.construction.optimization.inputs import PolicyInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.objectives import (
     handlers as _objective_handlers,  # noqa: F401
 )
@@ -358,10 +358,10 @@ class MultiPeriodOptimizer:
 
     def _update_parameters(
         self,
-        moments: PolicyInputs,
+        optimizer_inputs: OptimizerInputs,
         inputs: dict[str, Any] | None,
     ) -> None:
-        solver_inputs = {"moments": moments, **(inputs or {})}
+        solver_inputs = {"optimizer_inputs": optimizer_inputs, **(inputs or {})}
 
         for weighted_term, term_params in zip(self.objective.terms, self._term_params):
             get_objective_handler(weighted_term.spec).update(
@@ -372,7 +372,7 @@ class MultiPeriodOptimizer:
 
     def _build_result(
         self,
-        moments: PolicyInputs,
+        optimizer_inputs: OptimizerInputs,
         initial_weights: NDArray[np.floating],
         initial_cash: float,
         objective_value: float,
@@ -393,7 +393,7 @@ class MultiPeriodOptimizer:
             )
 
         return MPOResult(
-            assets=moments.assets,
+            assets=optimizer_inputs.assets,
             planned_weights=optimal_weights,
             planned_trades=optimal_trades,
             planned_cash=optimal_cash,
@@ -403,8 +403,8 @@ class MultiPeriodOptimizer:
             status=cast(SolverStatus, self.problem.status),
             objective_value=objective_value,
             solver_stats=self.problem.solver_stats,
-            dropped_assets=moments.dropped_assets,
-            asset_diagnostics=moments.asset_diagnostics,
+            dropped_assets=optimizer_inputs.dropped_assets,
+            asset_diagnostics=optimizer_inputs.asset_diagnostics,
         )
 
     def _failure_if_not_optimal(self, raise_on_failure: bool) -> MPOFailure | None:
@@ -452,7 +452,7 @@ class MultiPeriodOptimizer:
 
     def solve_auto(
         self,
-        moments: PolicyInputs,
+        optimizer_inputs: OptimizerInputs,
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
@@ -469,7 +469,7 @@ class MultiPeriodOptimizer:
         """
         if self.uses_cutting_plane:
             return self.solve_iterative(
-                moments=moments,
+                optimizer_inputs=optimizer_inputs,
                 current_weights=current_weights,
                 current_cash=current_cash,
                 inputs=inputs,
@@ -479,7 +479,7 @@ class MultiPeriodOptimizer:
             )
 
         return self.solve(
-            moments=moments,
+            optimizer_inputs=optimizer_inputs,
             current_weights=current_weights,
             current_cash=current_cash,
             inputs=inputs,
@@ -489,7 +489,7 @@ class MultiPeriodOptimizer:
 
     def solve(
         self,
-        moments: PolicyInputs,
+        optimizer_inputs: OptimizerInputs,
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
@@ -502,7 +502,7 @@ class MultiPeriodOptimizer:
             current_cash=current_cash,
         )
 
-        self._update_parameters(moments=moments, inputs=inputs)
+        self._update_parameters(optimizer_inputs=optimizer_inputs, inputs=inputs)
 
         solver_options.setdefault("solver", _DEFAULT_SOLVER)
         try:
@@ -527,7 +527,7 @@ class MultiPeriodOptimizer:
             )
 
         result = self._build_result(
-            moments=moments,
+            optimizer_inputs=optimizer_inputs,
             initial_weights=initial_weights,
             initial_cash=initial_cash,
             objective_value=float(objective_value),
@@ -546,7 +546,7 @@ class MultiPeriodOptimizer:
 
     def solve_iterative(
         self,
-        moments: PolicyInputs,
+        optimizer_inputs: OptimizerInputs,
         current_weights: NDArray[np.floating],
         current_cash: float | None = None,
         inputs: dict[str, Any] | None = None,
@@ -560,7 +560,7 @@ class MultiPeriodOptimizer:
             current_cash=current_cash,
         )
 
-        self._update_parameters(moments=moments, inputs=inputs)
+        self._update_parameters(optimizer_inputs=optimizer_inputs, inputs=inputs)
 
         solver_options.setdefault("solver", _DEFAULT_SOLVER)
 
@@ -611,7 +611,7 @@ class MultiPeriodOptimizer:
                     weighted_term.spec,
                     term_params,
                     optimal_weights,
-                    moments,
+                    optimizer_inputs,
                 ):
                     converged = False
 
@@ -648,7 +648,7 @@ class MultiPeriodOptimizer:
             )
 
         result = self._build_result(
-            moments=moments,
+            optimizer_inputs=optimizer_inputs,
             initial_weights=initial_weights,
             initial_cash=initial_cash,
             objective_value=float(objective_value),

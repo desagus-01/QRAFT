@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 
-from qraft.construction.optimization.inputs import PolicyInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.policies import PolicyDecision
 from qraft.construction.state import PortfolioState
 
@@ -16,7 +16,7 @@ class AllCashPolicy:
     def decide(
         self,
         state: PortfolioState,
-        policy_inputs: PolicyInputs | None = None,
+        optimizer_inputs: OptimizerInputs | None = None,
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
@@ -35,7 +35,7 @@ class NoTradePolicy:
     def decide(
         self,
         state: PortfolioState,
-        policy_inputs: PolicyInputs | None = None,
+        optimizer_inputs: OptimizerInputs | None = None,
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:

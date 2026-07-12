@@ -7,7 +7,7 @@ import pytest
 from qraft.core.market import (
     MarketData,
     MarketDataConfig,
-    HistoryWeighting,
+    Prior,
 )
 from qraft.core.panel import ScenarioPanel
 from qraft.core.scenarios.transforms import Views
@@ -115,35 +115,35 @@ def test_market_data_rejects_non_finite_cash_rates() -> None:
 
 
 # ---------------------------------------------------------------------------
-# HistoryWeighting
+# Prior
 # ---------------------------------------------------------------------------
 
 
-def test_weighting_default_scheme_is_uniform() -> None:
-    w = HistoryWeighting()
+def test_prior_default_scheme_is_uniform() -> None:
+    w = Prior.uniform()
     assert w.scheme == "uniform"
     assert w.half_life is None
 
 
-def test_weighting_state_smooth_requires_half_life() -> None:
+def test_prior_state_smooth_requires_half_life() -> None:
     with pytest.raises(ValueError, match="half_life"):
-        HistoryWeighting(scheme="state_smooth")
+        Prior(scheme="state_smooth")
 
 
-def test_weighting_state_smooth_accepted_with_half_life() -> None:
-    w = HistoryWeighting(scheme="state_smooth", half_life=60)
+def test_prior_time_conditioned_accepted_with_half_life() -> None:
+    w = Prior.time_conditioned(half_life=60)
     assert w.scheme == "state_smooth"
     assert w.half_life == 60
 
 
-def test_weighting_uniform_probs() -> None:
-    probs = HistoryWeighting().probs(5)
+def test_prior_uniform_probs() -> None:
+    probs = Prior.uniform().probs(5)
     assert len(probs) == 5
     np.testing.assert_allclose(probs, np.full(5, 0.2))
 
 
-def test_weighting_state_smooth_probs_sums_to_one() -> None:
-    probs = HistoryWeighting(scheme="state_smooth", half_life=60).probs(10)
+def test_prior_time_conditioned_probs_sums_to_one() -> None:
+    probs = Prior.time_conditioned(half_life=60).probs(10)
     assert len(probs) == 10
     np.testing.assert_allclose(probs.sum(), 1.0)
 

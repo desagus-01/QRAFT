@@ -15,8 +15,8 @@ from qraft.construction.inputs import build_policy_input_table
 from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.optimization.inputs import (
     InputPlan,
-    PolicyInputs,
-    RequiredPolicyInputs,
+    OptimizerInputs,
+    RequiredOptimizerInputs,
 )
 from qraft.core.panel import ScenarioPanel
 from qraft.core.schedule import RebalanceSchedule
@@ -43,7 +43,7 @@ class _Counting:
 
     def for_date(self, snapshot, step):
         self.calls.append(snapshot.t)
-        return PolicyInputs.from_arrays(
+        return OptimizerInputs.from_arrays(
             assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
         )
 
@@ -60,7 +60,7 @@ def test_datecache_builds_once_and_returns_identical_objects():
 
 def test_precomputed_provider_serves_table():
     t = datetime(2024, 1, 2)
-    inp = PolicyInputs.from_arrays(
+    inp = OptimizerInputs.from_arrays(
         assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
     )
     prov = PrecomputedInputsProvider({t: inp})
@@ -68,7 +68,7 @@ def test_precomputed_provider_serves_table():
 
 
 def test_astype_downcasts_only_heavy_arrays():
-    inp = PolicyInputs.from_arrays(
+    inp = OptimizerInputs.from_arrays(
         assets=["A", "B"],
         mean=np.ones((1, 2)),
         covariances=np.eye(2)[None],
@@ -91,7 +91,7 @@ def test_precompute_inputs_uses_snapshot_cash_rate(monkeypatch):
         target = next(snapshot for snapshot in snapshots if snapshot.t.day == 2)
         captured["cash_return"] = target.cash_rate
         return {
-            snapshot.t: PolicyInputs.from_arrays(
+            snapshot.t: OptimizerInputs.from_arrays(
                 assets=["A"], mean=np.ones((1, 1)), cash_return=snapshot.cash_rate
             )
             for snapshot in snapshots
@@ -143,19 +143,19 @@ def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
 
     def fake_from_policy_sources(**kwargs):
         captured.update(kwargs)
-        return PolicyInputs.from_arrays(
+        return OptimizerInputs.from_arrays(
             assets=["A"], mean=np.ones((1, 1)), cash_return=kwargs["cash_return"]
         )
 
     monkeypatch.setattr(
-        "qraft.construction.inputs.PolicyInputs.from_policy_sources",
+        "qraft.construction.inputs.OptimizerInputs.from_policy_sources",
         fake_from_policy_sources,
     )
 
     table = build_policy_input_table(
         [snapshot],
         [forecast],
-        plan=InputPlan(risk="both"),
+        plan=InputPlan(),
     )
 
     assert table.keys() == {snapshot.t}
@@ -175,13 +175,13 @@ def test_policy_input_table_builds_historical_mean_when_policy_requires_mean():
     )
 
     class MeanPolicy:
-        def required_inputs(self) -> RequiredPolicyInputs:
-            return RequiredPolicyInputs(mean=True)
+        def required_inputs(self) -> RequiredOptimizerInputs:
+            return RequiredOptimizerInputs(mean=True)
 
     table = build_policy_input_table(
         [snapshot],
         [forecast],
-        plan=InputPlan(expected_returns="historical", risk="covariance"),
+        plan=InputPlan(expected_returns="historical"),
         policy=MeanPolicy(),
     )
 
@@ -202,7 +202,7 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
         snapshots = list(snapshots)
         captured["build"] = (snapshots, source_arg, kwargs)
         return {
-            snapshot.t: PolicyInputs.from_arrays(
+            snapshot.t: OptimizerInputs.from_arrays(
                 assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
             )
             for snapshot in snapshots
@@ -239,7 +239,7 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
     def fake_precompute(*args, **kwargs):
         captured["recipe_history"] = kwargs["forecasts"]
         return {
-            dates[1]: PolicyInputs.from_arrays(
+            dates[1]: OptimizerInputs.from_arrays(
                 assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
             )
         }
@@ -280,4 +280,4 @@ class _DummyPolicy:
         raise NotImplementedError
 
     def required_inputs(self):
-        return RequiredPolicyInputs(mean=True)
+        return RequiredOptimizerInputs(mean=True)
