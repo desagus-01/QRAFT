@@ -7,6 +7,7 @@ from qraft.construction.optimization.objectives.specs import (
     CovarianceRisk,
     CVaRCuttingPlane,
     CVaRRisk,
+    ExpectedReturn,
     HoldingCost,
     ObjectiveSpec,
     TransactionCost,
@@ -89,7 +90,9 @@ class MPOProblem:
     def required_inputs(self) -> RequiredPolicyInputs:
         required = RequiredPolicyInputs()
         for term in self.objective.terms:
-            if isinstance(term.spec, CovarianceRisk):
+            if isinstance(term.spec, ExpectedReturn):
+                required = required.merge(RequiredPolicyInputs(mean=True))
+            elif isinstance(term.spec, CovarianceRisk):
                 required = required.merge(RequiredPolicyInputs(covariances=True))
             elif isinstance(term.spec, (CVaRRisk, CVaRCuttingPlane)):
                 required = required.merge(RequiredPolicyInputs(scenarios=True))

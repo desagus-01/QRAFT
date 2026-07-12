@@ -25,3 +25,4 @@ class BacktestPeriod:
     dropped_assets: tuple[str, ...] = ()
     asset_diagnostics: tuple[Any, ...] = ()
     invariance_drops: tuple[Any, ...] = ()
+    view_diagnostics: Any = None

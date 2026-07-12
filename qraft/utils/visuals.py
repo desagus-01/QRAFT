@@ -14,6 +14,22 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from qraft.forecast.plotting import plot_simulation_results_on_ax
 
 
+def as_mpl_dates(dates: Any) -> list[float]:
+    """Convert datetime-like values to Matplotlib's numeric date representation."""
+    return mdates.date2num(list(dates))
+
+
+def format_date_axis(ax: Any, *, rotate: int = 0) -> None:
+    """Apply the project-standard date locator and formatter to an axis."""
+    locator = mdates.AutoDateLocator(minticks=3, maxticks=8)
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+    if rotate:
+        for label in ax.get_xticklabels():
+            label.set_rotation(rotate)
+            label.set_horizontalalignment("right")
+
+
 def _unique_dates_np(dates: pl.DataFrame) -> np.ndarray:
     return dates.select(pl.col("date")).unique(maintain_order=True).to_numpy().ravel()
 

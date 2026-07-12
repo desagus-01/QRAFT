@@ -99,6 +99,18 @@ def test_backtest_facade_accepts_precomputed_source():
     np.testing.assert_allclose(facade.nav, manual.nav)
 
 
+def test_backtest_facade_empty_precompute_table_means_no_inputs(monkeypatch):
+    market = _market()
+    policy = EqualWeightPolicy(target_cash_weight=0.0)
+    config = BacktestConfig(schedule=RebalanceSchedule("every_bar"), initial_cash=100.0)
+
+    monkeypatch.setattr("qraft.backtest.backtest.precompute_inputs", lambda *a, **k: {})
+
+    result = Backtest(market, policy, source=[], config=config).run()
+
+    assert result.periods
+
+
 def test_validation_runs_explicit_reports(monkeypatch):
     market = _market()
     policy = EqualWeightPolicy(target_cash_weight=0.0)

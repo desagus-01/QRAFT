@@ -3,10 +3,10 @@ from datetime import datetime
 from collections.abc import Sequence
 from typing import Any
 
-import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
+import polars as pl
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
@@ -14,6 +14,7 @@ from qraft.backtest.result.period import BacktestPeriod
 from qraft.backtest.result.summary import PerformanceSummary
 from qraft.core.metrics import drawdown_curve, returns_from_nav
 from qraft.core.weights import target_weights_full
+from qraft.utils.visuals import as_mpl_dates, format_date_axis
 
 BacktestWarning = dict[str, Any]
 
@@ -85,6 +86,40 @@ class BacktestResult:
 
     def plot_weights(self, **kwargs):
         return plot_weights(self, **kwargs)
+
+    def view_activity(self) -> pl.DataFrame:
+        rows = []
+        for period in self.periods:
+            diag = period.view_diagnostics
+            if diag is None:
+                rows.append(
+                    {
+                        "decision_bar": period.decision_bar,
+                        "views_active": False,
+                        "ens_prior": None,
+                        "ens_posterior": None,
+                        "ens_ratio": None,
+                        "ens_collapsed": None,
+                        "n_binding_constraints": 0,
+                    }
+                )
+                continue
+            ens_prior = float(diag.ens_prior)
+            ens_posterior = float(diag.ens_posterior)
+            rows.append(
+                {
+                    "decision_bar": period.decision_bar,
+                    "views_active": True,
+                    "ens_prior": ens_prior,
+                    "ens_posterior": ens_posterior,
+                    "ens_ratio": ens_posterior / ens_prior,
+                    "ens_collapsed": bool(diag.ens_collapsed),
+                    "n_binding_constraints": sum(
+                        1 for constraint in diag.constraints if constraint.get("active")
+                    ),
+                }
+            )
+        return pl.DataFrame(rows)
 
     @property
     def dropped_assets(self) -> tuple[str, ...]:
@@ -177,7 +212,7 @@ class BacktestResult:
 
 
 def _to_dates(dates: Sequence) -> list[float]:
-    return mdates.date2num(list(dates))
+    return as_mpl_dates(dates)
 
 
 def summary_stats(
@@ -217,7 +252,7 @@ def plot_nav(
         dates = _to_dates(r.nav_dates)
         ax.plot(dates, np.asarray(r.nav, dtype=float), label=lbl, linewidth=1.5)
 
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.yaxis.set_major_formatter(mtick.StrMethodFormatter("{x:,.2f}"))
     ax.set_ylabel("NAV")
     ax.set_title(title)
@@ -275,7 +310,7 @@ def plot_drawdown(
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax.set_ylabel("Drawdown")
     ax.set_title(title or f"Drawdown — {result.policy_name}")
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     return fig
@@ -316,7 +351,7 @@ def plot_weights(
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax.set_ylabel("Allocation")
     ax.set_title(title or f"Portfolio Weights Over Time — {result.policy_name}")
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.legend(loc="upper left", frameon=True, fancybox=False, fontsize=8, ncol=2)
     ax.set_ylim(0.0, 1.0)
     ax.grid(True, alpha=0.3)
@@ -456,7 +491,7 @@ def plot_rolling_metrics(
     ax.axhline(1.0, color="gray", linewidth=0.5, linestyle="--")
     ax.set_ylabel(f"{window}-day Sharpe")
     ax.set_xlabel("Date")
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.grid(True, alpha=0.3)
 
     fig.tight_layout()
@@ -504,7 +539,7 @@ def plot_turnover_and_costs(
 
     ax1.set_xlabel("Date")
     ax1.set_title(title or f"Turnover & Costs — {result.policy_name}")
-    ax1.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax1)
     ax1.grid(True, alpha=0.3)
 
     lines1, labels1 = ax1.get_legend_handles_labels()
@@ -543,7 +578,7 @@ def plot_comparison(
         ax.plot(dates, np.asarray(r.nav, dtype=float), label=lbl, linewidth=1.2)
     ax.set_title("NAV")
     ax.set_ylabel("NAV")
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.legend(fontsize=7, frameon=True, fancybox=False)
     ax.grid(True, alpha=0.3)
 
@@ -556,7 +591,7 @@ def plot_comparison(
     ax.set_title("Drawdown")
     ax.set_ylabel("Drawdown")
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.legend(fontsize=7, frameon=True, fancybox=False)
     ax.grid(True, alpha=0.3)
 
@@ -595,7 +630,7 @@ def plot_comparison(
         ax.plot(_to_dates(r.period_execution_bars), c, label=lbl, linewidth=1.2)
     ax.set_title("Trading Costs Over Time")
     ax.set_ylabel("Costs (NAV units)")
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.legend(fontsize=7, frameon=True, fancybox=False)
     ax.grid(True, alpha=0.3)
 
@@ -651,7 +686,7 @@ def plot_backtest_dashboard(
     ax.plot(dates_nav, nav, linewidth=1.5, color="steelblue")
     ax.set_title("NAV")
     ax.set_ylabel("NAV")
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.grid(True, alpha=0.3)
 
     ax = axes[0, 1]
@@ -659,7 +694,7 @@ def plot_backtest_dashboard(
     ax.plot(dates_nav, dd, color="crimson", linewidth=1.0)
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax.set_title("Drawdown")
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.grid(True, alpha=0.3)
 
     ax = axes[0, 2]
@@ -681,7 +716,7 @@ def plot_backtest_dashboard(
     ax.set_ylabel("Turnover")
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax_twin.set_ylabel("Costs")
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     lines1, labels1 = ax.get_legend_handles_labels()
     lines2, labels2 = ax_twin.get_legend_handles_labels()
     ax.legend(lines1 + lines2, labels1 + labels2, fontsize=7, loc="upper left")
@@ -745,7 +780,7 @@ def plot_backtest_dashboard(
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax.set_title("Allocation Over Time")
     ax.set_ylim(0.0, 1.0)
-    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator()))
+    format_date_axis(ax)
     ax.legend(loc="upper left", fontsize=6, frameon=True, ncol=2)
 
     fig.suptitle(

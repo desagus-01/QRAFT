@@ -15,6 +15,7 @@ from qraft.construction.policies.policies import PolicyProtocol
 from qraft.construction.policies.policy_decision import PolicyDecision
 from qraft.construction.policies.policy_projection import PolicyProjection
 from qraft.construction.state import PortfolioState
+from qraft.core.scenarios.view_types import ViewDiagnostics
 from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.risk.feature_selection import Criterion
 from qraft.risk.risk_report import PortfolioRisk
@@ -38,6 +39,10 @@ class PolicyRun:
                 self.decision.target_weights_risk.tolist(),
             )
         )
+
+    @property
+    def view_diagnostics(self) -> ViewDiagnostics | None:
+        return getattr(self.policy_inputs, "view_diagnostics", None)
 
     def _mpo_result(self) -> MPOResult:
         diagnostics = self.decision.diagnostics
@@ -84,6 +89,7 @@ class PolicyRun:
         auto_select_factors: bool = False,
         criterion: Criterion | None = None,
     ) -> PortfolioRisk:
+        """Compute risk from this run's existing projection and forecasts."""
         if self.projection is None or self.forecasts is None:
             raise ValueError("PolicyRun.risk requires both projection and forecasts")
         return self.projection.risk(

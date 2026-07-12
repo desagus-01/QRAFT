@@ -52,7 +52,7 @@ cols_to_keep = [
 ]
 prices = prices.select(cols_to_keep)
 
-assets = list(prices.columns[10:20])
+assets = list(prices.columns[10:90])
 universe = AssetUniverse(assets=assets, factors=list(factor_cols)[:4])
 prices = prices.select("date", *universe.all_tickers)
 
@@ -165,8 +165,9 @@ tuned.selected_params
 # %%
 live = Allocation(market, policy, source=forecaster, plan=plan)
 run = live.at()
-risk = live.risk()
+risk = run.risk()
 
 run.projection.plot()
 # %%
 risk.effective_bets().plot()
+# %%

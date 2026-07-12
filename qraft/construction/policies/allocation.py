@@ -56,6 +56,11 @@ class Allocation:
         )
 
     def risk(self, as_of: datetime | None = None, **kw: Any) -> PortfolioRisk:
+        """Return risk for a fresh allocation run at ``as_of``.
+
+        If you also need the allocation decision, prefer ``run = at(as_of)`` followed
+        by ``run.risk(**kw)`` so the forecast built for the run is reused.
+        """
         return self.at(as_of).risk(**kw)
 
     def _forecast_for(self, snapshot: MarketSnapshot) -> ForecastPaths:
@@ -79,4 +84,5 @@ class Allocation:
             [forecasts],
             plan=self.plan,
             policy=self.policy,
+            market=self.market,
         )

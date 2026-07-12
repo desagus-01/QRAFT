@@ -213,3 +213,29 @@ def test_allocation_returns_run_with_same_forecasts(monkeypatch) -> None:
     assert captured["source"] == [forecasts]
     assert captured["snapshot"].t == datetime(2024, 1, 2)
     assert captured["snapshot"].t_next == datetime(2024, 1, 2)
+
+
+def test_policy_run_risk_reuses_existing_forecasts(monkeypatch) -> None:
+    forecasts = _forecasts()
+    run = run_policy(
+        EqualWeightPolicy(target_cash_weight=0.2),
+        _state(),
+        forecasts,
+    )
+    captured = {}
+
+    def fake_risk(self, forecasts_arg, **kwargs):
+        captured["forecasts"] = forecasts_arg
+        captured["kwargs"] = kwargs
+        return "risk"
+
+    monkeypatch.setattr(
+        "qraft.construction.policies.policy_projection.PolicyProjection.risk",
+        fake_risk,
+    )
+
+    risk = run.risk(auto_select_factors=True, criterion="bic")
+
+    assert risk == "risk"
+    assert captured["forecasts"] is forecasts
+    assert captured["kwargs"] == {"auto_select_factors": True, "criterion": "bic"}

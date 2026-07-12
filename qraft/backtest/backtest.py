@@ -45,7 +45,8 @@ class Backtest:
                 policy=self.policy,
                 step_size=self.step_size,
             )
-            inputs = PrecomputedInputsProvider(table)
+            if table or isinstance(self.source, dict):
+                inputs = PrecomputedInputsProvider(table)
 
         return run_backtest(
             self.market,

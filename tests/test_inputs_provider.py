@@ -164,6 +164,31 @@ def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
     assert captured["cash_return"] == 0.002
 
 
+def test_policy_input_table_builds_historical_mean_when_policy_requires_mean():
+    snapshot = _snap(datetime(2024, 1, 2), cash_rate=0.002)
+    forecast = ForecastPaths(
+        asset_paths={"A": np.array([[10.5], [11.0]])},
+        dates=pl.Series("date", [datetime(2024, 1, 3)]),
+        path_probs=np.array([0.5, 0.5]),
+        initial_prices={"A": 10.0},
+        universe=AssetUniverse.factors_free(["A"]),
+    )
+
+    class MeanPolicy:
+        def required_inputs(self) -> RequiredPolicyInputs:
+            return RequiredPolicyInputs(mean=True)
+
+    table = build_policy_input_table(
+        [snapshot],
+        [forecast],
+        plan=InputPlan(expected_returns="historical", risk="covariance"),
+        policy=MeanPolicy(),
+    )
+
+    assert table.keys() == {snapshot.t}
+    assert table[snapshot.t].mean is not None
+
+
 def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch):
     dates = [datetime(2024, 1, day) for day in range(1, 5)]
     market = MarketData.from_prices(

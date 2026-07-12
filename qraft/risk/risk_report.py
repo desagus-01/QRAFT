@@ -119,10 +119,17 @@ class PortfolioRisk:
                 }
             )
 
+        idiosyncratic_contribution = cvar_contrib.contributions.get("idiosyncratic")
+        factor_explained_fraction = (
+            1.0 - idiosyncratic_contribution / total
+            if idiosyncratic_contribution is not None and total != 0.0
+            else None
+        )
+
         rows.append(
             {
                 "metric": "factor_explained_fraction",
-                "value": self.r2,
+                "value": factor_explained_fraction,
                 "contribution": None,
                 "pct_of_total": None,
             }

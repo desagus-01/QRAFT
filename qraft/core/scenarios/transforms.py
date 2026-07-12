@@ -81,29 +81,29 @@ class ViewedDistribution:
             gridspec_kw={"height_ratios": [1, 1, 0.9]},
         )
 
-        diff = self.posterior - self.prior
+        prior_cum = self.prior.cumsum()
+        posterior_cum = self.posterior.cumsum()
+        cum_diff = posterior_cum - prior_cum
 
         plots = (
-            (axes[0], self.posterior, "Posterior probability", "Probability"),
-            (axes[1], self.prior, "Prior probability", "Probability"),
-            (axes[2], diff, "Posterior − prior", "Difference"),
+            (
+                axes[0],
+                prior_cum,
+                "Prior cumulative probability",
+                "Probability",
+            ),
+            (
+                axes[1],
+                posterior_cum,
+                "Posterior cumulative probability",
+                "Probability",
+            ),
+            (axes[2], cum_diff, "Cumulative posterior − prior", "Difference"),
         )
 
         for ax, values, title, ylabel in plots:
-            ax.plot(
-                dates,
-                values,
-                linewidth=1.8,
-                alpha=0.9,
-            )
-
-            ax.scatter(
-                dates,
-                values,
-                s=10,
-                alpha=0.35,
-                linewidths=0,
-            )
+            ax.plot(dates, values, linewidth=1.8, alpha=0.9)
+            ax.scatter(dates, values, s=10, alpha=0.35, linewidths=0)
 
             ax.set_title(title, loc="left", fontsize=11, fontweight="bold")
             ax.set_ylabel(ylabel)
@@ -111,11 +111,9 @@ class ViewedDistribution:
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
 
-        # Format first two panels as percentages
+        # Format cumulative probabilities as percent; differences as basis points.
         axes[0].yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
         axes[1].yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
-
-        # Format difference panel in basis points
         axes[2].yaxis.set_major_formatter(
             FuncFormatter(lambda x, _: f"{x * 10_000:.1f} bp")
         )

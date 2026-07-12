@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+import cvxpy as cp
 import numpy as np
 from numpy.typing import NDArray
 
@@ -38,6 +39,7 @@ class PendingDecision:
     solver_status: str
     decision_error: str | None
     sigma: NDArray[np.floating] | None
+    view_diagnostics: Any = None
 
 
 def decide_or_hold(
@@ -55,7 +57,7 @@ def decide_or_hold(
         status = getattr(decision.diagnostics, "status", "ok")
         sigma = _aligned_sigma(policy_inputs, asset_order)
         return PolicyStepResult(decision, status, sigma, None, None, policy_inputs)
-    except (OptimizationFailure, RuntimeError, ValueError) as exc:
+    except (OptimizationFailure, RuntimeError, ValueError, cp.error.SolverError) as exc:
         bar = point.decision_bar
         warning_event(
             logger,

@@ -4,7 +4,6 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 
-import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
@@ -27,6 +26,7 @@ from qraft.utils.helpers import (
     selection_concentration,
     truncate_label,
 )
+from qraft.utils.visuals import as_mpl_dates, format_date_axis
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,7 +306,7 @@ def _walk_forward_selected_params(report: WalkForwardReport) -> PolicyParams | N
 
 def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     fig, axes = plt.subplots(4, 2, figsize=(14, 13))
-    dates = list(report.oos_nav_dates)
+    dates = as_mpl_dates(report.oos_nav_dates)
     nav = np.asarray(report.oos_nav, dtype=float)
 
     ax = axes[0, 0]
@@ -314,8 +314,8 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
         ax.plot(dates, nav, color="steelblue", linewidth=1.6)
         for fold_result in report.folds:
             ax.axvspan(
-                fold_result.fold.test[0],
-                fold_result.fold.test[1],
+                as_mpl_dates([fold_result.fold.test[0]])[0],
+                as_mpl_dates([fold_result.fold.test[1]])[0],
                 color="steelblue",
                 alpha=0.06,
             )
@@ -412,9 +412,7 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     )
 
     for ax in axes.flat[:2]:
-        ax.xaxis.set_major_formatter(
-            mdates.ConciseDateFormatter(mdates.AutoDateLocator())
-        )
+        format_date_axis(ax)
 
     title = "Walk-Forward OOS Report"
     if report.oos_summary is not None:

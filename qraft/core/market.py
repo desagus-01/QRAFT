@@ -164,6 +164,30 @@ class MarketData:
             expand_posterior_to_parent(viewed_panel.prob, panel.prob, 1)
         )
 
+    def returns_through(self, t: DateLike) -> ScenarioPanel:
+        """Causal simple-return window: rows with date <= t, weights from the window only."""
+        return self._simple_return_history_through(self._as_datetime(t))
+
+    def view_report(self, t: DateLike) -> ViewedDistribution | None:
+        """Return entropy-pooling view diagnostics for the active view, if any.
+
+        Apply-only views do not produce entropy-pooling diagnostics, so they return
+        ``None`` even when active.
+        """
+        as_of = self._as_datetime(t)
+        event = self.views.latest_event_at(as_of)
+        if event is None or not hasattr(event.views, "view_distribution"):
+            return None
+        returns = self._simple_return_history_through(as_of)
+        self._log_views_applied(
+            target="view_report",
+            requested_bar=as_of,
+            view_as_of=event.as_of,
+            views=event.views,
+            panel=returns,
+        )
+        return event.views.view_distribution(returns, as_of=as_of)
+
     @overload
     def viewed_returns(
         self, views: None = None, t: None = None

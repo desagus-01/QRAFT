@@ -88,7 +88,8 @@ def build_policy_input_table(
     if policy is not None:
         required = policy.required_inputs()
         if (
-            not required.covariances
+            not required.mean
+            and not required.covariances
             and not required.scenarios
             and plan.expected_returns != "forecast"
         ):
@@ -131,6 +132,10 @@ def build_policy_input_table(
                 AssetDiagnostics(asset=asset, values=cast(Mapping[str, Any], values))
                 for asset, values in diagnostics.items()
             )
+        view_diag = None
+        if market is not None and market.views.events:
+            report = market.view_report(snapshot.t)
+            view_diag = report.diagnostics if report is not None else None
         inputs = PolicyInputs.from_policy_sources(
             forecasts=forecast,
             expected_returns=plan.expected_returns,
@@ -144,6 +149,7 @@ def build_policy_input_table(
             cash_return=snapshot.cash_rate,
             asset_diagnostics=asset_diagnostics,
             invariance_drops=invariance_drops,
+            view_diagnostics=view_diag,
         )
         if dtype != np.float64:
             inputs = inputs.astype(dtype)

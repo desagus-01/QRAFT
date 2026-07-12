@@ -119,6 +119,9 @@ def run_backtest(
                 solver_status=policy_step.solver_status,
                 decision_error=policy_step.decision_error,
                 sigma=policy_step.sigma,
+                view_diagnostics=getattr(
+                    policy_step.policy_inputs, "view_diagnostics", None
+                ),
             )
 
         nav_dates.append(bar)
@@ -253,5 +256,6 @@ def _fill_decision(
             decision_error=pending.decision_error,
             dropped_assets=dropped_assets,
             asset_diagnostics=asset_diagnostics,
+            view_diagnostics=pending.view_diagnostics,
         ),
     )

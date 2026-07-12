@@ -13,6 +13,7 @@ from qraft.core.estimation import (
 )
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.prob_vector import ProbVector, validate_prob_vector
+from qraft.core.scenarios.view_types import ViewDiagnostics
 from qraft.forecast.forecast_paths import AssetSubset, ForecastPaths
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ class AssetDiagnostics:
 
 @dataclass(frozen=True, slots=True)
 class RequiredPolicyInputs:
+    mean: bool = False
     covariances: bool = False
     scenarios: bool = False
 
@@ -52,6 +54,7 @@ class RequiredPolicyInputs:
 
     def merge(self, other: "RequiredPolicyInputs") -> "RequiredPolicyInputs":
         return RequiredPolicyInputs(
+            mean=self.mean or other.mean,
             covariances=self.covariances or other.covariances,
             scenarios=self.scenarios or other.scenarios,
         )
@@ -177,6 +180,7 @@ class PolicyInputs:
     dropped_assets: tuple[DroppedAsset, ...] = ()
     asset_diagnostics: tuple[AssetDiagnostics, ...] = ()
     invariance_drops: tuple[object, ...] = ()
+    view_diagnostics: ViewDiagnostics | None = None
 
     def __post_init__(self) -> None:
         if not self.assets:
@@ -613,6 +617,7 @@ class PolicyInputs:
         mean_decay: float = 1.0,
         asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
         invariance_drops: tuple[object, ...] = (),
+        view_diagnostics: ViewDiagnostics | None = None,
     ) -> "PolicyInputs":
         """
         Build policy inputs from two simple choices: expected returns and risk.
@@ -724,6 +729,7 @@ class PolicyInputs:
             dropped_assets=dropped_assets,
             asset_diagnostics=asset_diagnostics,
             invariance_drops=invariance_drops,
+            view_diagnostics=view_diagnostics,
         )
 
     @classmethod
@@ -741,6 +747,7 @@ class PolicyInputs:
         dropped_assets: tuple[DroppedAsset, ...] = (),
         asset_diagnostics: tuple[AssetDiagnostics, ...] = (),
         invariance_drops: tuple[object, ...] = (),
+        view_diagnostics: ViewDiagnostics | None = None,
     ) -> "PolicyInputs":
         cash_array = (
             None if cash_return is None else np.asarray(cash_return, dtype=float)
@@ -761,6 +768,7 @@ class PolicyInputs:
             dropped_assets=dropped_assets,
             asset_diagnostics=asset_diagnostics,
             invariance_drops=invariance_drops,
+            view_diagnostics=view_diagnostics,
         )
 
 
