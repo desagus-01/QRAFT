@@ -28,13 +28,21 @@ Probably the biggest differentation between this project and other portfolio con
 
 [**Add example here**]
 
-### Probabilistic Forecasting
+Users are also able to add view events for specific date windows. For example, if users have different views for general risk on/off regimes, they can specify those views for a date window which will then feed into a backtest/validation module. Please see [**CREATE EXAMPLE AND WRITE HERE**] for how this could be done.
 
-QRAFT provides a full probabilistic forecasting pipeline for financial time series. Raw price data is preprocessed per-asset (stationarity checks, detrending, deseasoning), a mean and volatility model is selected automatically, and innovations are extracted and used to drive a Monte Carlo simulation. The output is never a single forecast, it is always a set of probability-weighted simulated price paths across all assets and horizons, preserving the full uncertainty in the distribution.
 
-Beyond pure extrapolation, QRAFT supports three simulation methods for forecasting: **bootstrap**, **historical pass-through**, and **Copula-Marginal Adjustment (CMA)**, allowing the user to control the shape of the joint return distribution, stress tail dependence, or impose fat-tailed marginals on specific assets.
+### Forecasting
 
-### Policy Creation
+QRAFT uses a derivative of filtered historical simulation (FHS) for forecasting assets' future paths. Instead of the standard FHS, we instead, broadly follow Meucci's 'The Prayer' [**INSERT CITATION HERE**] tto derive this. This starts by finding a suitable **univariate** model that makes the asset's innovation strongly IID. The forecast stack in QRAFT follows a general Box-Jenkins methodology (ie remove determinism -> model mean -> model vol) with checks in between to determine the necessity of each. Once the forecast stack determines a suitable model for each asset, a `ForecastRecipe` is created for a specific date, users can determine how often they wish to re-run the forecast stack to create new recipes through history.
+
+[**CREATE EXAMPLE HERE**]
+
+Following the univariate structural models from `ForecastRecipes`, we are able to run a **forecast simulation** of assets' returns taking into account their cross-asset depedencies from their joint distribution of IID residuals. The simulation is done by **bootstraping** our innovations using the scenario probability (which can reflect our current views of the market).  Users can also opt to use the **Copula-Marginal Algorithm** [**PUT CITATION FOR MEUCCIS WORK**] for bootstrapping instead of just using the non-parametric method, this allows users to specify either/or the marginal of assets and/or the copula.
+
+
+[**ADD IMAGE EXAMPLE HERE**]
+
+### Policies
 
 Because every scenario object carries an explicit probability vector, the full simulation output is always available for downstream risk and allocation steps nothing is collapsed to a point estimate prematurely. This also makes it straightforward to encode  **views** directly onto the scenario distribution using **Entropy Pooling**. Rather than discarding scenarios, their probabilities are updated to be consistent with the view (e.g. "AAPL mean return will be below historical average") by solving a minimum KL-divergence problem. Views can be placed on means, volatilities, correlations, or arbitrary moments.
 
