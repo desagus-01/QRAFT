@@ -188,6 +188,11 @@ def forecast_run_for_source(
         min_history = min(
             snapshot.history.values.height for snapshot in market_snapshots
         )
+        if (
+            len(market_snapshots) == 1
+            and market_snapshots[0].t == market.trading_bars[-1]
+        ):
+            min_history = max(1, min_history - 1)
         recipe_history = forecasts.recipes(market, min_history=min_history)
         return forecasts.run_from_snapshots(forecast_snapshots, recipe_history)
 

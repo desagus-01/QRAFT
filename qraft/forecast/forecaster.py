@@ -77,7 +77,11 @@ class Forecaster:
         recipes: ForecastRecipeHistory | None = None,
     ) -> ForecastRun:
         snapshot_list = list(snapshots)
-        recipe_history = recipes or self.recipes_from_snapshots(snapshot_list)
+        recipe_history = (
+            recipes
+            if recipes is not None
+            else self.recipes_from_snapshots(snapshot_list)
+        )
         return simulate_forecast_paths_from_snapshots(
             snapshot_list,
             recipe_history,

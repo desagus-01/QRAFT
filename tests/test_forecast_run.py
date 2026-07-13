@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 import polars as pl
@@ -121,6 +122,28 @@ def test_forecast_run_applies_existing_recipe_history(monkeypatch):
     ]
     assert len(run.recipe_history.periods) == 1
     assert run.steps[0].as_of == datetime(2024, 1, 3)
+
+
+def test_forecast_run_logs_step_applications_at_debug(monkeypatch, caplog):
+    _patch_runner(monkeypatch)
+    history = build_forecast_recipe_history(
+        _market(AssetUniverse.factors_free(["A", "B"])),
+        min_history=3,
+        refit_every=12,
+    )
+
+    with caplog.at_level(logging.INFO, logger="qraft.forecast.run"):
+        simulate_forecast_paths(
+            _market(AssetUniverse.factors_free(["A", "B"])),
+            history,
+            min_history=3,
+            forecast_cadence="every_bar",
+        )
+
+    events = [record.qraft_event for record in caplog.records]
+    assert "forecast.recipe_applied" not in events
+    assert "forecast.run_started" in events
+    assert "forecast.completed" in events
 
 
 def test_forecaster_run_returns_forecast_run(monkeypatch):
@@ -375,6 +398,43 @@ def test_policy_input_precompute_refits_recipes_on_market_bars(monkeypatch):
 
     assert selected_steps == [2, 4]
     assert len(table) == 4
+
+
+def test_policy_input_single_final_bar_uses_prior_recipe(monkeypatch):
+    from qraft.construction.inputs import forecast_run_for_source
+    from qraft.forecast.forecaster import Forecaster
+
+    selected_steps: list[int] = []
+    applied: list[object] = []
+
+    def create_forecast_recipe(**kwargs):
+        recipe = object()
+        selected_steps.append(kwargs["data"].height)
+        return recipe
+
+    def apply_forecast_recipe(recipe, *args, **kwargs):
+        applied.append(recipe)
+        return object()
+
+    def forecast_from_fit(**kwargs):
+        return _forecast_paths()
+
+    monkeypatch.setattr(
+        "qraft.forecast.run.create_forecast_recipe", create_forecast_recipe
+    )
+    monkeypatch.setattr(
+        "qraft.forecast.run.apply_forecast_recipe", apply_forecast_recipe
+    )
+    monkeypatch.setattr("qraft.forecast.run.forecast_from_fit", forecast_from_fit)
+
+    market = _market()
+    snapshot = market.snapshot_at(market.trading_bars[-1], market.trading_bars[-1])
+
+    run = forecast_run_for_source([snapshot], Forecaster(refit_every=1), market=market)
+
+    assert selected_steps == [5]
+    assert len(applied) == 1
+    assert run.forecast_at(market.trading_bars[-1]) is not None
 
 
 def test_recipe_history_only_builds_snapshots_for_refit_bars(monkeypatch):

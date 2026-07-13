@@ -26,7 +26,7 @@ from qraft.forecast.pipelines.fitted_universe import (
     mark_frequent_variance_cap_binding,
 )
 from qraft.forecast.pipelines.forecasting import forecast_from_fit
-from qraft.utils.log import info_event
+from qraft.utils.log import debug_event, info_event
 
 logger = logging.getLogger(__name__)
 
@@ -412,7 +412,7 @@ def simulate_forecast_paths_from_snapshots(
                 invariance_drops=period.invariance_drops,
             )
         )
-        info_event(
+        debug_event(
             logger,
             "forecast.recipe_applied",
             "Forecast recipe applied",

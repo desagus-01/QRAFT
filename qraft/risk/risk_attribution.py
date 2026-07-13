@@ -395,6 +395,9 @@ def effective_bets(
             f"{len(factor_keys)} exposures."
         )
 
+    if not factor_keys:
+        return EffectiveBets(factor_contributions={}, effective_bets=0.0)
+
     min_torso_matrix = minimum_torsion_matrix(
         factor_joint_distribution,
         prob,

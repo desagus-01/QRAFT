@@ -27,6 +27,20 @@ def resolve_selection_periods_per_year(
             return candidate_result.backtest.periods_per_year
         if len(candidate_result.backtest.nav_dates) >= 2:
             return infer_periods_per_year(candidate_result.backtest.nav_dates)
+    failures = [
+        candidate_result.failure
+        for candidate_result in candidate_results
+        if candidate_result.failure is not None
+    ]
+    if failures and len(failures) == len(candidate_results):
+        reasons = "; ".join(
+            f"{failure.params}: {failure.reason}" if failure.params else failure.reason
+            for failure in failures
+        )
+        raise ValueError(
+            "No successful candidates; cannot infer periods_per_year. "
+            f"Candidate failures: {reasons}"
+        )
     raise ValueError(
         "periods_per_year is required when no successful candidate can infer it."
     )

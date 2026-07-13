@@ -173,8 +173,8 @@ def _charge(cash: float, amount: float, nav: float, label: str, bar: datetime) -
     if cash >= 0.0 or cash > -1e-9 * max(abs(nav), 1.0):
         return max(cash, 0.0)
     raise ValueError(
-        f"{label} at {bar} drove cash negative ({cash:.6g}); add a "
-        "MinCashWeight buffer or allow_borrow."
+        f"{label} at {bar} drove cash negative ({cash:.6g}); reduce costs, "
+        "turnover, or use a larger cash target."
     )
 
 
@@ -230,11 +230,19 @@ def _fill_decision(
     if pending is None or bar not in exec_to_decision:
         return shares, cash, None
     before = PortfolioState(asset_order, prices, shares, cash)
-    executed, shares, cash = execute_frictionless(
-        pending.decision, shares, cash, prices, asset_order
+    execution = execute_frictionless(
+        pending.decision,
+        shares,
+        cash,
+        prices,
+        asset_order,
+        costs,
+        sigma=pending.sigma,
     )
-    trade_cost = costs.trade_charge(executed, prices, nav_pre, sigma=pending.sigma)
-    cash = _charge(cash, trade_cost, nav_pre, "trade cost", bar)
+    executed = execution.executed_shares
+    shares = execution.shares
+    cash = execution.cash
+    trade_cost = execution.trade_cost
     diagnostics = getattr(pending.decision, "diagnostics", None)
     dropped_assets = tuple(
         getattr(drop, "asset", str(drop))

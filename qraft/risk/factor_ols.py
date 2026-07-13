@@ -76,9 +76,12 @@ def _build_factor_ols_equation(
     portfolio_cum_forecast: NDArray[np.floating],
     eq_type: EquationTypes = "c",
 ) -> OLSEquation:
-    independent_vars = np.column_stack(
-        [factors_cum_forecast[name] for name in factor_names]
-    )
+    if factor_names:
+        independent_vars = np.column_stack(
+            [factors_cum_forecast[name] for name in factor_names]
+        )
+    else:
+        independent_vars = np.empty((portfolio_cum_forecast.shape[0], 0))
     dependent_var = portfolio_cum_forecast.reshape(-1, 1)
     if eq_type != "nc":
         independent_vars = add_deterministics_to_eq(

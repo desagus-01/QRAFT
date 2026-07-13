@@ -5,10 +5,14 @@ import polars as pl
 import pytest
 from matplotlib.figure import Figure
 
+from qraft.backtest.costs import CostModel
 from qraft.backtest.execution import execute_frictionless
 from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.inputs import InputPlan
-from qraft.construction.optimization.objectives.specs import ExpectedReturn
+from qraft.construction.optimization.objectives.specs import (
+    ExpectedReturn,
+    TransactionCost,
+)
 from qraft.construction.optimization.problem import MPOProblemBuilder
 from qraft.construction.policies import (
     Allocation,
@@ -82,6 +86,26 @@ def test_execute_frictionless_rejects_non_positive_prices() -> None:
             prices=np.array([0.0]),
             asset_order=["A"],
         )
+
+
+def test_execute_frictionless_finances_trade_cost_inside_nav() -> None:
+    execution = execute_frictionless(
+        PolicyDecision(["A", "B"], np.array([0.5, 0.5]), 0.0),
+        shares=np.array([0.0, 0.0]),
+        cash=100.0,
+        prices=np.array([10.0, 20.0]),
+        asset_order=["A", "B"],
+        costs=CostModel(transaction=TransactionCost(cost=0.01)),
+    )
+
+    assert execution.cash >= 0.0
+    assert execution.trade_cost == pytest.approx(1.0)
+    assert execution.shares @ np.array([10.0, 20.0]) + execution.cash == pytest.approx(
+        99.0
+    )
+    np.testing.assert_allclose(
+        execution.executed_shares * np.array([10.0, 20.0]), [49.5, 49.5]
+    )
 
 
 def test_forecast_at_step_repeats_horizon_date() -> None:
@@ -239,3 +263,17 @@ def test_policy_run_risk_reuses_existing_forecasts(monkeypatch) -> None:
     assert risk == "risk"
     assert captured["forecasts"] is forecasts
     assert captured["kwargs"] == {"auto_select_factors": True, "criterion": "bic"}
+
+
+def test_policy_run_risk_supports_factors_free_universe() -> None:
+    run = run_policy(
+        EqualWeightPolicy(target_cash_weight=0.2),
+        _state(),
+        _forecasts(),
+    )
+
+    risk = run.risk()
+
+    assert risk.r2 >= 0.0
+    assert risk.risk_attribution.exposures == {"idiosyncratic": -1.0}
+    assert risk.effective_bets().effective_bets == 1.0

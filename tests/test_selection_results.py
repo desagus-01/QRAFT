@@ -1,3 +1,5 @@
+import pytest
+
 from qraft.backtest.selection import (
     CandidateFailure,
     CandidateResult,
@@ -5,6 +7,7 @@ from qraft.backtest.selection import (
     PolicyParams,
     SelectionReport,
 )
+from qraft.backtest.selection.diagnostics import resolve_selection_periods_per_year
 from qraft.construction.policies import EqualWeightPolicy
 
 
@@ -46,3 +49,12 @@ def test_selection_result_records_are_importable_and_generic():
     assert candidate.policy is policy
     assert report.candidates == (result,)
     assert report.candidates[0].failure == failure
+
+
+def test_periods_per_year_error_reports_all_candidate_failures():
+    params = PolicyParams.of(risk_aversion=1.0)
+    failure = CandidateFailure(params=params, reason="trade cost drove cash negative")
+    result = CandidateResult(params=params, failure=failure)
+
+    with pytest.raises(ValueError, match="trade cost drove cash negative"):
+        resolve_selection_periods_per_year([result], None)
