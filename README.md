@@ -1,6 +1,6 @@
 # QRAFT
 
-> This package is still in **alpha** so please expect breaking changes.
+> [!WARNING] This package is still in alpha so please expect breaking changes.
 
 **Quantitative Risk, Allocation, and Forecasting Toolkit**
 
@@ -87,3 +87,4 @@ This module provides traditional risk measures such as VaR, CVaR, and variance. 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor guidance, including the docstring style decision record.
 
 ---
+
