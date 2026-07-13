@@ -63,6 +63,7 @@ market0 = MarketData.from_prices(
 # %%
 # Create one active entropy-pooling view. Use returns_through(), not a private method.
 view_date = prices["date"][-120]
+view_end = prices["date"][-1]
 view_asset = assets[0]
 returns = market0.returns_through(view_date)
 anchor = float(
@@ -72,6 +73,7 @@ anchor = float(
 market = market0.with_views(
     (
         view_date,
+        view_end,
         Views(
             [
                 MeanView(view_asset, ">=", anchor * 1.25),

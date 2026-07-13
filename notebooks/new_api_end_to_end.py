@@ -65,6 +65,12 @@ market_without_views = MarketData.from_prices(
 
 view_asset = assets[0]
 view_dates = [prices["date"][-360], prices["date"][-240], prices["date"][-120]]
+date_list = prices["date"].to_list()
+view_ends = [
+    date_list[date_list.index(view_dates[1]) - 1],
+    date_list[date_list.index(view_dates[2]) - 1],
+    prices["date"][-1],
+]
 return_panels = [
     market_without_views._simple_return_history_through(view_date)
     for view_date in view_dates
@@ -77,6 +83,7 @@ normal_averages = [
 view_events = [
     (
         view_dates[0],
+        view_ends[0],
         Views(
             [
                 MeanView(view_asset, ">=", normal_averages[0] * 1.25),
@@ -88,6 +95,7 @@ view_events = [
     ),
     (
         view_dates[1],
+        view_ends[1],
         Views(
             [
                 MeanView(assets[1], "<=", normal_averages[1] * 0.75),
@@ -99,6 +107,7 @@ view_events = [
     ),
     (
         view_dates[2],
+        view_ends[2],
         Views(
             [
                 MeanView(view_asset, "==", normal_averages[2] * 1.10),

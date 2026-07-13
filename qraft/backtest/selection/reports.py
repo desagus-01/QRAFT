@@ -293,6 +293,20 @@ class CombinatorialReport:
 ValidationReport = WalkForwardReport | CombinatorialReport
 
 
+def _mark_rebalances(ax, dates: list[datetime]) -> None:
+    first = True
+    for date in as_mpl_dates(dates):
+        ax.axvline(
+            date,
+            color="red",
+            alpha=0.18,
+            linewidth=0.8,
+            label="Rebalance" if first else None,
+            zorder=0,
+        )
+        first = False
+
+
 def _walk_forward_selected_params(report: WalkForwardReport) -> PolicyParams | None:
     selected = [
         fold.selection.selected_params
@@ -319,6 +333,8 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
                 color="steelblue",
                 alpha=0.06,
             )
+        _mark_rebalances(ax, [fold_result.fold.test[0] for fold_result in report.folds])
+        ax.legend(fontsize=8)
     ax.set_title("Stitched OOS NAV")
     ax.grid(True, alpha=0.3)
 
@@ -328,6 +344,7 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
         drawdown = nav / peak - 1.0
         ax.fill_between(dates, 0.0, drawdown, color="crimson", alpha=0.35)
         ax.plot(dates, drawdown, color="crimson", linewidth=1.0)
+        _mark_rebalances(ax, [fold_result.fold.test[0] for fold_result in report.folds])
     ax.set_title("Stitched OOS Drawdown")
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax.grid(True, alpha=0.3)

@@ -7,6 +7,8 @@ from matplotlib.figure import Figure
 
 from qraft.backtest.costs import CostModel
 from qraft.backtest.execution import execute_frictionless
+from qraft.backtest.result.period import BacktestPeriod
+from qraft.backtest.result.result import BacktestResult, plot_nav
 from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.optimization.objectives.specs import (
@@ -196,6 +198,32 @@ def test_policy_run_plot_weights_returns_figure() -> None:
     fig = run.plot_weights()
 
     assert isinstance(fig, Figure)
+
+
+def test_backtest_nav_plot_marks_rebalances() -> None:
+    state_before = _state()
+    state_after = _state()
+    period = BacktestPeriod(
+        decision_bar=datetime(2024, 1, 2),
+        execution_bar=datetime(2024, 1, 3),
+        state_before=state_before,
+        decision=PolicyDecision(["A", "B"], np.array([0.4, 0.4]), 0.2),
+        executed_share_trades=np.array([1.0, 1.0]),
+        state_after=state_after,
+        solver_status="ok",
+    )
+    result = BacktestResult(
+        policy_name="test",
+        asset_order=["A", "B"],
+        nav_dates=[datetime(2024, 1, 2), datetime(2024, 1, 3)],
+        nav=np.array([100.0, 101.0]),
+        periods=[period],
+    )
+
+    fig = plot_nav(result)
+
+    labels = [line.get_label() for line in fig.axes[0].lines]
+    assert "Rebalance" in labels
 
 
 def test_allocation_returns_run_with_same_forecasts(monkeypatch) -> None:

@@ -8,7 +8,7 @@ from qraft.core.scenarios.view_types import (
     StdView,
     ViewDiagnostics,
 )
-from qraft.core.scenarios.views import ScenarioView, ViewEvent, ViewState
+from qraft.core.scenarios.views import ScenarioView, ViewState, ViewWindow
 
 __all__ = [
     "CMA",
@@ -22,6 +22,6 @@ __all__ = [
     "EntropyPoolingResult",
     "ViewDiagnostics",
     "ScenarioView",
-    "ViewEvent",
+    "ViewWindow",
     "ViewState",
 ]

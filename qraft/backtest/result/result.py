@@ -215,6 +215,20 @@ def _to_dates(dates: Sequence) -> list[float]:
     return as_mpl_dates(dates)
 
 
+def _mark_rebalances(ax, dates: Sequence, *, label: bool = True) -> None:
+    first = True
+    for date in _to_dates(dates):
+        ax.axvline(
+            date,
+            color="red",
+            alpha=0.18,
+            linewidth=0.8,
+            label="Rebalance" if label and first else None,
+            zorder=0,
+        )
+        first = False
+
+
 def summary_stats(
     result: BacktestResult,
     risk_free_rate: float = 0.0,
@@ -251,6 +265,8 @@ def plot_nav(
     for r, lbl in zip(results, labels):
         dates = _to_dates(r.nav_dates)
         ax.plot(dates, np.asarray(r.nav, dtype=float), label=lbl, linewidth=1.5)
+    if len(results) == 1:
+        _mark_rebalances(ax, results[0].period_execution_bars)
 
     format_date_axis(ax)
     ax.yaxis.set_major_formatter(mtick.StrMethodFormatter("{x:,.2f}"))
@@ -684,6 +700,7 @@ def plot_backtest_dashboard(
 
     ax = axes[0, 0]
     ax.plot(dates_nav, nav, linewidth=1.5, color="steelblue")
+    _mark_rebalances(ax, result.period_execution_bars)
     ax.set_title("NAV")
     ax.set_ylabel("NAV")
     format_date_axis(ax)
@@ -692,6 +709,7 @@ def plot_backtest_dashboard(
     ax = axes[0, 1]
     ax.fill_between(dates_nav, 0.0, dd, color="crimson", alpha=0.4)
     ax.plot(dates_nav, dd, color="crimson", linewidth=1.0)
+    _mark_rebalances(ax, result.period_execution_bars, label=False)
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax.set_title("Drawdown")
     format_date_axis(ax)
@@ -777,6 +795,7 @@ def plot_backtest_dashboard(
         labels_w = [result.asset_order[i] for i in sorted(top_idx)] + ["Others"]
     colors = plt.cm.tab20(np.linspace(0, 1, weights_to_plot.shape[1]))
     ax.stackplot(dates_ex, weights_to_plot.T, labels=labels_w, colors=colors, alpha=0.8)
+    _mark_rebalances(ax, result.period_execution_bars, label=False)
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax.set_title("Allocation Over Time")
     ax.set_ylim(0.0, 1.0)

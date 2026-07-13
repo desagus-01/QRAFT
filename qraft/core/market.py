@@ -18,12 +18,13 @@ from qraft.core.scenarios.views import (
     ScenarioView,
     ViewInput,
     ViewState,
-    normalize_view_event,
+    normalize_view_window,
+    validate_non_overlapping_windows,
 )
-from qraft.core.snapshot import MarketSnapshot
+from qraft.core.snapshot import ForecastSnapshot, MarketSnapshot
 from qraft.core.universe import AssetUniverse
 from qraft.utils.helpers import str_to_datetime
-from qraft.utils.log import info_event
+from qraft.utils.log import debug_event
 
 PriorScheme = Literal["uniform", "state_smooth"]
 CashRateUnit = Literal["percent", "decimal"]
@@ -131,9 +132,14 @@ class MarketData:
 
     def with_views(self, *events: ViewInput) -> "MarketData":
         normalized = tuple(
-            sorted((normalize_view_event(e) for e in events), key=lambda e: e.as_of)
+            sorted((normalize_view_window(e) for e in events), key=lambda e: e.start)
         )
-        return replace(self, views=ViewState(events=normalized))
+        validate_non_overlapping_windows(normalized)
+        normalized = tuple(
+            replace(window, name=window.name or f"view_{i}")
+            for i, window in enumerate(normalized, start=1)
+        )
+        return replace(self, views=ViewState(windows=normalized))
 
     @property
     def trading_bars(self) -> list[datetime]:
@@ -149,26 +155,18 @@ class MarketData:
 
     def history_through(self, t: DateLike) -> ScenarioPanel:
         """Causal log-price window: rows with date <= t, weights from the window only."""
-        t = self._as_datetime(t)
-        panel = self._log_price_history_through(t)
-        event = self.views.latest_event_at(t)
-        if event is None:
-            return panel
-        returns = self._simple_return_history_through(t)
-        self._log_views_applied(
-            target="history_through",
-            requested_bar=t,
-            view_as_of=event.as_of,
-            views=event.views,
-            panel=returns,
-        )
-        if hasattr(event.views, "view_distribution"):
-            viewed = event.views.view_distribution(returns, as_of=t)
-            return panel.with_prob(viewed.prob_for(panel))
-        viewed_panel = event.views.apply(returns)
-        return panel.with_prob(
-            expand_posterior_to_parent(viewed_panel.prob, panel.prob, 1)
-        )
+        history, _ = self._history_and_applied_views_through(self._as_datetime(t))
+        return history
+
+    def applied_views_at(self, t: DateLike) -> ViewedDistribution | None:
+        """Return the entropy-pooling view applied to the exact history at ``t``."""
+        as_of = self._as_datetime(t)
+        window = self.views.active_window_at(as_of)
+        if window is None or not hasattr(window.views, "view_distribution"):
+            return None
+        returns = self._simple_return_history_through(as_of)
+        viewed = window.views.view_distribution(returns, as_of=as_of)
+        return replace(viewed, name=window.name)
 
     def returns_through(self, t: DateLike) -> ScenarioPanel:
         """Causal simple-return window: rows with date <= t, weights from the window only."""
@@ -181,18 +179,47 @@ class MarketData:
         ``None`` even when active.
         """
         as_of = self._as_datetime(t)
-        event = self.views.latest_event_at(as_of)
-        if event is None or not hasattr(event.views, "view_distribution"):
+        window = self.views.active_window_at(as_of)
+        if window is None or not hasattr(window.views, "view_distribution"):
             return None
         returns = self._simple_return_history_through(as_of)
         self._log_views_applied(
             target="view_report",
             requested_bar=as_of,
-            view_as_of=event.as_of,
-            views=event.views,
+            view_start=window.start,
+            view_end=window.end,
+            view_name=window.name,
+            views=window.views,
             panel=returns,
         )
-        return event.views.view_distribution(returns, as_of=as_of)
+        viewed = window.views.view_distribution(returns, as_of=as_of)
+        return replace(viewed, name=window.name)
+
+    def view_report_by_name(self, name: str) -> ViewedDistribution:
+        window = next(
+            (window for window in self.views.windows if window.name == name), None
+        )
+        if window is None:
+            raise ValueError(f"No view window named {name!r}")
+        if not hasattr(window.views, "view_distribution"):
+            raise TypeError(
+                f"View window {name!r} does not provide entropy diagnostics"
+            )
+        returns = self._simple_return_history_through(window.end)
+        viewed = window.views.view_distribution(returns, as_of=window.end)
+        return replace(viewed, name=window.name)
+
+    def plot_view(self, view: str | DateLike):
+        if isinstance(view, str) and any(
+            window.name == view for window in self.views.windows
+        ):
+            return self.view_report_by_name(view).plot(
+                title=f"Prior vs Posterior Scenario Probabilities — {view}"
+            )
+        report = self.view_report(view)
+        if report is None:
+            raise ValueError(f"No entropy-pooling view report available for {view!r}")
+        return report.plot()
 
     @overload
     def viewed_returns(
@@ -220,60 +247,74 @@ class MarketData:
             self._log_views_applied(
                 target="viewed_returns",
                 requested_bar=as_of,
-                view_as_of=as_of,
+                view_start=as_of,
+                view_end=as_of,
+                view_name=None,
                 views=views,
                 panel=returns,
             )
             return views.view_distribution(returns, as_of=as_of)
         if t is not None:
             as_of = self._as_datetime(t)
-            event = self.views.latest_event_at(as_of)
-            if event is None:
-                raise ValueError(f"No views registered on or before {as_of!r}")
+            window = self.views.active_window_at(as_of)
+            if window is None:
+                raise ValueError(f"No active view window contains {as_of!r}")
             returns = self._simple_return_history_through(as_of)
             self._log_views_applied(
                 target="viewed_returns",
                 requested_bar=as_of,
-                view_as_of=event.as_of,
-                views=event.views,
+                view_start=window.start,
+                view_end=window.end,
+                view_name=window.name,
+                views=window.views,
                 panel=returns,
             )
-            return event.views.view_distribution(returns, as_of=event.as_of)
+            viewed = window.views.view_distribution(returns, as_of=as_of)
+            return replace(viewed, name=window.name)
         return [
-            self._viewed_returns_for_event(event.views, event.as_of)
-            for event in self.views.events
+            self._viewed_returns_for_window(
+                window.views, window.start, window.end, window.name
+            )
+            for window in self.views.windows
         ]
 
-    def _viewed_returns_for_event(
-        self, views: ScenarioView, as_of: datetime
+    def _viewed_returns_for_window(
+        self, views: ScenarioView, start: datetime, end: datetime, name: str | None
     ) -> ViewedDistribution:
-        returns = self._simple_return_history_through(as_of)
+        returns = self._simple_return_history_through(end)
         self._log_views_applied(
             target="viewed_returns",
-            requested_bar=as_of,
-            view_as_of=as_of,
+            requested_bar=end,
+            view_start=start,
+            view_end=end,
+            view_name=name,
             views=views,
             panel=returns,
         )
-        return views.view_distribution(returns, as_of=as_of)
+        viewed = views.view_distribution(returns, as_of=end)
+        return replace(viewed, name=name)
 
     def _log_views_applied(
         self,
         *,
         target: str,
         requested_bar: datetime,
-        view_as_of: datetime,
+        view_start: datetime,
+        view_end: datetime,
+        view_name: str | None,
         views: ScenarioView,
         panel: ScenarioPanel,
     ) -> None:
         dates = panel.dates.to_list()
-        info_event(
+        debug_event(
             logger,
             "views.applied",
             "Applying scenario views",
             target=target,
             requested_bar=requested_bar,
-            view_as_of=view_as_of,
+            view_name=view_name,
+            view_start=view_start,
+            view_end=view_end,
             view_type=type(views).__name__,
             panel_kind=panel.kind,
             bar_count=len(dates),
@@ -331,13 +372,55 @@ class MarketData:
     ) -> MarketSnapshot:
         t = self._as_datetime(t)
         t_next = self._as_datetime(t_next)
+        history, applied_views = self._history_and_applied_views_through(t)
         return MarketSnapshot(
             t=t,
             t_next=t_next,
             universe=self.universe,
-            history=self.history_through(t),
+            history=history,
             prices_t=self.prices_at(t),
             cash_rate=self.cash_rate_asof(t, step_size=step_size),
+            applied_views=applied_views,
+        )
+
+    def forecast_snapshot_at(self, t: DateLike) -> ForecastSnapshot:
+        t = self._as_datetime(t)
+        history, applied_views = self._history_and_applied_views_through(t)
+        return ForecastSnapshot(
+            as_of=t,
+            universe=self.universe,
+            history=history,
+            cash_rate=self.cash_rate_asof(t),
+            applied_views=applied_views,
+        )
+
+    def _history_and_applied_views_through(
+        self, t: datetime
+    ) -> tuple[ScenarioPanel, ViewedDistribution | None]:
+        panel = self._log_price_history_through(t)
+        window = self.views.active_window_at(t)
+        if window is None:
+            return panel, None
+        returns = self._simple_return_history_through(t)
+        self._log_views_applied(
+            target="history_through",
+            requested_bar=t,
+            view_start=window.start,
+            view_end=window.end,
+            view_name=window.name,
+            views=window.views,
+            panel=returns,
+        )
+        if hasattr(window.views, "view_distribution"):
+            viewed = window.views.view_distribution(returns, as_of=t)
+            viewed = replace(viewed, name=window.name)
+            return panel.with_prob(viewed.prob_for(panel)), viewed
+        viewed_panel = window.views.apply(returns)
+        return (
+            panel.with_prob(
+                expand_posterior_to_parent(viewed_panel.prob, panel.prob, 1)
+            ),
+            None,
         )
 
     @staticmethod

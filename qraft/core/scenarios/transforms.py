@@ -28,6 +28,7 @@ class ViewedDistribution:
     prior: ProbVector
     diagnostics: ViewDiagnostics
     as_of: datetime
+    name: str | None = None
 
     def moments(self) -> dict[str, dict[str, float]]:
         values = self.panel.values.to_numpy().T
@@ -69,7 +70,7 @@ class ViewedDistribution:
     #     fig.autofmt_xdate()
     #     return axes
 
-    def plot(self):
+    def plot(self, *, title: str | None = None):
         dates = self.panel.dates.to_list()
 
         fig, axes = plt.subplots(
@@ -101,11 +102,11 @@ class ViewedDistribution:
             (axes[2], cum_diff, "Cumulative posterior − prior", "Difference"),
         )
 
-        for ax, values, title, ylabel in plots:
+        for ax, values, subplot_title, ylabel in plots:
             ax.plot(dates, values, linewidth=1.8, alpha=0.9)
             ax.scatter(dates, values, s=10, alpha=0.35, linewidths=0)
 
-            ax.set_title(title, loc="left", fontsize=11, fontweight="bold")
+            ax.set_title(subplot_title, loc="left", fontsize=11, fontweight="bold")
             ax.set_ylabel(ylabel)
             ax.grid(True, axis="y", alpha=0.25)
             ax.spines["top"].set_visible(False)
@@ -129,11 +130,10 @@ class ViewedDistribution:
         axes[2].xaxis.set_major_locator(mdates.YearLocator())
         axes[2].xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
 
-        fig.suptitle(
-            "Prior vs Posterior Scenario Probabilities",
-            fontsize=14,
-            fontweight="bold",
-        )
+        title_text = title or "Prior vs Posterior Scenario Probabilities"
+        if self.name is not None and title is None:
+            title_text += f" — {self.name}"
+        fig.suptitle(title_text, fontsize=14, fontweight="bold")
 
         return axes
 

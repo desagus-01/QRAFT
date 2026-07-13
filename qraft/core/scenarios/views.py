@@ -15,27 +15,60 @@ class ScenarioView(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
-class ViewEvent:
-    as_of: datetime
+class ViewWindow:
+    start: datetime
+    end: datetime
     views: ScenarioView
+    name: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.end < self.start:
+            raise ValueError("ViewWindow end must be on or after start")
+
+    def contains(self, t: datetime) -> bool:
+        return self.start <= t <= self.end
 
 
-ViewInput: TypeAlias = "tuple[DateLike, ScenarioView] | ViewEvent"
+ViewInput: TypeAlias = (
+    "tuple[DateLike, DateLike, ScenarioView] "
+    "| tuple[DateLike, DateLike, ScenarioView, str] "
+    "| ViewWindow"
+)
 
 
 @dataclass(frozen=True, slots=True)
 class ViewState:
-    events: tuple[ViewEvent, ...] = ()
+    windows: tuple[ViewWindow, ...] = ()
 
-    def latest_event_at(self, t: datetime) -> ViewEvent | None:
-        active = [event for event in self.events if event.as_of <= t]
-        return active[-1] if active else None
+    def active_window_at(self, t: datetime) -> ViewWindow | None:
+        active = [window for window in self.windows if window.contains(t)]
+        return active[0] if active else None
 
 
-def normalize_view_event(event: ViewInput) -> ViewEvent:
-    if isinstance(event, ViewEvent):
-        return event
-    as_of, views = event
-    if isinstance(as_of, str):
-        as_of = str_to_datetime(as_of)
-    return ViewEvent(as_of=as_of, views=views)
+def normalize_view_window(window: ViewInput) -> ViewWindow:
+    if isinstance(window, ViewWindow):
+        return window
+    if len(window) == 3:
+        start, end, views = window
+        name = None
+    elif len(window) == 4:
+        start, end, views, name = window
+    else:
+        raise ValueError(
+            "View input must be (start, end, views) or (start, end, views, name)"
+        )
+    if isinstance(start, str):
+        start = str_to_datetime(start)
+    if isinstance(end, str):
+        end = str_to_datetime(end)
+    return ViewWindow(start=start, end=end, views=views, name=name)
+
+
+def validate_non_overlapping_windows(windows: tuple[ViewWindow, ...]) -> None:
+    for prev, current in zip(windows, windows[1:], strict=False):
+        if current.start <= prev.end:
+            raise ValueError(
+                "View windows must not overlap; "
+                f"{prev.start!r} to {prev.end!r} overlaps "
+                f"{current.start!r} to {current.end!r}."
+            )

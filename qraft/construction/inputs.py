@@ -107,10 +107,8 @@ def build_policy_input_table(
                 AssetDiagnostics(asset=asset, values=cast(Mapping[str, Any], values))
                 for asset, values in diagnostics.items()
             )
-        view_diag = None
-        if market is not None and market.views.events:
-            report = market.view_report(snapshot.t)
-            view_diag = report.diagnostics if report is not None else None
+        applied_views = getattr(snapshot, "applied_views", None)
+        view_diag = applied_views.diagnostics if applied_views is not None else None
         inputs = OptimizerInputs.from_policy_sources(
             forecasts=forecast,
             expected_returns=plan.expected_returns,

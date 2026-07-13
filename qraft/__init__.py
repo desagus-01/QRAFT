@@ -4,7 +4,7 @@ __all__ = [
     "MarketDataConfig",
     "Prior",
     "Views",
-    "ViewEvent",
+    "ViewWindow",
     "ViewState",
     "CMA",
     "CMAConfig",
@@ -80,7 +80,7 @@ from qraft.core.configs import (
 from qraft.core.panel import ScenarioPanel
 from qraft.core.market import MarketData, MarketDataConfig, Prior
 from qraft.core.scenarios.transforms import CMA, Views
-from qraft.core.scenarios.views import ViewEvent, ViewState
+from qraft.core.scenarios.views import ViewState, ViewWindow
 from qraft.core.universe import AssetUniverse
 from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.forecaster import ForecastSpec, Forecaster

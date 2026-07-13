@@ -16,7 +16,7 @@ __all__ = [
     "RankingView",
     "QuantileView",
     "ScenarioView",
-    "ViewEvent",
+    "ViewWindow",
     "ViewState",
     "uniform_probs",
     "state_smooth_probs",
@@ -47,7 +47,7 @@ from qraft.core.scenarios.view_types import (  # noqa: F401
     RankingView,
     QuantileView,
 )
-from qraft.core.scenarios.views import ScenarioView, ViewEvent, ViewState  # noqa: F401
+from qraft.core.scenarios.views import ScenarioView, ViewState, ViewWindow  # noqa: F401
 from qraft.core.probability.distributions import (  # noqa: F401
     uniform_probs,
     state_smooth_probs,

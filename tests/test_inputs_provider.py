@@ -19,6 +19,8 @@ from qraft.construction.optimization.inputs import (
     RequiredOptimizerInputs,
 )
 from qraft.core.panel import ScenarioPanel
+from qraft.core.scenarios.transforms import Views
+from qraft.core.scenarios.view_types import MeanView
 from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 
@@ -162,6 +164,61 @@ def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
     assert captured["forecasts"] is forecast
     assert captured["history"] is snapshot.history
     assert captured["cash_return"] == 0.002
+
+
+def test_policy_input_table_uses_snapshot_applied_view_diagnostics(monkeypatch):
+    market = MarketData.from_prices(
+        pl.DataFrame(
+            {
+                "date": [datetime(2024, 1, day) for day in range(1, 4)],
+                "A": [10.0, 11.0, 12.0],
+            }
+        ),
+        AssetUniverse.factors_free(["A"]),
+    ).with_views(
+        (
+            datetime(2024, 1, 3),
+            datetime(2024, 1, 3),
+            Views([MeanView("A", "==", 1.0 / 11.0)]),
+        )
+    )
+    snapshot = market.snapshot_at(datetime(2024, 1, 3), datetime(2024, 1, 3))
+    forecast = ForecastPaths(
+        asset_paths={"A": np.array([[10.5], [11.0]])},
+        dates=pl.Series("date", [datetime(2024, 1, 4)]),
+        path_probs=np.array([0.5, 0.5]),
+        initial_prices={"A": 10.0},
+        universe=AssetUniverse.factors_free(["A"]),
+    )
+    captured = {}
+
+    class MarketWrapper:
+        views = market.views
+
+        def view_report(self, _t):
+            raise AssertionError(
+                "build_policy_input_table should use snapshot.applied_views"
+            )
+
+    market_wrapper = MarketWrapper()
+
+    def fake_from_policy_sources(**kwargs):
+        captured.update(kwargs)
+        return OptimizerInputs.from_arrays(
+            assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
+        )
+
+    monkeypatch.setattr(
+        "qraft.construction.inputs.OptimizerInputs.from_policy_sources",
+        fake_from_policy_sources,
+    )
+
+    build_policy_input_table(
+        [snapshot], [forecast], plan=InputPlan(), market=market_wrapper
+    )
+
+    assert snapshot.applied_views is not None
+    assert captured["view_diagnostics"] is snapshot.applied_views.diagnostics
 
 
 def test_policy_input_table_builds_historical_mean_when_policy_requires_mean():

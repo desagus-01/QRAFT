@@ -1,9 +1,14 @@
 from dataclasses import dataclass
 from datetime import datetime
+import logging
 
 from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import MarketSnapshot
+from qraft.utils.log import info_event
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,4 +43,31 @@ def decision_points(
                     ),
                 )
             )
+    active = sum(1 for point in points if point.snapshot.applied_views is not None)
+    if active:
+        active_names = [
+            point.snapshot.applied_views.name
+            for point in points
+            if point.snapshot.applied_views is not None
+        ]
+        first = next(
+            point.decision_bar
+            for point in points
+            if point.snapshot.applied_views is not None
+        )
+        last = next(
+            point.decision_bar
+            for point in reversed(points)
+            if point.snapshot.applied_views is not None
+        )
+        info_event(
+            logger,
+            "views.active_decision_snapshots",
+            "Scenario views active for decision snapshots",
+            active_decisions=active,
+            decisions=len(points),
+            views=tuple(dict.fromkeys(active_names)),
+            first_date=first,
+            last_date=last,
+        )
     return points

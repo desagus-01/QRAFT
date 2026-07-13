@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 import numpy as np
@@ -12,7 +13,8 @@ from qraft.core.market import (
 from qraft.core.panel import ScenarioPanel
 from qraft.core.scenarios.transforms import Views
 from qraft.core.scenarios.view_types import MeanView
-from qraft.core.scenarios.views import ViewEvent
+from qraft.core.scenarios.views import ViewWindow
+from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecast_paths import AssetUniverse
 
@@ -255,10 +257,10 @@ def test_history_through_raises_on_no_data() -> None:
         md.history_through(datetime(2020, 1, 1))
 
 
-def test_with_views_applies_latest_causal_event_only() -> None:
+def test_with_views_applies_only_active_window() -> None:
     md = _market_data().with_views(
-        (datetime(2024, 1, 2), _ScaleProbView(1.0)),
-        ViewEvent(datetime(2024, 1, 3), _ScaleProbView(2.0)),
+        (datetime(2024, 1, 2), datetime(2024, 1, 2), _ScaleProbView(1.0)),
+        ViewWindow(datetime(2024, 1, 3), datetime(2024, 1, 3), _ScaleProbView(2.0)),
     )
 
     before = md.history_through(datetime(2024, 1, 1))
@@ -270,9 +272,41 @@ def test_with_views_applies_latest_causal_event_only() -> None:
     np.testing.assert_allclose(second.prob, [1 / 3, 2 / 15, 8 / 15])
 
 
+def test_with_views_uses_prior_outside_windows() -> None:
+    md = _market_data().with_views(
+        (datetime(2024, 1, 2), datetime(2024, 1, 2), _ScaleProbView(2.0))
+    )
+
+    after = md.history_through(datetime(2024, 1, 3))
+
+    np.testing.assert_allclose(after.prob, np.full(3, 1 / 3))
+
+
+def test_with_views_rejects_overlapping_windows() -> None:
+    with pytest.raises(ValueError, match="must not overlap"):
+        _market_data().with_views(
+            (datetime(2024, 1, 2), datetime(2024, 1, 3), _ScaleProbView(1.0)),
+            (datetime(2024, 1, 3), datetime(2024, 1, 3), _ScaleProbView(2.0)),
+        )
+
+
+def test_with_views_assigns_default_and_custom_names() -> None:
+    md = _market_data().with_views(
+        (datetime(2024, 1, 2), datetime(2024, 1, 2), _ScaleProbView(1.0)),
+        (
+            datetime(2024, 1, 3),
+            datetime(2024, 1, 3),
+            _ScaleProbView(2.0),
+            "crash",
+        ),
+    )
+
+    assert [window.name for window in md.views.windows] == ["view_1", "crash"]
+
+
 def test_view_events_receive_simple_return_history() -> None:
     view = _CapturePanelView()
-    md = _market_data().with_views((datetime(2024, 1, 3), view))
+    md = _market_data().with_views((datetime(2024, 1, 3), datetime(2024, 1, 3), view))
 
     panel = md.history_through(datetime(2024, 1, 3))
 
@@ -293,7 +327,11 @@ def test_view_events_receive_simple_return_history() -> None:
 
 def test_history_through_expands_view_posterior_to_log_price_history() -> None:
     md = _market_data().with_views(
-        (datetime(2024, 1, 3), Views([MeanView("A", "==", 1.0 / 11.0)]))
+        (
+            datetime(2024, 1, 3),
+            datetime(2024, 1, 3),
+            Views([MeanView("A", "==", 1.0 / 11.0)]),
+        )
     )
 
     panel = md.history_through(datetime(2024, 1, 3))
@@ -332,12 +370,12 @@ def test_viewed_returns_exposes_simple_return_distribution() -> None:
     np.testing.assert_allclose(viewed.posterior, via_view.posterior)
 
 
-def test_viewed_returns_without_args_returns_each_registered_view_date() -> None:
+def test_viewed_returns_without_args_returns_each_registered_view_window() -> None:
     first = Views([MeanView("A", "==", 0.1)])
     second = Views([MeanView("A", "==", 1.0 / 11.0)])
     md = _market_data().with_views(
-        (datetime(2024, 1, 2), first),
-        (datetime(2024, 1, 3), second),
+        (datetime(2024, 1, 2), datetime(2024, 1, 2), first),
+        (datetime(2024, 1, 3), datetime(2024, 1, 3), second),
     )
 
     viewed = md.viewed_returns()
@@ -353,10 +391,18 @@ def test_viewed_returns_without_args_returns_each_registered_view_date() -> None
     ]
 
 
-def test_viewed_returns_at_uses_latest_registered_view_causally() -> None:
+def test_viewed_returns_at_uses_active_view_window() -> None:
     md = _market_data().with_views(
-        (datetime(2024, 1, 2), Views([MeanView("A", "==", 0.1)])),
-        (datetime(2024, 1, 3), Views([MeanView("A", "==", 1.0 / 11.0)])),
+        (
+            datetime(2024, 1, 2),
+            datetime(2024, 1, 2),
+            Views([MeanView("A", "==", 0.1)]),
+        ),
+        (
+            datetime(2024, 1, 3),
+            datetime(2024, 1, 3),
+            Views([MeanView("A", "==", 1.0 / 11.0)]),
+        ),
     )
 
     viewed = md.viewed_returns(t=datetime(2024, 1, 3))
@@ -368,7 +414,7 @@ def test_viewed_returns_at_uses_latest_registered_view_causally() -> None:
 def test_viewed_returns_at_raises_without_registered_view() -> None:
     md = _market_data()
 
-    with pytest.raises(ValueError, match="No views registered"):
+    with pytest.raises(ValueError, match="No active view window"):
         md.viewed_returns(t=datetime(2024, 1, 3))
 
 
@@ -477,6 +523,78 @@ def test_snapshot_at() -> None:
     assert isinstance(snap.history, ScenarioPanel)
     np.testing.assert_allclose(snap.prices_t, [11.0, 22.0])
     assert snap.cash_rate > 0
+
+
+def test_snapshot_at_carries_applied_view_distribution() -> None:
+    md = _market_data().with_views(
+        (
+            datetime(2024, 1, 3),
+            datetime(2024, 1, 3),
+            Views([MeanView("A", "==", 1.0 / 11.0)]),
+        )
+    )
+
+    snap = md.snapshot_at(datetime(2024, 1, 3), datetime(2024, 1, 3))
+
+    assert snap.applied_views is not None
+    assert snap.applied_views.as_of == snap.t
+    assert snap.applied_views.name == "view_1"
+    np.testing.assert_allclose(
+        snap.history.prob, snap.applied_views.prob_for(snap.history)
+    )
+
+
+def test_view_application_logs_at_debug(caplog) -> None:
+    md = _market_data().with_views(
+        (
+            datetime(2024, 1, 3),
+            datetime(2024, 1, 3),
+            Views([MeanView("A", "==", 1.0 / 11.0)]),
+        )
+    )
+
+    with caplog.at_level(logging.INFO, logger="qraft.core.market"):
+        md.snapshot_at(datetime(2024, 1, 3), datetime(2024, 1, 3))
+
+    assert "views.applied" not in [record.qraft_event for record in caplog.records]
+
+
+def test_view_summary_log_includes_view_names(caplog) -> None:
+    from qraft.backtest.engine.schedule import decision_points
+
+    md = _market_data().with_views(
+        (
+            datetime(2024, 1, 2),
+            datetime(2024, 1, 3),
+            Views([MeanView("A", "==", 0.1)]),
+            "crash",
+        )
+    )
+
+    with caplog.at_level(logging.INFO, logger="qraft.backtest.engine.schedule"):
+        decision_points(md, RebalanceSchedule("every_bar"), warmup=1)
+
+    record = next(
+        record
+        for record in caplog.records
+        if record.qraft_event == "views.active_decision_snapshots"
+    )
+    assert record.qraft_context["views"] == ("crash",)
+
+
+def test_plot_view_selects_named_view() -> None:
+    md = _market_data().with_views(
+        (
+            datetime(2024, 1, 2),
+            datetime(2024, 1, 3),
+            Views([MeanView("A", "==", 0.1)]),
+            "crash",
+        )
+    )
+
+    axes = md.plot_view("crash")
+
+    assert "crash" in axes[0].figure._suptitle.get_text()
 
 
 def test_snapshot_at_accepts_string_dates() -> None:

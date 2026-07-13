@@ -459,6 +459,33 @@ def _forecast_snapshots_from_market(
         if i + 1 >= len(all_bars):
             continue
         snapshots.append(forecast_snapshot_at(market, bar))
+    active = sum(1 for snapshot in snapshots if snapshot.applied_views is not None)
+    if active:
+        active_names = [
+            snapshot.applied_views.name
+            for snapshot in snapshots
+            if snapshot.applied_views is not None
+        ]
+        first = next(
+            snapshot.as_of
+            for snapshot in snapshots
+            if snapshot.applied_views is not None
+        )
+        last = next(
+            snapshot.as_of
+            for snapshot in reversed(snapshots)
+            if snapshot.applied_views is not None
+        )
+        info_event(
+            logger,
+            "views.active_forecast_snapshots",
+            "Scenario views active for forecast snapshots",
+            active_snapshots=active,
+            snapshots=len(snapshots),
+            views=tuple(dict.fromkeys(active_names)),
+            first_date=first,
+            last_date=last,
+        )
     return snapshots
 
 
