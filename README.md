@@ -1,5 +1,7 @@
 # QRAFT
 
+> This package is still in **alpha** so please expect breaking changes.
+
 **Quantitative Risk, Allocation, and Forecasting Toolkit**
 
 QRAFT is an advanced end-to-end portfolio construction toolkit aimed at p-style quants who wish to emphasize scenarios based on their market views throughout the allocation process.
@@ -70,7 +72,13 @@ Finally, users can tune their policies as well. Much of this is based from De Pr
 
 ### Risk Management
 
-Taking into account our portfolio projection based on policy decision and existing 
+Taking into account our portfolio projection based on policy decision and existing forecasts, we are able to analyze where risk comes from. Inputs are inheriently probabilistic because of this.
+
+This module provides traditional risk measures such as VaR, CVaR, and variance. Also diversification measures such as effective number of bets. Users are also incentived to use factors to break their both performance and risk attribution and contribution.
+
+[**Example below**]
+
+**In addition to the examples displayed above please look into the examples directory for further examples**
 
 ---
 
