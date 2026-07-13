@@ -44,15 +44,33 @@ Following the univariate structural models from `ForecastRecipes`, we are able t
 
 ### Policies
 
-Because every scenario object carries an explicit probability vector, the full simulation output is always available for downstream risk and allocation steps nothing is collapsed to a point estimate prematurely. This also makes it straightforward to encode  **views** directly onto the scenario distribution using **Entropy Pooling**. Rather than discarding scenarios, their probabilities are updated to be consistent with the view (e.g. "AAPL mean return will be below historical average") by solving a minimum KL-divergence problem. Views can be placed on means, volatilities, correlations, or arbitrary moments.
+This module is heavily inspired by the existing `cvxportfolio` python package, and more in general in the accompanying paper related to it [**cite paper here**]. In short, the core problem we solve here is multi period and **MUST** be convex. In this instance, only the first horizon is actionable, future ones are diagnostic/planning information.
 
-Portfolio-level risk is computed from the simulated loss distribution, supporting both **VaR** and **CVaR** (more coming soon!). Risk attribution is available at the factor level, using top-down exposure estimation, minimum-torsion orthogonalisation, and Euler decomposition to attribute marginal and total risk contributions to each factor.
+The core of this module is to allow the user to craft their own multi-period optimization problem by using the `MPOProblem` and the `MPOProblemBuilder` objects, or alternatives using one of the preset ones. 
 
-### Policy Evaluation
+[**ADD EXAMPLE HERE**]
 
+This module is then responsible for taking our previous simulated forecasts and the current portfolio, applying a policy and producing the next portfolio allocation.
 
+**MAYBE ADD LIST OF OBJS AND CONSTRAINTS?**
+
+### Policy Evaluation/Backtest
+
+Following our policy creation and forecast recipes, we are able to simulate how our strategy would have behaved historically. The backtest methodology is currently able to handle the different view events historically, as per below.
+
+[**ADD EXAMPLE HERE**]
+
+Rebalanes currently follow a **time cadence**, based on the rebalance date, it seems the `ForecastRecipe`, `View`, `PortfolioState`, and `Policy` at the time to derive the optimal allocation. Once policies make decisions, the backtest will be responsible for simulating trading, taking into account costs, cash, and shares.
+
+[**should I add some simple examples here?**]
+
+Finally, users can tune their policies as well. Much of this is based from De Prado's paper [**cite here**]. Users can either use the standard **Walk-Forward Validation** or **Combinatorial Purged Cross-Validation** to tune the policy, both using out-of-sample selection.
+
+[**Add simple example here**]
 
 ### Risk Management
+
+Taking into account our portfolio projection based on policy decision and existing 
 
 ---
 
