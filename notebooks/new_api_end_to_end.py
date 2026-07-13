@@ -8,13 +8,14 @@ from qraft import (
     AssetUniverse,
     BacktestConfig,
     CMAConfig,
+    CombinatorialCVConfig,
     Forecaster,
-    Prior,
     InputPlan,
     LogConfig,
     MarketData,
     MPOPolicy,
     PipelineConfig,
+    Prior,
     SimulationForecastConfig,
     Validation,
     Views,
@@ -52,7 +53,7 @@ cols_to_keep = [
 ]
 prices = prices.select(cols_to_keep)
 
-assets = list(prices.columns[10:90])
+assets = list(prices.columns[10:30])
 universe = AssetUniverse(assets=assets, factors=list(factor_cols)[:4])
 prices = prices.select("date", *universe.all_tickers)
 
@@ -129,7 +130,7 @@ forecaster = Forecaster(
     simulation=SimulationForecastConfig(
         horizon=10,
         method="cma",
-        n_sims=10_000,
+        n_sims=1_000,
         cma_config=CMAConfig(target_copula="t"),
     ),
     refit_every=int(prices.height / 4),
@@ -157,14 +158,14 @@ base_policy = MPOPolicy.preset(
 val = Validation(
     market=market,
     base_policy=base_policy,
-    grid={"risk_aversion": [0.05, 0.5, 1, 3, 5, 10]},
+    grid={"risk_aversion": [0.5, 3]},
     forecasts=forecaster,
     backtest_config=backtest_config,
 )
 
 # %%
 # %%
-report = val.combinatorial()
+report = val.combinatorial(CombinatorialCVConfig(n_groups=4, n_test_groups=1))
 # %%
 tuned = val.tune(report, score="sortino")
 # tuned = val.tune(report, score="sharpe")

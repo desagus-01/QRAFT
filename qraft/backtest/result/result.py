@@ -87,7 +87,7 @@ class BacktestResult:
     def plot_weights(self, **kwargs):
         return plot_weights(self, **kwargs)
 
-    def view_activity(self) -> pl.DataFrame:
+    def view_activity_df(self) -> pl.DataFrame:
         rows = []
         for period in self.periods:
             diag = period.view_diagnostics
@@ -184,7 +184,7 @@ class BacktestResult:
         return self.total_transaction_cost + self.total_holding_cost
 
     @property
-    def period_target_weights(self) -> NDArray[np.floating]:
+    def period_target_weights_array(self) -> NDArray[np.floating]:
         """Target total weights per period, shape (n_periods, n_assets + 1)."""
         n = len(self.periods)
         n_assets = len(self.asset_order)
@@ -195,7 +195,7 @@ class BacktestResult:
         return out
 
     @property
-    def period_weights(self) -> NDArray[np.floating]:
+    def period_weights_array(self) -> NDArray[np.floating]:
         """Actual total weights *after* each rebalance, shape (n_periods, n_assets + 1)."""
         n = len(self.periods)
         n_assets = len(self.asset_order)
@@ -341,7 +341,7 @@ def plot_weights(
     title: str | None = None,
 ) -> Figure:
     dates = _to_dates(result.period_execution_bars)
-    w = result.period_weights
+    w = result.period_weights_array
     if not include_cash:
         w = w[:, :-1]
     n_assets_total = w.shape[1]
@@ -780,7 +780,7 @@ def plot_backtest_dashboard(
     ax.axis("off")
 
     ax = axes[1, 2]
-    w = result.period_weights
+    w = result.period_weights_array
     n_assets = len(result.asset_order)
     if w.shape[1] <= 12:
         weights_to_plot = w[:, :-1]

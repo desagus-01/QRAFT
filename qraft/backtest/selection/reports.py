@@ -62,7 +62,6 @@ class WalkForwardReport:
     def selected_params(self) -> PolicyParams | None:
         return _walk_forward_selected_params(self)
 
-    @property
     def folds_df(self) -> pl.DataFrame:
         rows: list[dict[str, object]] = []
         for i, fold_result in enumerate(self.folds):
@@ -110,7 +109,6 @@ class WalkForwardReport:
             rows.append(row)
         return pl.DataFrame(rows)
 
-    @property
     def summary_df(self) -> pl.DataFrame:
         row: dict[str, object] = {
             "n_folds": len(self.folds),
@@ -120,7 +118,7 @@ class WalkForwardReport:
         }
         if self.oos_summary is not None:
             row.update({f"oos_{k}": v for k, v in self.oos_summary.to_dict().items()})
-        fold_rows = self.folds_df
+        fold_rows = self.folds_df()
         if not fold_rows.is_empty():
             for col in (
                 "train_sharpe",
@@ -143,7 +141,6 @@ class WalkForwardReport:
                 row["most_selected_params"] = most_common(selected)
         return pl.DataFrame([row])
 
-    @property
     def selected_params_df(self) -> pl.DataFrame:
         rows: list[dict[str, object]] = []
         for i, fold_result in enumerate(self.folds):
@@ -167,7 +164,6 @@ class WalkForwardReport:
             rows.append(row)
         return pl.DataFrame(rows)
 
-    @property
     def diagnostics_df(self) -> pl.DataFrame:
         rows = [
             ("folds", len(self.folds)),
@@ -184,7 +180,7 @@ class WalkForwardReport:
                     ("oos_hit_rate", self.oos_summary.hit_rate),
                 ]
             )
-        summary = self.summary_df
+        summary = self.summary_df()
         if not summary.is_empty():
             row = summary.row(0, named=True)
             for key in (
@@ -198,7 +194,6 @@ class WalkForwardReport:
                     rows.append((key, row[key]))
         return pl.DataFrame(rows, schema=["metric", "value"], orient="row")
 
-    @property
     def selection_counts_df(self) -> pl.DataFrame:
         selected = [
             str(fr.selection.selected_params or "")
@@ -352,7 +347,7 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     ax = axes[1, 0]
     fold_ids = np.arange(len(report.folds))
     test_returns = column_or_nan(
-        report.folds_df, "test_total_return", len(report.folds)
+        report.folds_df(), "test_total_return", len(report.folds)
     )
     colors = ["forestgreen" if r >= 0 else "crimson" for r in test_returns]
     ax.bar(fold_ids, test_returns, color=colors, alpha=0.75)
@@ -363,8 +358,8 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     ax.grid(True, axis="y", alpha=0.3)
 
     ax = axes[1, 1]
-    train_sharpe = column_or_nan(report.folds_df, "train_sharpe", len(report.folds))
-    test_sharpe = column_or_nan(report.folds_df, "test_sharpe", len(report.folds))
+    train_sharpe = column_or_nan(report.folds_df(), "train_sharpe", len(report.folds))
+    test_sharpe = column_or_nan(report.folds_df(), "test_sharpe", len(report.folds))
     ax.plot(fold_ids, train_sharpe, marker="o", label="Train selected")
     ax.plot(fold_ids, test_sharpe, marker="o", label="OOS")
     ax.axhline(0.0, color="black", linewidth=0.8)
@@ -374,7 +369,7 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     ax.grid(True, alpha=0.3)
 
     ax = axes[2, 0]
-    sharpe_decay = column_or_nan(report.folds_df, "sharpe_decay", len(report.folds))
+    sharpe_decay = column_or_nan(report.folds_df(), "sharpe_decay", len(report.folds))
     colors = ["forestgreen" if d >= 0 else "crimson" for d in sharpe_decay]
     ax.bar(fold_ids, sharpe_decay, color=colors, alpha=0.75)
     ax.axhline(0.0, color="black", linewidth=0.8)
@@ -383,9 +378,10 @@ def plot_walk_forward_report(report: WalkForwardReport) -> Figure:
     ax.grid(True, axis="y", alpha=0.3)
 
     ax = axes[2, 1]
-    if not report.selection_counts_df.is_empty():
-        labels = report.selection_counts_df["selected_params"].to_list()
-        values = report.selection_counts_df["n_folds"].to_list()
+    selection_counts = report.selection_counts_df()
+    if not selection_counts.is_empty():
+        labels = selection_counts["selected_params"].to_list()
+        values = selection_counts["n_folds"].to_list()
         y = np.arange(len(labels))
         ax.barh(y, values, color="slateblue", alpha=0.75)
         ax.set_yticks(y, [truncate_label(label) for label in labels])

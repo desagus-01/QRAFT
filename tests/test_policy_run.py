@@ -150,6 +150,8 @@ def test_run_policy_orchestrates_decision_and_projection() -> None:
     assert result.optimizer_inputs is optimizer_inputs
     assert result.as_of == datetime(2024, 1, 2)
     assert result.target_weights == {"A": 0.4, "B": 0.4}
+    assert result.projection.target_weights == {"A": 0.4, "B": 0.4}
+    assert result.projection.total_target_weights == {"A": 0.4, "B": 0.4, "cash": 0.2}
     assert result.projection.target_cash_weight == result.decision.target_cash_weight
     np.testing.assert_allclose(
         result.projection.target_weights_risk,

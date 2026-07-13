@@ -175,7 +175,7 @@ def combinatorial_purged(
         base_policy,
         grid,
         backtest_config,
-        cv_config.cv_config.risk_free_rate,
+        cv_config.risk_free_rate,
         forecaster=forecaster,
         forecasts=forecasts,
     )
@@ -228,14 +228,14 @@ def combinatorial_from_evaluation(
                 candidate_result,
                 fold.train,
                 resolved_backtest_config,
-                cv_config.cv_config.risk_free_rate,
+                cv_config.risk_free_rate,
             )
             for candidate_result in candidate_results
         ]
         selection = select_candidate(
             train_scores,
-            max_held_fraction=cv_config.cv_config.max_held_fraction,
-            score=score if score is not None else cv_config.cv_config.metric,
+            max_held_fraction=cv_config.max_held_fraction,
+            score=score if score is not None else cv_config.metric,
         )
         fold_selected_params.append(selection.selected_params)
         winner = (
@@ -274,7 +274,7 @@ def combinatorial_from_evaluation(
         summary_from_returns(
             r,
             resolved_backtest_config,
-            cv_config.cv_config.risk_free_rate,
+            cv_config.risk_free_rate,
         )
         for r in path_returns
     ]
@@ -487,6 +487,6 @@ def _diagnostics(
         dsr = compute_deflated_sharpe(median_returns, trial_sharpe_values)
     pbo_value = None
     if cv_config.n_groups % 2 == 0:
-        pbo_blocks = max(cv_config.cv_config.pbo_blocks, cv_config.n_groups)
+        pbo_blocks = max(cv_config.pbo_blocks, cv_config.n_groups)
         pbo_value = compute_pbo(candidate_results, pbo_blocks)
     return n_trials, dsr, pbo_value

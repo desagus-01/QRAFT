@@ -49,7 +49,7 @@ cols = [
 ]
 prices = prices.select(cols)
 
-assets = list(prices.columns[10:16])
+assets = list(prices.columns[10:14])
 universe = AssetUniverse(assets=assets, factors=list(factor_cols)[:3])
 prices = prices.select("date", *universe.all_tickers)
 
@@ -109,9 +109,10 @@ if report is not None:
 
 # %%
 # Backtest path: diagnostics ride on OptimizerInputs -> BacktestPeriod -> BacktestResult.
+plan = InputPlan(expected_returns="historical", max_horizons=1)
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),
-    simulation=SimulationForecastConfig(horizon=5, n_sims=500),
+    simulation=SimulationForecastConfig(horizon=3, n_sims=200),
     refit_every=int(market.frame.height / 3),
     seed=10,
 )
@@ -125,10 +126,11 @@ policy = MPOPolicy.preset(
         TurnoverLimit(limit=0.15, constraint_type="soft", soft_weight=2.0),
     ),
     name="view-diagnostics-cvar",
+    input_plan=plan,
+    max_iter=80,
 )
-plan = InputPlan(expected_returns="historical", max_horizons=1)
 config = BacktestConfig(
-    schedule=RebalanceSchedule("quarter_end"),
+    schedule=RebalanceSchedule("year_end"),
     initial_cash=100.0,
 )
 
@@ -136,13 +138,12 @@ result = Backtest(
     market=market,
     policy=policy,
     forecasts=forecaster,
-    plan=plan,
     config=config,
 ).run()
 
 # %%
 # New BacktestResult API: compact view activity table.
-activity = result.view_activity()
+activity = result.view_activity_df()
 print("View activity:")
 print(activity)
 

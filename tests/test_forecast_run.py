@@ -200,7 +200,7 @@ def test_forecaster_run_from_snapshots_reuses_recipes(monkeypatch):
 
 
 def test_forecast_paths_model_health_returns_stored_frame():
-    health = _forecast_paths().model_health()
+    health = _forecast_paths().model_health_df()
 
     assert health.columns == [
         "asset",
@@ -247,7 +247,7 @@ def test_forecast_run_model_health_stacks_steps_with_recipe_period():
         ),
     )
 
-    health = run.model_health()
+    health = run.model_health_df()
 
     assert health.select("asset", "as_of", "recipe_period").to_dicts() == [
         {"asset": "A", "as_of": datetime(2024, 1, 3), "recipe_period": 0},

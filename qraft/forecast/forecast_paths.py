@@ -148,7 +148,7 @@ class ForecastPaths:
             return self.factor_paths
         raise ValueError(f"Unknown subset: {subset}")
 
-    def model_health(self) -> DataFrame:
+    def model_health_df(self) -> DataFrame:
         if self.model_health_frame is None:
             return DataFrame(
                 schema={

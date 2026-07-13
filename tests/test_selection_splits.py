@@ -92,6 +92,25 @@ def test_combinatorial_cv_config_defaults_are_conservative() -> None:
     assert config.embargo == 1
 
 
+def test_combinatorial_cv_config_exposes_flat_cv_knobs() -> None:
+    config = CombinatorialCVConfig(
+        n_groups=6,
+        metric="sortino",
+        risk_free_rate=0.01,
+        max_held_fraction=0.25,
+        pbo_blocks=8,
+    )
+
+    assert config.metric == "sortino"
+    assert config.risk_free_rate == 0.01
+    assert config.max_held_fraction == 0.25
+    assert config.pbo_blocks == 8
+    assert config.cv_config.metric == "sortino"
+    assert config.cv_config.risk_free_rate == 0.01
+    assert config.cv_config.max_held_fraction == 0.25
+    assert config.cv_config.pbo_blocks == 8
+
+
 def test_walk_forward_folds_accepts_config_values() -> None:
     config = WalkForwardConfig(train_size=3, test_size=2, anchored=True)
 
@@ -145,14 +164,14 @@ def test_walk_forward_report_helpers() -> None:
         oos_nav=np.array([100.0, 110.0]),
     )
 
-    folds_df = report.folds_df
+    folds_df = report.folds_df()
     assert folds_df["selected_params"].to_list() == ["risk_aversion=2"]
     assert folds_df["train_sharpe"].to_list() == [1.30]
     assert folds_df["test_total_return"].to_list() == [0.10]
-    assert report.summary_df["oos_sharpe"].to_list() == [1.30]
-    assert report.selected_params_df["risk_aversion"].to_list() == [2]
-    assert report.diagnostics_df["metric"].to_list()[0] == "folds"
-    assert report.selection_counts_df["n_folds"].to_list() == [1]
+    assert report.summary_df()["oos_sharpe"].to_list() == [1.30]
+    assert report.selected_params_df()["risk_aversion"].to_list() == [2]
+    assert report.diagnostics_df()["metric"].to_list()[0] == "folds"
+    assert report.selection_counts_df()["n_folds"].to_list() == [1]
 
 
 def test_block_returns_validates_minimum_blocks() -> None:

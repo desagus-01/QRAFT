@@ -79,7 +79,7 @@ class Validation:
             cfg = CombinatorialCVConfig()
         self._validate_folds_feasible(self._decision_bar_count(), cfg)
         return combinatorial_from_evaluation(
-            self._evaluation(risk_free_rate=cfg.cv_config.risk_free_rate),
+            self._evaluation(risk_free_rate=cfg.risk_free_rate),
             cv_config=cfg,
             score=self.score,
         )
@@ -128,7 +128,7 @@ class Validation:
                     selected_params=report.selected_params,
                 )
             evaluation = report.evaluation or self._evaluation(
-                risk_free_rate=cfg.cv_config.risk_free_rate
+                risk_free_rate=cfg.risk_free_rate
             )
             windows = {}
             for fold, params in zip(report.folds, report.fold_selected_params):
@@ -266,13 +266,13 @@ def _default_config_for_report(
 def _config_metric(cfg: WalkForwardConfig | CombinatorialCVConfig) -> SelectionMetric:
     if isinstance(cfg, WalkForwardConfig):
         return cfg.metric
-    return cfg.cv_config.metric
+    return cfg.metric
 
 
 def _config_max_held_fraction(cfg: WalkForwardConfig | CombinatorialCVConfig) -> float:
     if isinstance(cfg, WalkForwardConfig):
         return cfg.max_held_fraction
-    return cfg.cv_config.max_held_fraction
+    return cfg.max_held_fraction
 
 
 def _freeze_mapping(

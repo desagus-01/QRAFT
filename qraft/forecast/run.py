@@ -90,10 +90,10 @@ class ForecastRun:
     def forecast_at(self, as_of: datetime) -> ForecastPaths:
         return self.step_at(as_of).forecast
 
-    def model_health(self) -> pl.DataFrame:
+    def model_health_df(self) -> pl.DataFrame:
         frames = []
         for step in self.steps:
-            health = step.forecast.model_health()
+            health = step.forecast.model_health_df()
             if health.is_empty():
                 continue
             frames.append(

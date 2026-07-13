@@ -90,20 +90,16 @@ class PolicyProjection:
         )
 
     @property
-    def weights(self) -> dict[str, NDArray[np.floating]]:
-        return self.target_weights_risk_dict
+    def target_weights(self) -> dict[str, float]:
+        return dict(zip(self.asset_order, self.target_weights_risk.tolist()))
 
     @property
-    def target_weights_risk_dict(self) -> dict[str, NDArray[np.floating]]:
-        return dict(zip(self.asset_order, self.target_weights_risk))
+    def total_target_weights(self) -> dict[str, float]:
+        return dict(zip(self.asset_order + ["cash"], self.total_target_weights_array))
 
     @property
-    def total_target_weights(self) -> NDArray[np.floating]:
+    def total_target_weights_array(self) -> NDArray[np.floating]:
         return np.append(self.target_weights_risk, self.target_cash_weight)
-
-    @property
-    def total_target_weights_dict(self) -> dict[str, NDArray[np.floating]]:
-        return dict(zip(self.asset_order + ["cash"], self.total_target_weights))
 
     @property
     def cumulative_returns(self) -> NDArray[np.floating]:

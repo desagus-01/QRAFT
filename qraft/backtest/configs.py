@@ -68,12 +68,16 @@ class CombinatorialCVConfig:
     """Controls for combinatorial purged cross-validation (CPCV) selection."""
 
     n_groups: int = 10
-    cv_config: CVConfig = field(default_factory=CVConfig)
     n_test_groups: int = 3
     purge: int = 1
     embargo: int = 1
+    risk_free_rate: float = 0.0
+    metric: SelectionMetric = "sharpe"
+    max_held_fraction: float = 0.5
+    pbo_blocks: int = 10
 
     def __post_init__(self) -> None:
+        CVConfig.__post_init__(self)
         if self.n_groups < 2:
             raise ValueError("n_groups must be >= 2")
         if self.n_test_groups < 1 or self.n_test_groups >= self.n_groups:
@@ -82,3 +86,12 @@ class CombinatorialCVConfig:
             raise ValueError("purge must be >= 0")
         if self.embargo < 0:
             raise ValueError("embargo must be >= 0")
+
+    @property
+    def cv_config(self) -> CVConfig:
+        return CVConfig(
+            risk_free_rate=self.risk_free_rate,
+            metric=self.metric,
+            max_held_fraction=self.max_held_fraction,
+            pbo_blocks=self.pbo_blocks,
+        )

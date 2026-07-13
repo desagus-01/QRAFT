@@ -347,7 +347,7 @@ class OptimizerInputs:
         return int(self.scenario_returns.shape[0])
 
     @property
-    def mean_frame(self) -> pl.DataFrame:
+    def mean_df(self) -> pl.DataFrame:
         """Wide frame: one row per horizon, one column per asset."""
         mean = self.require_mean()
         rows = [
@@ -372,7 +372,7 @@ class OptimizerInputs:
             raise ValueError("OptimizerInputs.correlations is required.")
         return self._matrix_frame(self.correlations, horizon)
 
-    def covariance_frame(self, horizon: int = 0) -> pl.DataFrame:
+    def covariance_df(self, horizon: int = 0) -> pl.DataFrame:
         return self._matrix_frame(self.require_covariances(), horizon)
 
     @staticmethod

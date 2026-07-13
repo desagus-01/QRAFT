@@ -160,7 +160,7 @@ step_summary = pl.DataFrame(
         "n_invariance_drops": [len(step.invariance_drops) for step in run.steps],
     }
 )
-model_health = run.model_health()
+model_health = run.model_health_df()
 
 recipe_summary
 
@@ -183,7 +183,7 @@ latest_step.diagnostics
 latest_step.invariance_drops
 
 # %%
-latest_forecast.model_health()
+latest_forecast.model_health_df()
 
 # %%
 # Plot simulated paths for the latest forecast.
