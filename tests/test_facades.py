@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from conftest import market_data
-from qraft import Backtest, ForecastSpec, Validation
+from qraft import Backtest, ForecastSpec, MeanView, RebalanceSchedule, Validation
 from qraft.backtest.configs import (
     BacktestConfig,
     CombinatorialCVConfig,
@@ -27,7 +27,6 @@ from qraft.backtest.selection.validation import Validation as SelectionValidatio
 from qraft.backtest.engine.loop import run_backtest
 from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.policies import EqualWeightPolicy, MPOPolicy
-from qraft.core.schedule import RebalanceSchedule
 from qraft.backtest.selection.results import PolicyParams
 from qraft.backtest.selection.validation import ValidationResult
 
@@ -549,7 +548,10 @@ def test_public_facade_exports():
     assert Backtest.__name__ == "Backtest"
     assert Validation.__name__ == "Validation"
     assert ForecastSpec is not None
+    assert MeanView.__name__ == "MeanView"
+    assert RebalanceSchedule.__name__ == "RebalanceSchedule"
     assert WalkForwardReport is not None
     assert CombinatorialReport is not None
     assert "combinatorial_purged" in selection_all
+    assert "evaluate_candidates" not in selection_all
     assert "run_combinatorial_purged" not in selection_all

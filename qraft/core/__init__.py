@@ -18,9 +18,6 @@ __all__ = [
     "ScenarioView",
     "ViewWindow",
     "ViewState",
-    "uniform_probs",
-    "state_smooth_probs",
-    "state_crisp_probs",
     "entropy_pooling",
     "var",
     "cvar",
@@ -48,11 +45,6 @@ from qraft.core.scenarios.view_types import (  # noqa: F401
     QuantileView,
 )
 from qraft.core.scenarios.views import ScenarioView, ViewState, ViewWindow  # noqa: F401
-from qraft.core.probability.distributions import (  # noqa: F401
-    uniform_probs,
-    state_smooth_probs,
-    state_crisp_probs,
-)
 from qraft.core.probability.entropy_pooling import entropy_pooling  # noqa: F401
 from qraft.core.metrics import (  # noqa: F401
     var,
