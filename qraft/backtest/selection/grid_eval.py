@@ -9,7 +9,7 @@ from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.engine.loop import run_backtest
 from qraft.backtest.engine.schedule import DecisionPoint, decision_points
 from qraft.backtest.inputs import OptimizerInputsProvider, PrecomputedInputsProvider
-from qraft.backtest.inputs import precompute_inputs_for_points
+from qraft.backtest.inputs import precompute_inputs
 from qraft.backtest.result import PerformanceSummary
 from qraft.backtest.selection.candidate_eval import CandidateEvaluation
 from qraft.backtest.selection.candidates import expand_candidates
@@ -18,7 +18,7 @@ from qraft.backtest.selection.results import (
     CandidateResult,
     PolicyCandidate,
 )
-from qraft.construction.optimization.inputs import InputPlan, OptimizerInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
@@ -103,18 +103,16 @@ def run_selection_window(
     periods_per_year: float | None = None,
     risk_free_rate: float = 0.0,
     forecaster: Forecaster | None = None,
-    plan: InputPlan | None = None,
 ) -> tuple[CandidateResult, ...]:
     if forecasts is None and forecaster is None:
         raise TypeError("run_selection_window requires forecasts or forecaster")
     candidates = expand_candidates(base_policy, grid)
     warmup = _shared_warmup(candidates)
     points = decision_points(market, schedule, warmup, step_size=step_size)
-    table = precompute_inputs_for_points(
-        points,
+    table = precompute_inputs(
         market,
+        points=points,
         forecaster=forecaster,
-        plan=plan,
         forecasts=forecasts,
         policy=base_policy,
     )
@@ -140,7 +138,6 @@ def evaluate_candidate_grid(
     risk_free_rate: float,
     forecasts: SelectionInputSource | None = None,
     forecaster: Forecaster | None = None,
-    plan: InputPlan | None = None,
 ) -> CandidateEvaluation:
     if forecasts is None and forecaster is None:
         raise TypeError("evaluate_candidate_grid requires forecasts or forecaster")
@@ -158,11 +155,10 @@ def evaluate_candidate_grid(
         else type(forecaster).__name__,
     )
     points = decision_points(market, backtest_config.schedule, warmup)
-    table = precompute_inputs_for_points(
-        points,
+    table = precompute_inputs(
         market,
+        points=points,
         forecaster=forecaster,
-        plan=plan,
         forecasts=forecasts,
         policy=base_policy,
     )

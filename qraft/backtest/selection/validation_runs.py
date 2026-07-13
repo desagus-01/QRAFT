@@ -49,7 +49,6 @@ from qraft.backtest.selection.splits import (
     combinatorial_purged_folds,
     walk_forward_folds,
 )
-from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.core import metrics
 from qraft.core.market import MarketData
@@ -65,7 +64,6 @@ def walk_forward(
     grid: Mapping[str, Sequence[object]],
     *,
     forecaster: Forecaster | None = None,
-    plan: InputPlan | None = None,
     forecasts: SelectionInputSource | None = None,
     walk_config: WalkForwardConfig,
     backtest_config: BacktestConfig = BacktestConfig(),
@@ -79,7 +77,6 @@ def walk_forward(
         walk_config.risk_free_rate,
         forecaster=forecaster,
         forecasts=forecasts,
-        plan=plan,
     )
     return walk_forward_from_evaluation(
         evaluation,
@@ -168,7 +165,6 @@ def combinatorial_purged(
     grid: Mapping[str, Sequence[object]],
     *,
     forecaster: Forecaster | None = None,
-    plan: InputPlan | None = None,
     forecasts: SelectionInputSource | None = None,
     cv_config: CombinatorialCVConfig,
     backtest_config: BacktestConfig = BacktestConfig(),
@@ -182,7 +178,6 @@ def combinatorial_purged(
         cv_config.cv_config.risk_free_rate,
         forecaster=forecaster,
         forecasts=forecasts,
-        plan=plan,
     )
     return combinatorial_from_evaluation(
         evaluation,

@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from qraft.construction.inputs import build_policy_input_table, forecast_run_for_source
-from qraft.construction.optimization.inputs import InputPlan
+from qraft.construction.inputs import (
+    build_optimizer_input_table,
+    forecast_run_for_source,
+)
 from qraft.construction.policies.policies import PolicyProtocol
 from qraft.construction.policies.policy_run import PolicyRun, run_policy
 from qraft.construction.state import PortfolioState
@@ -22,7 +24,6 @@ class Allocation:
     market: MarketData
     policy: PolicyProtocol
     forecasts: ForecastSpec | ForecastPaths
-    plan: InputPlan | None = None
     state: PortfolioState | None = None
     initial_cash: float = 100.0
     step_size: int = 1
@@ -81,12 +82,9 @@ class Allocation:
         snapshot: MarketSnapshot,
         forecasts: ForecastPaths,
     ):
-        if self.plan is None:
-            return {}
-        return build_policy_input_table(
+        return build_optimizer_input_table(
             [snapshot],
             [forecasts],
-            plan=self.plan,
             policy=self.policy,
             market=self.market,
         )

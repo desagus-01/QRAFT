@@ -74,6 +74,8 @@ forecaster = Forecaster(
     seed=10,
 )
 
+plan = InputPlan(expected_returns="forecast", max_horizons=10)
+
 policy = MPOPolicy.preset(
     "cvar_auto",
     risk_aversion=5.0,
@@ -86,13 +88,12 @@ policy = MPOPolicy.preset(
         MaxWeight(limit=0.15),
     ),
     min_history=252,
+    input_plan=plan,
 )
-
-plan = InputPlan(expected_returns="forecast", max_horizons=10)
 
 # %%
 # Allocation.at() returns the policy result object.
-run = Allocation(market, policy, forecasts=forecaster, plan=plan).at()
+run = Allocation(market, policy, forecasts=forecaster).at()
 
 run.target_weights
 

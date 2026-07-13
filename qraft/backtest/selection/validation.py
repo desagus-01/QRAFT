@@ -30,7 +30,6 @@ from qraft.backtest.selection.validation_runs import (
     combinatorial_from_evaluation,
     walk_forward_from_evaluation,
 )
-from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.policies import PolicyProtocol
 from qraft.core.configs import SelectionMetric
 from qraft.core.market import MarketData
@@ -57,7 +56,6 @@ class Validation:
     base_policy: PolicyProtocol
     grid: Mapping[str, Sequence[Any]]
     forecasts: SelectionInputSource
-    plan: InputPlan
     backtest_config: BacktestConfig = field(default_factory=BacktestConfig)
     score: ScoreSpec | None = None
     _evaluation_cache: dict[tuple[Any, ...], CandidateEvaluation] = field(
@@ -67,6 +65,7 @@ class Validation:
     def walk_forward(self, cfg: WalkForwardConfig | None = None) -> WalkForwardReport:
         if cfg is None:
             cfg = WalkForwardConfig()
+        self._validate_folds_feasible(self._decision_bar_count(), cfg)
         return walk_forward_from_evaluation(
             self._evaluation(risk_free_rate=cfg.risk_free_rate),
             walk_config=cfg,
@@ -78,6 +77,7 @@ class Validation:
     ) -> CombinatorialReport:
         if cfg is None:
             cfg = CombinatorialCVConfig()
+        self._validate_folds_feasible(self._decision_bar_count(), cfg)
         return combinatorial_from_evaluation(
             self._evaluation(risk_free_rate=cfg.cv_config.risk_free_rate),
             cv_config=cfg,
@@ -151,6 +151,44 @@ class Validation:
             selected_params=_tune_select(scores, candidates, max_held_fraction),
         )
 
+    def _decision_bar_count(self) -> int:
+        trading_bars = self.market.trading_bars
+        bar_index = {bar: i for i, bar in enumerate(trading_bars)}
+        return sum(
+            1
+            for decision_bar, _ in self.backtest_config.schedule.decision_steps(
+                trading_bars
+            )
+            if bar_index[decision_bar] + 1 >= self.base_policy.min_history
+        )
+
+    def _validate_folds_feasible(
+        self,
+        n_dates: int,
+        cfg: WalkForwardConfig | CombinatorialCVConfig,
+    ) -> None:
+        cadence = self.backtest_config.schedule.cadence
+        min_history = self.base_policy.min_history
+        if isinstance(cfg, CombinatorialCVConfig):
+            if n_dates < cfg.n_groups:
+                raise ValueError(
+                    f"CPCV needs >= n_groups={cfg.n_groups} decision dates; "
+                    f"schedule {cadence!r} + min_history={min_history} "
+                    f"yields {n_dates}. Reduce n_groups, lower min_history, "
+                    "or use a finer cadence."
+                )
+            return
+
+        required = cfg.train_size + cfg.embargo + cfg.test_size
+        if n_dates < required:
+            raise ValueError(
+                f"Walk-forward needs >= train_size={cfg.train_size} + "
+                f"embargo={cfg.embargo} + test_size={cfg.test_size} "
+                f"({required}) decision dates; schedule {cadence!r} + "
+                f"min_history={min_history} yields {n_dates}. Reduce train_size, "
+                "test_size, embargo, lower min_history, or use a finer cadence."
+            )
+
     def _evaluation(
         self,
         *,
@@ -165,7 +203,6 @@ class Validation:
                 self.backtest_config,
                 risk_free_rate,
                 forecasts=self.forecasts,
-                plan=self.plan,
             )
         return self._evaluation_cache[key]
 
@@ -178,7 +215,6 @@ class Validation:
             id(self.base_policy),
             _freeze_mapping(self.grid),
             id(self.forecasts),
-            self.plan,
             self.backtest_config,
             risk_free_rate,
         )

@@ -166,6 +166,12 @@ def incremental_returns_from_forecast_paths(
 class OptimizerInputs:
     """
     Optimizer-ready horizon-indexed inputs.
+
+    Normal forecast-backed runs build this internally from ``policy.input_plan``;
+    users usually inspect instances via ``PolicyRun.optimizer_inputs`` or
+    ``BacktestPeriod.optimizer_inputs``. The class remains exported for type hints
+    and advanced BYO flows, especially ``OptimizerInputs.from_arrays(...)`` and
+    ``dict[datetime, OptimizerInputs]`` sources.
     """
 
     assets: list[str]

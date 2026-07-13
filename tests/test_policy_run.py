@@ -10,7 +10,6 @@ from qraft.backtest.execution import execute_frictionless
 from qraft.backtest.result.period import BacktestPeriod
 from qraft.backtest.result.result import BacktestResult, plot_nav
 from qraft.construction.optimization.inputs import OptimizerInputs
-from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.optimization.objectives.specs import (
     ExpectedReturn,
     TransactionCost,
@@ -240,22 +239,21 @@ def test_allocation_returns_run_with_same_forecasts(monkeypatch) -> None:
     forecasts = _forecasts()
     captured = {}
 
-    def fake_build_policy_input_table(snapshots, source, **kwargs):
+    def fake_build_optimizer_input_table(snapshots, source, **kwargs):
         snapshots = list(snapshots)
         captured["snapshot"] = snapshots[0]
         captured["source"] = source
         return {snapshots[0].t: None}
 
     monkeypatch.setattr(
-        "qraft.construction.policies.allocation.build_policy_input_table",
-        fake_build_policy_input_table,
+        "qraft.construction.policies.allocation.build_optimizer_input_table",
+        fake_build_optimizer_input_table,
     )
 
     run = Allocation(
         market,
         EqualWeightPolicy(target_cash_weight=0.2),
         forecasts=forecasts,
-        plan=InputPlan(),
     ).at()
 
     assert run.forecasts is forecasts

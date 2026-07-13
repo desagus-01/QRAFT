@@ -379,6 +379,14 @@ def test_policy_input_precompute_refits_recipes_on_market_bars(monkeypatch):
     def forecast_from_fit(**kwargs):
         return _forecast_paths()
 
+    class ForecastPolicy:
+        input_plan = InputPlan(expected_returns="forecast")
+
+        def required_inputs(self):
+            from qraft.construction.optimization.inputs import RequiredOptimizerInputs
+
+            return RequiredOptimizerInputs(mean=True)
+
     monkeypatch.setattr(
         "qraft.forecast.run.create_forecast_recipe", create_forecast_recipe
     )
@@ -393,7 +401,7 @@ def test_policy_input_precompute_refits_recipes_on_market_bars(monkeypatch):
         schedule=RebalanceSchedule("every_bar"),
         warmup=2,
         forecasts=Forecaster(refit_every=2),
-        plan=InputPlan(expected_returns="forecast"),
+        policy=ForecastPolicy(),
     )
 
     assert selected_steps == [2, 4]
@@ -465,7 +473,6 @@ def test_selection_reuses_precomputed_decision_snapshots(monkeypatch):
     import numpy as np
 
     from qraft.backtest.selection.grid_eval import run_selection_window
-    from qraft.construction.optimization.inputs import InputPlan
     from qraft.construction.policies import EqualWeightPolicy
 
     class CountingMarket:
@@ -499,7 +506,6 @@ def test_selection_reuses_precomputed_decision_snapshots(monkeypatch):
         grid={},
         forecasts=StaticProvider(),
         schedule=RebalanceSchedule("every_bar"),
-        plan=InputPlan(expected_returns="historical"),
     )
 
     assert market.snapshot_calls == [

@@ -91,9 +91,10 @@ policy = MPOPolicy.preset(
         MaxWeight(limit=0.2),
     ),
     min_history=252,
+    input_plan=plan,
 )
 
-run = Allocation(market, policy, forecasts=forecaster, plan=plan).at()
+run = Allocation(market, policy, forecasts=forecaster).at()
 
 
 # %%

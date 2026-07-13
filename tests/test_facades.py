@@ -25,7 +25,7 @@ from qraft.backtest.selection.results import CandidateResult, SelectionReport
 from qraft.backtest.selection.splits import Fold
 from qraft.backtest.selection.validation import Validation as SelectionValidation
 from qraft.backtest.engine.loop import run_backtest
-from qraft.construction.optimization.inputs import InputPlan, OptimizerInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.policies import EqualWeightPolicy, MPOPolicy
 from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.forecast_paths import AssetUniverse
@@ -134,7 +134,7 @@ def test_validation_runs_explicit_reports(monkeypatch):
         fake_combinatorial,
     )
 
-    validation = SelectionValidation(market, policy, {}, forecasts={}, plan=InputPlan())
+    validation = SelectionValidation(market, policy, {}, forecasts={})
 
     assert isinstance(validation.walk_forward(WalkForwardConfig()), _FakeWalkReport)
     assert isinstance(validation.combinatorial(), _FakeCpcvReport)
@@ -177,13 +177,88 @@ def test_validation_reuses_candidate_evaluation(monkeypatch):
         fake_cpcv_from_evaluation,
     )
 
-    validation = SelectionValidation(market, policy, {}, forecasts={}, plan=InputPlan())
+    validation = SelectionValidation(
+        market,
+        policy,
+        {},
+        forecasts={},
+        backtest_config=BacktestConfig(schedule=RebalanceSchedule("every_bar")),
+    )
 
-    assert isinstance(validation.walk_forward(WalkForwardConfig()), _FakeWalkReport)
     assert isinstance(
-        validation.combinatorial(CombinatorialCVConfig()), _FakeCpcvReport
+        validation.walk_forward(WalkForwardConfig(train_size=1, test_size=2)),
+        _FakeWalkReport,
+    )
+    assert isinstance(
+        validation.combinatorial(CombinatorialCVConfig(n_groups=2, n_test_groups=1)),
+        _FakeCpcvReport,
     )
     assert len(calls) == 1
+
+
+def test_validation_combinatorial_checks_feasibility_before_evaluation(monkeypatch):
+    market = _market()
+    policy = EqualWeightPolicy(target_cash_weight=0.0, min_history=1)
+    calls = []
+
+    def fake_evaluate(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("grid evaluation should not run")
+
+    monkeypatch.setattr(
+        "qraft.backtest.selection.validation.evaluate_candidate_grid", fake_evaluate
+    )
+    validation = SelectionValidation(
+        market,
+        policy,
+        {},
+        forecasts={},
+        backtest_config=BacktestConfig(schedule=RebalanceSchedule("every_bar")),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"CPCV needs >= n_groups=50 decision dates; schedule 'every_bar' "
+            r"\+ min_history=1 yields 3"
+        ),
+    ):
+        validation.combinatorial(CombinatorialCVConfig(n_groups=50))
+
+    assert calls == []
+
+
+def test_validation_walk_forward_checks_feasibility_before_evaluation(monkeypatch):
+    market = _market()
+    policy = EqualWeightPolicy(target_cash_weight=0.0, min_history=1)
+    calls = []
+
+    def fake_evaluate(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("grid evaluation should not run")
+
+    monkeypatch.setattr(
+        "qraft.backtest.selection.validation.evaluate_candidate_grid", fake_evaluate
+    )
+    validation = SelectionValidation(
+        market,
+        policy,
+        {},
+        forecasts={},
+        backtest_config=BacktestConfig(schedule=RebalanceSchedule("every_bar")),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"Walk-forward needs >= train_size=3 \+ embargo=0 \+ "
+            r"test_size=2 \(5\) decision dates; schedule 'every_bar' "
+            r"\+ min_history=1 yields 3"
+        ),
+    ):
+        validation.walk_forward(WalkForwardConfig(train_size=3, test_size=2))
+
+    assert calls == []
 
 
 def test_validation_tune_requires_oos_report() -> None:
@@ -192,7 +267,6 @@ def test_validation_tune_requires_oos_report() -> None:
         EqualWeightPolicy(target_cash_weight=0.0),
         {},
         forecasts={},
-        plan=InputPlan(),
     )
 
     with pytest.raises(TypeError, match="missing.*report"):
@@ -232,9 +306,9 @@ def test_validation_tune_returns_result_with_report() -> None:
         evaluation=evaluation,
     )
 
-    result = SelectionValidation(
-        _market(), policy, {}, forecasts={}, plan=InputPlan()
-    ).tune(report, cfg=WalkForwardConfig(), score="total_return")
+    result = SelectionValidation(_market(), policy, {}, forecasts={}).tune(
+        report, cfg=WalkForwardConfig(), score="total_return"
+    )
 
     assert result.report is report
     assert result.selected_params == params
@@ -298,9 +372,9 @@ def test_validation_tune_defaults_to_most_selected_not_oos_argmax() -> None:
         ),
     )
 
-    result = SelectionValidation(
-        _market(), policy, {}, forecasts={}, plan=InputPlan()
-    ).tune(report, cfg=WalkForwardConfig(), score="total_return")
+    result = SelectionValidation(_market(), policy, {}, forecasts={}).tune(
+        report, cfg=WalkForwardConfig(), score="total_return"
+    )
 
     assert result.selected_params == stable
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Mapping, Protocol, runtime_checkable
 
@@ -10,9 +10,8 @@ import numpy as np
 from qraft.backtest.engine.schedule import DecisionPoint, decision_points
 from qraft.construction.inputs import (
     OptimizerInputRequirements,
-    build_policy_input_table,
+    build_optimizer_input_table,
 )
-from qraft.construction.optimization.inputs import InputPlan
 from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
@@ -32,28 +31,6 @@ class OptimizerInputsProvider(Protocol):
     def for_date(self, snapshot: MarketSnapshot, step: int) -> OptimizerInputs: ...
 
 
-@dataclass
-class DateCache:
-    inner: OptimizerInputsProvider
-    _table: dict[datetime, OptimizerInputs] = field(default_factory=dict, init=False)
-    _universe: tuple[str, ...] | None = field(default=None, init=False)
-
-    def for_date(self, snapshot: MarketSnapshot, step: int) -> OptimizerInputs:
-        universe = tuple(snapshot.universe.all_tickers)
-        if self._universe is None:
-            self._universe = universe
-        elif universe != self._universe:
-            raise ValueError(
-                "DateCache requires a fixed universe; the asset set changed "
-                "mid-run. Use a fresh provider per universe."
-            )
-        cached = self._table.get(snapshot.t)
-        if cached is None:
-            cached = self.inner.for_date(snapshot, step)
-            self._table[snapshot.t] = cached
-        return cached
-
-
 @dataclass(frozen=True, slots=True)
 class PrecomputedInputsProvider:
     """Serve OptimizerInputs from a ``{date: OptimizerInputs}`` table."""
@@ -69,11 +46,11 @@ class PrecomputedInputsProvider:
 
 def precompute_inputs(
     market: MarketData,
-    schedule: RebalanceSchedule,
-    warmup: int,
+    schedule: RebalanceSchedule | None = None,
+    warmup: int | None = None,
     *,
+    points: list[DecisionPoint] | None = None,
     forecaster: Forecaster | None = None,
-    plan: InputPlan | None = None,
     forecasts: ForecastSpec
     | OptimizerInputsProvider
     | dict[datetime, OptimizerInputs]
@@ -82,33 +59,12 @@ def precompute_inputs(
     dtype: type = np.float64,
     step_size: int = 1,
 ) -> dict[datetime, OptimizerInputs]:
-    """Build and freeze optimizer inputs for the exact backtest decision schedule."""
-    points = decision_points(market, schedule, warmup, step_size=step_size)
-    return precompute_inputs_for_points(
-        points,
-        market,
-        forecaster=forecaster,
-        plan=plan,
-        forecasts=forecasts,
-        policy=policy,
-        dtype=dtype,
-    )
+    """Build and freeze optimizer inputs for a decision schedule or supplied points."""
+    if points is None:
+        if schedule is None or warmup is None:
+            raise TypeError("precompute_inputs requires points or schedule and warmup")
+        points = decision_points(market, schedule, warmup, step_size=step_size)
 
-
-def precompute_inputs_for_points(
-    points: list[DecisionPoint],
-    market: MarketData,
-    *,
-    forecaster: Forecaster | None = None,
-    plan: InputPlan | None = None,
-    forecasts: ForecastSpec
-    | OptimizerInputsProvider
-    | dict[datetime, OptimizerInputs]
-    | None = None,
-    policy: OptimizerInputRequirements | None = None,
-    dtype: type = np.float64,
-) -> dict[datetime, OptimizerInputs]:
-    """Build optimizer inputs from already-materialized decision snapshots."""
     if isinstance(forecasts, dict):
         table = forecasts
     elif isinstance(forecasts, OptimizerInputsProvider):
@@ -120,12 +76,9 @@ def precompute_inputs_for_points(
         forecast_input = forecasts if forecasts is not None else forecaster
         if forecast_input is None:
             raise TypeError("precompute_inputs requires forecasts or forecaster")
-        if plan is None:
-            raise TypeError("forecast-backed precompute_inputs requires plan")
-        table = build_policy_input_table(
+        table = build_optimizer_input_table(
             (point.snapshot for point in points),
             forecast_input,
-            plan=plan,
             policy=policy,
             dtype=dtype,
             market=market,

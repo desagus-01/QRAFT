@@ -41,17 +41,17 @@ def required_optimizer_inputs(
     return policy.required_inputs()
 
 
-def build_policy_input_table(
+def build_optimizer_input_table(
     snapshots: Iterable[MarketSnapshot],
     forecasts: ForecastSpec,
     *,
-    plan: InputPlan,
     policy=None,
     dtype: type = np.float64,
     market: MarketData | None = None,
 ) -> dict[datetime, OptimizerInputs]:
     """Build ``{date: OptimizerInputs}`` from decision snapshots and a forecast source."""
     market_snapshots = list(snapshots)
+    plan = getattr(policy, "input_plan", InputPlan())
     required = required_optimizer_inputs(policy)
     info_event(
         logger,

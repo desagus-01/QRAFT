@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 
 from qraft.construction.optimization.constraints import PortfolioConstraint
 from qraft.construction.optimization.inputs import (
+    InputPlan,
     OptimizerInputs,
     RequiredOptimizerInputs,
 )
@@ -45,6 +46,8 @@ class PolicyProtocol(Protocol):
 
     def required_inputs(self) -> RequiredOptimizerInputs: ...
 
+    input_plan: InputPlan
+
 
 def _decision_from_mpo(
     result: MPOResult, cash_return: NDArray[np.floating] | None
@@ -61,6 +64,7 @@ def _decision_from_mpo(
 @dataclass(frozen=True, slots=True)
 class EqualWeightPolicy:
     target_cash_weight: float
+    input_plan: InputPlan = field(default_factory=InputPlan)
     name: str = "equal_weight"
     min_history: int = 0
 
@@ -97,6 +101,7 @@ class MPOPolicy:
     """Multi-period optimizer policy over explicit, pre-built optimizer inputs."""
 
     problem: MPOProblem
+    input_plan: InputPlan = field(default_factory=InputPlan)
     min_history: int = 0
     name: str = "mpo"
     _optimizer_cache: dict[tuple[tuple[str, ...], int, int], MultiPeriodOptimizer] = (
@@ -111,6 +116,7 @@ class MPOPolicy:
         *,
         name: str = "mpo",
         min_history: int = 0,
+        input_plan: InputPlan | None = None,
         alpha: float | None = 0.05,
         constraints: Sequence[PortfolioConstraint] = (),
         allow_borrow: bool = False,
@@ -137,6 +143,7 @@ class MPOPolicy:
                 costs=costs,
                 **solver_options,
             ),
+            input_plan=InputPlan() if input_plan is None else input_plan,
             name=name,
             min_history=min_history,
         )

@@ -14,7 +14,7 @@ from qraft.backtest.inputs import (
 )
 from qraft.backtest.result import BacktestResult
 from qraft.core.market import MarketData
-from qraft.construction.optimization.inputs import InputPlan, OptimizerInputs
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.forecast.forecaster import ForecastSpec
 
@@ -28,7 +28,6 @@ class Backtest:
     market: MarketData
     policy: PolicyProtocol
     forecasts: BacktestSource | None = None
-    plan: InputPlan | None = None
     config: BacktestConfig = field(default_factory=BacktestConfig)
     costs: CostModel | None = None
     step_size: int = 1
@@ -40,7 +39,6 @@ class Backtest:
                 self.market,
                 self.config.schedule,
                 self.policy.min_history,
-                plan=self.plan,
                 forecasts=self.forecasts,
                 policy=self.policy,
                 step_size=self.step_size,

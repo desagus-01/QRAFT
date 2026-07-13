@@ -4,14 +4,14 @@ import numpy as np
 import polars as pl
 
 from qraft.backtest.configs import BacktestConfig
+from qraft.backtest.engine.schedule import decision_points
 from qraft.backtest.inputs import (
-    DateCache,
     PrecomputedInputsProvider,
     precompute_inputs,
 )
 from qraft.core.market import MarketData
 from qraft.backtest.selection.grid_eval import evaluate_candidate_grid
-from qraft.construction.inputs import build_policy_input_table
+from qraft.construction.inputs import build_optimizer_input_table
 from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.optimization.inputs import (
     InputPlan,
@@ -37,27 +37,6 @@ def _snap(t: datetime, cash_rate: float = 0.0) -> MarketSnapshot:
         prices_t=np.array([10.0]),
         cash_rate=cash_rate,
     )
-
-
-class _Counting:
-    def __init__(self) -> None:
-        self.calls: list[datetime] = []
-
-    def for_date(self, snapshot, step):
-        self.calls.append(snapshot.t)
-        return OptimizerInputs.from_arrays(
-            assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
-        )
-
-
-def test_datecache_builds_once_and_returns_identical_objects():
-    inner = _Counting()
-    cache = DateCache(inner)
-    snaps = [_snap(datetime(2024, 1, d)) for d in (2, 3, 4)]
-    first = [cache.for_date(s, i) for i, s in enumerate(snaps)]  # gamma=0 pass
-    second = [cache.for_date(s, i) for i, s in enumerate(snaps)]  # gamma=1 pass
-    assert inner.calls == [s.t for s in snaps]  # once per date
-    assert all(a is b for a, b in zip(first, second))  # fair: same object
 
 
 def test_precomputed_provider_serves_table():
@@ -100,7 +79,7 @@ def test_precompute_inputs_uses_snapshot_cash_rate(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "qraft.backtest.inputs.build_policy_input_table",
+        "qraft.backtest.inputs.build_optimizer_input_table",
         fake_build,
     )
 
@@ -123,13 +102,43 @@ def test_precompute_inputs_uses_snapshot_cash_rate(monkeypatch):
         market,
         RebalanceSchedule("every_bar"),
         warmup=1,
-        plan=InputPlan(),
         forecaster=object(),
     )
     inputs = table[datetime(2024, 1, 2)]
 
     np.testing.assert_allclose(inputs.cash_return, [0.001 / 100 / 360])
     assert captured["cash_return"] == 0.001 / 100 / 360
+
+
+def test_precompute_inputs_accepts_materialized_points(monkeypatch):
+    captured = {}
+
+    def fake_build(snapshots, forecast_source, **kwargs):
+        snapshots = list(snapshots)
+        captured["snapshots"] = snapshots
+        return {
+            snapshot.t: OptimizerInputs.from_arrays(
+                assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
+            )
+            for snapshot in snapshots
+        }
+
+    monkeypatch.setattr(
+        "qraft.backtest.inputs.build_optimizer_input_table",
+        fake_build,
+    )
+
+    dates = [datetime(2024, 1, day) for day in range(1, 4)]
+    market = MarketData.from_prices(
+        pl.DataFrame({"date": dates, "A": [18.0, 20.0, 22.0]}),
+        AssetUniverse.factors_free(["A"]),
+    )
+    points = decision_points(market, RebalanceSchedule("every_bar"), warmup=1)
+
+    table = precompute_inputs(market, points=points, forecaster=object())
+
+    assert [snapshot.t for snapshot in captured["snapshots"]] == dates[:-1]
+    assert table.keys() == set(dates[:-1])
 
 
 def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
@@ -154,10 +163,9 @@ def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
         fake_from_policy_sources,
     )
 
-    table = build_policy_input_table(
+    table = build_optimizer_input_table(
         [snapshot],
         [forecast],
-        plan=InputPlan(),
     )
 
     assert table.keys() == {snapshot.t}
@@ -197,7 +205,7 @@ def test_policy_input_table_uses_snapshot_applied_view_diagnostics(monkeypatch):
 
         def view_report(self, _t):
             raise AssertionError(
-                "build_policy_input_table should use snapshot.applied_views"
+                "build_optimizer_input_table should use snapshot.applied_views"
             )
 
     market_wrapper = MarketWrapper()
@@ -213,9 +221,7 @@ def test_policy_input_table_uses_snapshot_applied_view_diagnostics(monkeypatch):
         fake_from_policy_sources,
     )
 
-    build_policy_input_table(
-        [snapshot], [forecast], plan=InputPlan(), market=market_wrapper
-    )
+    build_optimizer_input_table([snapshot], [forecast], market=market_wrapper)
 
     assert snapshot.applied_views is not None
     assert captured["view_diagnostics"] is snapshot.applied_views.diagnostics
@@ -232,13 +238,14 @@ def test_policy_input_table_builds_historical_mean_when_policy_requires_mean():
     )
 
     class MeanPolicy:
+        input_plan = InputPlan(expected_returns="historical")
+
         def required_inputs(self) -> RequiredOptimizerInputs:
             return RequiredOptimizerInputs(mean=True)
 
-    table = build_policy_input_table(
+    table = build_optimizer_input_table(
         [snapshot],
         [forecast],
-        plan=InputPlan(expected_returns="historical"),
         policy=MeanPolicy(),
     )
 
@@ -266,7 +273,7 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
         }
 
     monkeypatch.setattr(
-        "qraft.backtest.inputs.build_policy_input_table",
+        "qraft.backtest.inputs.build_optimizer_input_table",
         fake_build,
     )
 
@@ -274,7 +281,6 @@ def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch
         market,
         RebalanceSchedule("every_bar"),
         warmup=2,
-        plan=InputPlan(),
         forecasts=recipe_history,
     )
 
@@ -306,7 +312,7 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         return ()
 
     monkeypatch.setattr(
-        "qraft.backtest.selection.grid_eval.precompute_inputs_for_points",
+        "qraft.backtest.selection.grid_eval.precompute_inputs",
         fake_precompute,
     )
     monkeypatch.setattr(
@@ -321,7 +327,6 @@ def test_selection_grid_accepts_recipe_history_without_provider(monkeypatch):
         BacktestConfig(),
         risk_free_rate=0.0,
         forecasts=recipe_history,
-        plan=InputPlan(),
     )
 
     assert evaluation.candidate_results == ()
