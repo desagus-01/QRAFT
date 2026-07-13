@@ -51,8 +51,9 @@ def deflated_sharpe(
     returns: NDArray[np.floating],
     trial_sharpes: Sequence[float],
 ) -> float:
-    """Probability the selected strategy's true Sharpe is positive after
-    correcting for the number of trials and non-normality.
+    """Return the probability that the selected strategy's true Sharpe is positive.
+
+    Corrects for the number of trials and non-normality.
     """
     sharpe, skew, kurt, n = _moments(returns)
     sr0 = expected_max_sharpe(trial_sharpes)

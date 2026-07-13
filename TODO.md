@@ -1,7 +1,7 @@
 ## Alpha releast checklist
 - [ ] Update README
 - [ ] Get pypi ready
-- [ ] Update docstrings
+- [x] Update docstrings ✅ 2026-07-13
 - [ ] Create examples
 - [x] Full green-suite + tests organization ✅ 2026-07-13
 - [ ] Review MarketData as a bit too large?

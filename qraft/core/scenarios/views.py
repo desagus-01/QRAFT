@@ -1,3 +1,5 @@
+"""Scenario view scheduling and viewed distribution helpers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,6 +21,12 @@ DateLike = datetime | str
 
 @dataclass(frozen=True)
 class ViewedDistribution:
+    """Scenario distribution after applying a view.
+
+    Stores the scenario panel, prior and posterior probabilities, diagnostics,
+    and metadata for the date on which the view was evaluated.
+    """
+
     panel: ScenarioPanel
     posterior: ProbVector
     prior: ProbVector
@@ -27,6 +35,14 @@ class ViewedDistribution:
     name: str | None = None
 
     def moments(self) -> dict[str, dict[str, float]]:
+        """Return prior and posterior moments by asset.
+
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Mapping from asset name to prior/posterior mean and standard
+            deviation under the stored probability vectors.
+        """
         values = self.panel.values.to_numpy().T
         prior_mean, prior_sd = weighted_moments(values, self.prior)
         posterior_mean, posterior_sd = weighted_moments(values, self.posterior)
@@ -41,9 +57,35 @@ class ViewedDistribution:
         }
 
     def prob_for(self, parent: ScenarioPanel) -> ProbVector:
+        """Expand posterior probabilities to a parent scenario panel.
+
+        Parameters
+        ----------
+        parent
+            Parent scenario panel whose probability vector defines the full
+            scenario space.
+
+        Returns
+        -------
+        ProbVector
+            Posterior probabilities aligned to the parent panel.
+        """
         return expand_posterior_to_parent(self.posterior, parent.prob, 1)
 
     def plot(self, *, title: str | None = None):
+        """Plot cumulative prior and posterior probabilities.
+
+        Parameters
+        ----------
+        title
+            Optional figure title. When omitted, the distribution name is
+            appended to the default title if available.
+
+        Returns
+        -------
+        numpy.ndarray
+            Matplotlib axes used for the three subplots.
+        """
         dates = self.panel.dates.to_list()
 
         fig, axes = plt.subplots(
@@ -95,23 +137,44 @@ class ViewedDistribution:
 
 @runtime_checkable
 class ScenarioView(Protocol):
+    """Protocol for objects that transform scenario probabilities."""
+
     def view_distribution(
         self, panel: ScenarioPanel, *, as_of: datetime
-    ) -> ViewedDistribution: ...
+    ) -> ViewedDistribution:
+        """Apply the view to a scenario panel.
+
+        Parameters
+        ----------
+        panel
+            Scenario panel to reweight.
+        as_of
+            Evaluation timestamp for the view.
+
+        Returns
+        -------
+        ViewedDistribution
+            Result containing prior and posterior probabilities plus diagnostics.
+        """
+        ...
 
 
 @dataclass(frozen=True, slots=True)
 class ViewWindow:
+    """Time interval over which a scenario view is active."""
+
     start: datetime
     end: datetime
     views: ScenarioView
     name: str | None = None
 
     def __post_init__(self) -> None:
+        """Validate that the window bounds are ordered."""
         if self.end < self.start:
             raise ValueError("ViewWindow end must be on or after start")
 
     def contains(self, t: datetime) -> bool:
+        """Return whether a timestamp falls inside the window."""
         return self.start <= t <= self.end
 
 
@@ -124,14 +187,41 @@ ViewInput: TypeAlias = (
 
 @dataclass(frozen=True, slots=True)
 class ViewState:
+    """Collection of scheduled scenario view windows."""
+
     windows: tuple[ViewWindow, ...] = ()
 
     def active_window_at(self, t: datetime) -> ViewWindow | None:
+        """Return the first active view window at a timestamp.
+
+        Parameters
+        ----------
+        t
+            Timestamp to evaluate.
+
+        Returns
+        -------
+        ViewWindow | None
+            Matching window, or ``None`` when no window is active.
+        """
         active = [window for window in self.windows if window.contains(t)]
         return active[0] if active else None
 
 
 def normalize_view_window(window: ViewInput) -> ViewWindow:
+    """Convert tuple-style view input into a view window.
+
+    Parameters
+    ----------
+    window
+        Existing ``ViewWindow`` or tuple containing start, end, view, and
+        optionally a name.
+
+    Returns
+    -------
+    ViewWindow
+        Normalized view window with datetime bounds.
+    """
     if isinstance(window, ViewWindow):
         return window
     if len(window) == 3:
@@ -151,6 +241,13 @@ def normalize_view_window(window: ViewInput) -> ViewWindow:
 
 
 def validate_non_overlapping_windows(windows: tuple[ViewWindow, ...]) -> None:
+    """Raise when adjacent sorted view windows overlap.
+
+    Parameters
+    ----------
+    windows
+        View windows ordered by start date.
+    """
     for prev, current in zip(windows, windows[1:], strict=False):
         if current.start <= prev.end:
             raise ValueError(
