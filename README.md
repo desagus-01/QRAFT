@@ -37,7 +37,6 @@ Users are also able to add view events for specific date windows. For example, i
 
 QRAFT uses a derivative of filtered historical simulation (FHS) for forecasting assets' future paths. Instead of the standard FHS, we instead, broadly follow Meucci's 'The Prayer' [**INSERT CITATION HERE**] tto derive this. This starts by finding a suitable **univariate** model that makes the asset's innovation strongly IID. The forecast stack in QRAFT follows a general Box-Jenkins methodology (ie remove determinism -> model mean -> model vol) with checks in between to determine the necessity of each. Once the forecast stack determines a suitable model for each asset, a `ForecastRecipe` is created for a specific date, users can determine how often they wish to re-run the forecast stack to create new recipes through history.
 
-[**CREATE EXAMPLE HERE**]
 
 Following the univariate structural models from `ForecastRecipes`, we are able to run a **forecast simulation** of assets' returns taking into account their cross-asset depedencies from their joint distribution of IID residuals. The simulation is done by **bootstraping** our innovations using the scenario probability (which can reflect our current views of the market).  Users can also opt to use the **Copula-Marginal Algorithm** [**PUT CITATION FOR MEUCCIS WORK**] for bootstrapping instead of just using the non-parametric method, this allows users to specify either/or the marginal of assets and/or the copula.
 

@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import cast
 
 import numpy as np
 import polars as pl
@@ -15,7 +16,7 @@ from qraft.core.panel import ScenarioPanel
 from qraft.core.scenarios.copula_marginal import CMAConfig
 from qraft.core.scenarios.transforms import CMA, Views
 from qraft.core.scenarios.view_types import MeanView, ViewDiagnostics
-from qraft.core.scenarios.views import ViewedDistribution, ViewWindow
+from qraft.core.scenarios.views import ScenarioView, ViewedDistribution, ViewWindow
 from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecast_paths import AssetUniverse
@@ -290,8 +291,10 @@ def test_history_through_raises_on_no_data() -> None:
 
 def test_with_views_applies_only_active_window() -> None:
     md = _market_data().with_views(
-        (datetime(2024, 1, 2), datetime(2024, 1, 2), _ScaleProbView(1.0)),
-        ViewWindow(datetime(2024, 1, 3), datetime(2024, 1, 3), _ScaleProbView(2.0)),
+        [
+            ViewWindow(datetime(2024, 1, 2), datetime(2024, 1, 2), _ScaleProbView(1.0)),
+            ViewWindow(datetime(2024, 1, 3), datetime(2024, 1, 3), _ScaleProbView(2.0)),
+        ]
     )
 
     before = md.history_through(datetime(2024, 1, 1))
@@ -305,7 +308,7 @@ def test_with_views_applies_only_active_window() -> None:
 
 def test_with_views_uses_prior_outside_windows() -> None:
     md = _market_data().with_views(
-        (datetime(2024, 1, 2), datetime(2024, 1, 2), _ScaleProbView(2.0))
+        [ViewWindow(datetime(2024, 1, 2), datetime(2024, 1, 2), _ScaleProbView(2.0))]
     )
 
     after = md.history_through(datetime(2024, 1, 3))
@@ -316,8 +319,14 @@ def test_with_views_uses_prior_outside_windows() -> None:
 def test_with_views_rejects_overlapping_windows() -> None:
     with pytest.raises(ValueError, match="must not overlap"):
         _market_data().with_views(
-            (datetime(2024, 1, 2), datetime(2024, 1, 3), _ScaleProbView(1.0)),
-            (datetime(2024, 1, 3), datetime(2024, 1, 3), _ScaleProbView(2.0)),
+            [
+                ViewWindow(
+                    datetime(2024, 1, 2), datetime(2024, 1, 3), _ScaleProbView(1.0)
+                ),
+                ViewWindow(
+                    datetime(2024, 1, 3), datetime(2024, 1, 3), _ScaleProbView(2.0)
+                ),
+            ]
         )
 
 
@@ -327,23 +336,27 @@ def test_with_views_rejects_apply_only_transform() -> None:
         match="with_views expects ScenarioView.*view_distribution.*forecast pipeline",
     ):
         _market_data().with_views(
-            (
-                datetime(2024, 1, 2),
-                datetime(2024, 1, 2),
-                CMA(CMAConfig(target_copula="norm")),
-            )
+            [
+                ViewWindow(
+                    datetime(2024, 1, 2),
+                    datetime(2024, 1, 2),
+                    cast(ScenarioView, CMA(CMAConfig(target_copula="norm"))),
+                )
+            ]
         )
 
 
 def test_with_views_assigns_default_and_custom_names() -> None:
     md = _market_data().with_views(
-        (datetime(2024, 1, 2), datetime(2024, 1, 2), _ScaleProbView(1.0)),
-        (
-            datetime(2024, 1, 3),
-            datetime(2024, 1, 3),
-            _ScaleProbView(2.0),
-            "crash",
-        ),
+        [
+            ViewWindow(datetime(2024, 1, 2), datetime(2024, 1, 2), _ScaleProbView(1.0)),
+            ViewWindow(
+                datetime(2024, 1, 3),
+                datetime(2024, 1, 3),
+                _ScaleProbView(2.0),
+                "crash",
+            ),
+        ]
     )
 
     assert [window.name for window in md.views.windows] == ["view_1", "crash"]
@@ -351,7 +364,9 @@ def test_with_views_assigns_default_and_custom_names() -> None:
 
 def test_view_events_receive_simple_return_history() -> None:
     view = _CapturePanelView()
-    md = _market_data().with_views((datetime(2024, 1, 3), datetime(2024, 1, 3), view))
+    md = _market_data().with_views(
+        [ViewWindow(datetime(2024, 1, 3), datetime(2024, 1, 3), view)]
+    )
 
     panel = md.history_through(datetime(2024, 1, 3))
 
@@ -372,11 +387,13 @@ def test_view_events_receive_simple_return_history() -> None:
 
 def test_history_through_expands_view_posterior_to_log_price_history() -> None:
     md = _market_data().with_views(
-        (
-            datetime(2024, 1, 3),
-            datetime(2024, 1, 3),
-            Views([MeanView("A", "==", 1.0 / 11.0)]),
-        )
+        [
+            ViewWindow(
+                datetime(2024, 1, 3),
+                datetime(2024, 1, 3),
+                Views([MeanView("A", "==", 1.0 / 11.0)]),
+            )
+        ]
     )
 
     panel = md.history_through(datetime(2024, 1, 3))
@@ -419,8 +436,10 @@ def test_viewed_returns_without_args_returns_each_registered_view_window() -> No
     first = Views([MeanView("A", "==", 0.1)])
     second = Views([MeanView("A", "==", 1.0 / 11.0)])
     md = _market_data().with_views(
-        (datetime(2024, 1, 2), datetime(2024, 1, 2), first),
-        (datetime(2024, 1, 3), datetime(2024, 1, 3), second),
+        [
+            ViewWindow(datetime(2024, 1, 2), datetime(2024, 1, 2), first),
+            ViewWindow(datetime(2024, 1, 3), datetime(2024, 1, 3), second),
+        ]
     )
 
     viewed = md.viewed_returns()
@@ -438,16 +457,18 @@ def test_viewed_returns_without_args_returns_each_registered_view_window() -> No
 
 def test_viewed_returns_at_uses_active_view_window() -> None:
     md = _market_data().with_views(
-        (
-            datetime(2024, 1, 2),
-            datetime(2024, 1, 2),
-            Views([MeanView("A", "==", 0.1)]),
-        ),
-        (
-            datetime(2024, 1, 3),
-            datetime(2024, 1, 3),
-            Views([MeanView("A", "==", 1.0 / 11.0)]),
-        ),
+        [
+            ViewWindow(
+                datetime(2024, 1, 2),
+                datetime(2024, 1, 2),
+                Views([MeanView("A", "==", 0.1)]),
+            ),
+            ViewWindow(
+                datetime(2024, 1, 3),
+                datetime(2024, 1, 3),
+                Views([MeanView("A", "==", 1.0 / 11.0)]),
+            ),
+        ]
     )
 
     viewed = md.viewed_returns(t=datetime(2024, 1, 3))
@@ -572,11 +593,13 @@ def test_snapshot_at() -> None:
 
 def test_snapshot_at_carries_applied_view_distribution() -> None:
     md = _market_data().with_views(
-        (
-            datetime(2024, 1, 3),
-            datetime(2024, 1, 3),
-            Views([MeanView("A", "==", 1.0 / 11.0)]),
-        )
+        [
+            ViewWindow(
+                datetime(2024, 1, 3),
+                datetime(2024, 1, 3),
+                Views([MeanView("A", "==", 1.0 / 11.0)]),
+            )
+        ]
     )
 
     snap = md.snapshot_at(datetime(2024, 1, 3), datetime(2024, 1, 3))
@@ -591,7 +614,9 @@ def test_snapshot_at_carries_applied_view_distribution() -> None:
 
 def test_snapshot_at_accepts_custom_view_distribution_only_view() -> None:
     view = _ScaleProbView(2.0)
-    md = _market_data().with_views((datetime(2024, 1, 3), datetime(2024, 1, 3), view))
+    md = _market_data().with_views(
+        [ViewWindow(datetime(2024, 1, 3), datetime(2024, 1, 3), view)]
+    )
 
     snap = md.snapshot_at(datetime(2024, 1, 3), datetime(2024, 1, 3))
 
@@ -605,11 +630,13 @@ def test_snapshot_at_accepts_custom_view_distribution_only_view() -> None:
 
 def test_view_application_logs_at_debug(caplog) -> None:
     md = _market_data().with_views(
-        (
-            datetime(2024, 1, 3),
-            datetime(2024, 1, 3),
-            Views([MeanView("A", "==", 1.0 / 11.0)]),
-        )
+        [
+            ViewWindow(
+                datetime(2024, 1, 3),
+                datetime(2024, 1, 3),
+                Views([MeanView("A", "==", 1.0 / 11.0)]),
+            )
+        ]
     )
 
     with caplog.at_level(logging.INFO, logger="qraft.core.market"):
@@ -622,12 +649,14 @@ def test_view_summary_log_includes_view_names(caplog) -> None:
     from qraft.backtest.engine.schedule import decision_points
 
     md = _market_data().with_views(
-        (
-            datetime(2024, 1, 2),
-            datetime(2024, 1, 3),
-            Views([MeanView("A", "==", 0.1)]),
-            "crash",
-        )
+        [
+            ViewWindow(
+                datetime(2024, 1, 2),
+                datetime(2024, 1, 3),
+                Views([MeanView("A", "==", 0.1)]),
+                "crash",
+            )
+        ]
     )
 
     with caplog.at_level(logging.INFO, logger="qraft.backtest.engine.schedule"):
@@ -643,12 +672,14 @@ def test_view_summary_log_includes_view_names(caplog) -> None:
 
 def test_plot_view_selects_named_view() -> None:
     md = _market_data().with_views(
-        (
-            datetime(2024, 1, 2),
-            datetime(2024, 1, 3),
-            Views([MeanView("A", "==", 0.1)]),
-            "crash",
-        )
+        [
+            ViewWindow(
+                datetime(2024, 1, 2),
+                datetime(2024, 1, 3),
+                Views([MeanView("A", "==", 0.1)]),
+                "crash",
+            )
+        ]
     )
 
     axes = md.plot_view("crash")

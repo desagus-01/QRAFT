@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Literal, overload
@@ -18,9 +19,8 @@ from qraft.core.probability.prob_vector import ProbVector
 from qraft.core.scenarios.views import (
     ScenarioView,
     ViewedDistribution,
-    ViewInput,
     ViewState,
-    normalize_view_window,
+    ViewWindow,
     validate_non_overlapping_windows,
 )
 from qraft.core.snapshot import ForecastSnapshot, MarketSnapshot
@@ -142,11 +142,9 @@ class MarketData:
             prior=prior,
         )
 
-    def with_views(self, *events: ViewInput) -> "MarketData":
+    def with_views(self, windows: Iterable[ViewWindow]) -> "MarketData":
         """Return a copy with named, non-overlapping scenario-view windows."""
-        normalized = tuple(
-            sorted((normalize_view_window(e) for e in events), key=lambda e: e.start)
-        )
+        normalized = tuple(sorted(windows, key=lambda window: window.start))
         for window in normalized:
             if not isinstance(window.views, ScenarioView):
                 got = type(window.views).__name__
@@ -361,7 +359,7 @@ class MarketData:
         window, prob = self._raw_history_through(t)
         return ScenarioPanel.from_levels(window, prob=prob).to_simple_returns()
 
-    def cash_rate_asof(self, t: DateLike, *, step_size: int = 1) -> float:
+    def cash_rate_asof(self, t: DateLike, *, step_size: float = 1.0) -> float:
         """Ex-ante assumption: latest rate known at t, as an ACT/day-count return."""
         t = self._as_datetime(t)
         if self.cash is None:

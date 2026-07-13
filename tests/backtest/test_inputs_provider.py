@@ -21,6 +21,7 @@ from qraft.construction.optimization.inputs import (
 from qraft.core.panel import ScenarioPanel
 from qraft.core.scenarios.transforms import Views
 from qraft.core.scenarios.view_types import MeanView
+from qraft.core.scenarios.views import ViewWindow
 from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
 
@@ -184,11 +185,13 @@ def test_policy_input_table_uses_snapshot_applied_view_diagnostics(monkeypatch):
         ),
         AssetUniverse.factors_free(["A"]),
     ).with_views(
-        (
-            datetime(2024, 1, 3),
-            datetime(2024, 1, 3),
-            Views([MeanView("A", "==", 1.0 / 11.0)]),
-        )
+        [
+            ViewWindow(
+                datetime(2024, 1, 3),
+                datetime(2024, 1, 3),
+                Views([MeanView("A", "==", 1.0 / 11.0)]),
+            )
+        ]
     )
     snapshot = market.snapshot_at(datetime(2024, 1, 3), datetime(2024, 1, 3))
     forecast = ForecastPaths(

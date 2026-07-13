@@ -17,6 +17,7 @@ from qraft import (
     setup_logging,
 )
 from qraft.core.scenarios.view_types import MeanView, QuantileView, RankingView, StdView
+from qraft.core.scenarios.views import ViewWindow
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
@@ -75,8 +76,8 @@ normal_averages = [
     for panel in return_panels
 ]
 
-view_events = [
-    (
+view_windows = [
+    ViewWindow(
         view_dates[0],
         view_ends[0],
         Views(
@@ -88,7 +89,7 @@ view_events = [
             solver_kwargs={"eps": 1e-7, "max_iters": 50_000},
         ),
     ),
-    (
+    ViewWindow(
         view_dates[1],
         view_ends[1],
         Views(
@@ -100,7 +101,7 @@ view_events = [
             solver_kwargs={"eps": 1e-7, "max_iters": 50_000},
         ),
     ),
-    (
+    ViewWindow(
         view_dates[2],
         view_ends[2],
         Views(
@@ -114,7 +115,7 @@ view_events = [
         ),
     ),
 ]
-market = market_without_views.with_views(*view_events)
+market = market_without_views.with_views(view_windows)
 
 # %%
 # Forecaster facade: create recipes, then create a forecast run from those recipes.

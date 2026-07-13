@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol, TypeAlias, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -13,10 +13,7 @@ from matplotlib.ticker import FuncFormatter, PercentFormatter
 from qraft.core.panel import ScenarioPanel, expand_posterior_to_parent
 from qraft.core.probability.prob_vector import ProbVector
 from qraft.core.scenarios.view_types import ViewDiagnostics
-from qraft.utils.helpers import str_to_datetime
 from qraft.utils.helpers import weighted_moments
-
-DateLike = datetime | str
 
 
 @dataclass(frozen=True)
@@ -178,13 +175,6 @@ class ViewWindow:
         return self.start <= t <= self.end
 
 
-ViewInput: TypeAlias = (
-    "tuple[DateLike, DateLike, ScenarioView] "
-    "| tuple[DateLike, DateLike, ScenarioView, str] "
-    "| ViewWindow"
-)
-
-
 @dataclass(frozen=True, slots=True)
 class ViewState:
     """Collection of scheduled scenario view windows."""
@@ -206,38 +196,6 @@ class ViewState:
         """
         active = [window for window in self.windows if window.contains(t)]
         return active[0] if active else None
-
-
-def normalize_view_window(window: ViewInput) -> ViewWindow:
-    """Convert tuple-style view input into a view window.
-
-    Parameters
-    ----------
-    window
-        Existing ``ViewWindow`` or tuple containing start, end, view, and
-        optionally a name.
-
-    Returns
-    -------
-    ViewWindow
-        Normalized view window with datetime bounds.
-    """
-    if isinstance(window, ViewWindow):
-        return window
-    if len(window) == 3:
-        start, end, views = window
-        name = None
-    elif len(window) == 4:
-        start, end, views, name = window
-    else:
-        raise ValueError(
-            "View input must be (start, end, views) or (start, end, views, name)"
-        )
-    if isinstance(start, str):
-        start = str_to_datetime(start)
-    if isinstance(end, str):
-        end = str_to_datetime(end)
-    return ViewWindow(start=start, end=end, views=views, name=name)
 
 
 def validate_non_overlapping_windows(windows: tuple[ViewWindow, ...]) -> None:

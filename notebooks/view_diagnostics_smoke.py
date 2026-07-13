@@ -21,6 +21,7 @@ from qraft import (
 )
 from qraft.construction import FullyInvested, LongOnly, MinCashWeight, TurnoverLimit
 from qraft.core.scenarios.view_types import MeanView, RankingView
+from qraft.core.scenarios.views import ViewWindow
 from qraft.core.schedule import RebalanceSchedule
 from qraft.utils.tiingo import import_tickers_and_factors
 
@@ -71,18 +72,20 @@ anchor = float(
 )
 
 market = market0.with_views(
-    (
-        view_date,
-        view_end,
-        Views(
-            [
-                MeanView(view_asset, ">=", anchor * 1.25),
-                RankingView(order=assets[:3]),
-            ],
-            confidence=0.75,
-            solver_kwargs={"eps": 1e-7, "max_iters": 50_000},
-        ),
-    )
+    [
+        ViewWindow(
+            view_date,
+            view_end,
+            Views(
+                [
+                    MeanView(view_asset, ">=", anchor * 1.25),
+                    RankingView(order=assets[:3]),
+                ],
+                confidence=0.75,
+                solver_kwargs={"eps": 1e-7, "max_iters": 50_000},
+            ),
+        )
+    ]
 )
 
 # %%
