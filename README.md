@@ -28,7 +28,20 @@ I'll briefly explain each below (I will make docs at one point with more detail 
 
 Probably the biggest differentation between this project and other portfolio construction packages out there. 'Views' refers to the ability of the investor to add their **market** views to the whole investment process explicity and in a formal manner. This is done through entropy pooling, which is formalized by Atillio Meucci in his paper regarding 'Fully Flexible Probabilities' [**I NEED TO CITE THIS**]. In short, the package allows investors to input their future market expectations (for example `VIX <= 15`), infer an updated discrete `scenario probability` from it, and simulate futures deriving from these views.
 
-[**Add example here**]
+```python
+latest_view = ViewWindow(
+    views=Views(
+        [
+            MeanView("VIX", "<=", 15),
+            RankingView(["TLT", "GLD", "SPY"]),
+        ],
+        confidence=1.0,
+    ),
+    name="latest_high_vix_state",
+)
+
+market = market_without_views.with_views([latest_view])
+```
 
 Users are also able to add view events for specific date windows. For example, if users have different views for general risk on/off regimes, they can specify those views for a date window which will then feed into a backtest/validation module. Please see [**CREATE EXAMPLE AND WRITE HERE**] for how this could be done.
 

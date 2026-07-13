@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter, PercentFormatter
+
+from matplotlib.ticker import PercentFormatter
 
 from qraft.core.panel import ScenarioPanel, expand_posterior_to_parent
 from qraft.core.probability.prob_vector import ProbVector
@@ -69,20 +70,31 @@ class ViewedDistribution:
         """
         return expand_posterior_to_parent(self.posterior, parent.prob, 1)
 
-    def plot(self, *, title: str | None = None):
-        """Plot cumulative prior and posterior probabilities.
+    def plot(
+        self,
+        *,
+        title: str | None = None,
+        prob_mode: Literal["regular", "cumulative"] = "cumulative",
+    ):
+        """Plot prior and posterior probabilities.
 
         Parameters
         ----------
         title
             Optional figure title. When omitted, the distribution name is
             appended to the default title if available.
+        prob_mode
+            ``"regular"`` plots scenario probabilities. ``"cumulative"`` plots
+            cumulative probabilities.
 
         Returns
         -------
         numpy.ndarray
             Matplotlib axes used for the three subplots.
         """
+        if prob_mode not in {"regular", "cumulative"}:
+            raise ValueError("prob_mode must be either 'regular' or 'cumulative'")
+
         dates = self.panel.dates.to_list()
 
         fig, axes = plt.subplots(
@@ -94,14 +106,24 @@ class ViewedDistribution:
             gridspec_kw={"height_ratios": [1, 1, 0.9]},
         )
 
-        prior_cum = self.prior.cumsum()
-        posterior_cum = self.posterior.cumsum()
-        cum_diff = posterior_cum - prior_cum
+        if prob_mode == "cumulative":
+            prior_values = self.prior.cumsum()
+            posterior_values = self.posterior.cumsum()
+            prior_title = "Prior cumulative probability"
+            posterior_title = "Posterior cumulative probability"
+            diff_title = "Cumulative posterior - prior"
+        else:
+            prior_values = self.prior
+            posterior_values = self.posterior
+            prior_title = "Prior probability"
+            posterior_title = "Posterior probability"
+            diff_title = "Posterior - prior"
+        diff = posterior_values - prior_values
 
         plots = (
-            (axes[0], prior_cum, "Prior cumulative probability", "Probability"),
-            (axes[1], posterior_cum, "Posterior cumulative probability", "Probability"),
-            (axes[2], cum_diff, "Cumulative posterior - prior", "Difference"),
+            (axes[0], prior_values, prior_title, "Probability"),
+            (axes[1], posterior_values, posterior_title, "Probability"),
+            (axes[2], diff, diff_title, "Difference"),
         )
 
         for ax, values, subplot_title, ylabel in plots:
@@ -114,11 +136,9 @@ class ViewedDistribution:
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
 
-        axes[0].yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
-        axes[1].yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
-        axes[2].yaxis.set_major_formatter(
-            FuncFormatter(lambda x, _: f"{x * 10_000:.1f} bp")
-        )
+        axes[0].yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=3))
+        axes[1].yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=3))
+        axes[2].yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=3))
 
         axes[2].axhline(0.0, color="black", linewidth=0.8, alpha=0.5)
         axes[2].xaxis.set_major_locator(mdates.YearLocator())

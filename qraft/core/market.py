@@ -193,7 +193,7 @@ class MarketData:
         """Causal simple-return window: rows with date <= t, weights from the window only."""
         return self._simple_return_history_through(self._as_datetime(t))
 
-    def view_report(self, t: DateLike) -> ViewedDistribution | None:
+    def view_report(self, t: DateLike) -> ViewedDistribution:
         """Return entropy-pooling view diagnostics for the active view, if any.
 
         Apply-only views do not produce entropy-pooling diagnostics, so they return
@@ -202,7 +202,7 @@ class MarketData:
         as_of = self._as_datetime(t)
         window = self.views.active_window_at(as_of)
         if window is None:
-            return None
+            raise ValueError("Need window for this to work.")
         returns = self._simple_return_history_through(as_of)
         self._log_views_applied(
             target="view_report",
@@ -227,18 +227,24 @@ class MarketData:
         viewed = window.views.view_distribution(returns, as_of=window.end)
         return replace(viewed, name=window.name)
 
-    def plot_view(self, view: str | DateLike):
+    def plot_view(
+        self,
+        view: str | DateLike,
+        *,
+        prob_mode: Literal["regular", "cumulative"] = "cumulative",
+    ):
         """Plot an entropy-pooling view report selected by name or bar."""
         if isinstance(view, str) and any(
             window.name == view for window in self.views.windows
         ):
             return self.view_report_by_name(view).plot(
-                title=f"Prior vs Posterior Scenario Probabilities — {view}"
+                title=f"Prior vs Posterior Scenario Probabilities — {view}",
+                prob_mode=prob_mode,
             )
         report = self.view_report(view)
         if report is None:
             raise ValueError(f"No entropy-pooling view report available for {view!r}")
-        return report.plot()
+        return report.plot(prob_mode=prob_mode)
 
     @overload
     def viewed_returns(
