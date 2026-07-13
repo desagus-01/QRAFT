@@ -7,7 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from qraft.core.panel import ScenarioPanel
-from qraft.core.scenarios.transforms import ViewedDistribution
+from qraft.core.scenarios.views import ViewedDistribution
 from qraft.core.universe import AssetUniverse
 
 

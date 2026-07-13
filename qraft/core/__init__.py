@@ -21,7 +21,7 @@ __all__ = [
     "uniform_probs",
     "state_smooth_probs",
     "state_crisp_probs",
-    "entropy_pooling_probs",
+    "entropy_pooling",
     "var",
     "cvar",
     "drawdown_curve",
@@ -53,7 +53,7 @@ from qraft.core.probability.distributions import (  # noqa: F401
     state_smooth_probs,
     state_crisp_probs,
 )
-from qraft.core.probability.entropy_pooling import entropy_pooling_probs  # noqa: F401
+from qraft.core.probability.entropy_pooling import entropy_pooling  # noqa: F401
 from qraft.core.metrics import (  # noqa: F401
     var,
     cvar,

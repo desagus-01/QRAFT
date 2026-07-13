@@ -54,4 +54,5 @@ class Backtest:
             initial_cash=self.config.initial_cash,
             step_size=self.step_size,
             costs=self.costs,
+            config=self.config,
         )

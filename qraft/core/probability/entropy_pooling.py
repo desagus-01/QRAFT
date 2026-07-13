@@ -398,53 +398,8 @@ def clip_normalise_probs(prob: NDArray[np.floating]) -> ProbVector:
     return np.asarray(prob, dtype=float)
 
 
-def entropy_pooling(
-    panel: ScenarioPanel,
-    specs: Sequence[ViewSpec],
-    solver: str = "SCS",
-    *,
-    ens_warn_ratio: float = 0.1,
-    **solver_kwargs: Any,
-) -> EntropyPoolingResult:
-    """Minimum-KL update of ``panel.prob`` subject to the supplied view specs."""
-    prior: ProbVector = panel.prob
-    posterior: cp.Variable = cp.Variable(prior.shape[0])
-
-    compiled, all_constraints = _build_constraints(panel, specs, posterior, prior)
-
-    problem: cp.Problem = cp.Problem(
-        cp.Minimize(cp.sum(cp.kl_div(posterior, prior))), all_constraints
-    )
-    problem.solve(solver=solver, **solver_kwargs)
-
-    if problem.status not in SUCCESS_STATUSES:
-        _raise_infeasible_views(problem.status, compiled)
-
-    posterior_value: NDArray[np.floating] | None = posterior.value
-    if posterior_value is None:
-        raise RuntimeError("Optimization failed or returned no solution!")
-    if posterior_value.min() < -1e-6:
-        raise RuntimeError(
-            f"Materially negative posterior probability: min={posterior_value.min()}"
-        )
-    posterior_res: ProbVector = (
-        clip_normalise_probs(posterior_value)
-        if posterior_value.min() < 0
-        else np.asarray(posterior_value, dtype=float)
-    )
-
-    diagnostics = _build_diagnostics(
-        prior=prior,
-        posterior=posterior_res,
-        compiled=compiled,
-        solver_status=problem.status,
-        ens_warn_ratio=ens_warn_ratio,
-    )
-    return EntropyPoolingResult(posterior=posterior_res, diagnostics=diagnostics)
-
-
 @validate_call(config=model_cfg, validate_return=True)
-def entropy_pooling_probs(
+def entropy_pooling(
     panel: ScenarioPanel,
     specs: Sequence[ViewSpec],
     confidence: float = 1.0,

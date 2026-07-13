@@ -8,7 +8,7 @@ import pytest
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.entropy_pooling import (
     InfeasibleViewsError,
-    entropy_pooling_probs,
+    entropy_pooling,
 )
 from qraft.core.scenarios.view_types import (
     CorrView,
@@ -34,8 +34,8 @@ def _panel() -> ScenarioPanel:
     )
 
 
-def test_entropy_pooling_probs_returns_result_with_diagnostics() -> None:
-    result = entropy_pooling_probs(_panel(), [MeanView("A", ">=", 1.5)])
+def test_entropy_pooling_returns_result_with_diagnostics() -> None:
+    result = entropy_pooling(_panel(), [MeanView("A", ">=", 1.5)])
 
     assert isinstance(result, EntropyPoolingResult)
     np.testing.assert_allclose(result.posterior.sum(), 1.0)
@@ -48,20 +48,16 @@ def test_entropy_pooling_probs_returns_result_with_diagnostics() -> None:
 
 
 def test_entropy_pooling_confidence_blends_posterior_before_packaging() -> None:
-    full = entropy_pooling_probs(_panel(), [MeanView("A", ">=", 1.5)])
-    blended = entropy_pooling_probs(
-        _panel(), [MeanView("A", ">=", 1.5)], confidence=0.5
-    )
+    full = entropy_pooling(_panel(), [MeanView("A", ">=", 1.5)])
+    blended = entropy_pooling(_panel(), [MeanView("A", ">=", 1.5)], confidence=0.5)
 
     expected = 0.5 * full.posterior + 0.5 * _panel().prob
     np.testing.assert_allclose(blended.posterior, expected)
 
 
 def test_entropy_pooling_confidence_diagnostics_describe_blended_posterior() -> None:
-    full = entropy_pooling_probs(_panel(), [MeanView("A", ">=", 1.5)])
-    blended = entropy_pooling_probs(
-        _panel(), [MeanView("A", ">=", 1.5)], confidence=0.5
-    )
+    full = entropy_pooling(_panel(), [MeanView("A", ">=", 1.5)])
+    blended = entropy_pooling(_panel(), [MeanView("A", ">=", 1.5)], confidence=0.5)
 
     expected_ens = np.exp(-np.sum(blended.posterior * np.log(blended.posterior)))
 
@@ -74,15 +70,13 @@ def test_entropy_pooling_confidence_diagnostics_describe_blended_posterior() -> 
 
 def test_entropy_pooling_infeasible_views_error_names_constraints() -> None:
     with pytest.raises(InfeasibleViewsError, match="A >= 3.0"):
-        entropy_pooling_probs(_panel(), [MeanView("A", ">=", 3.0)])
+        entropy_pooling(_panel(), [MeanView("A", ">=", 3.0)])
 
 
 def test_entropy_pooling_warns_when_ens_collapses(caplog) -> None:
     caplog.set_level(logging.WARNING, logger="qraft.core.probability.entropy_pooling")
 
-    result = entropy_pooling_probs(
-        _panel(), [MeanView("A", ">=", 1.5)], ens_warn_ratio=1.0
-    )
+    result = entropy_pooling(_panel(), [MeanView("A", ">=", 1.5)], ens_warn_ratio=1.0)
 
     assert result.diagnostics.ens_collapsed
     assert any(record.qraft_event == "views.ens_collapsed" for record in caplog.records)
@@ -100,7 +94,7 @@ def test_ranking_view_requires_at_least_two_distinct_assets() -> None:
 
 
 def test_std_view_pins_posterior_mean_to_anchor() -> None:
-    result = entropy_pooling_probs(
+    result = entropy_pooling(
         _panel(), [MeanView("A", "==", 1.0), StdView("A", ">=", 0.75)]
     )
 
@@ -117,9 +111,7 @@ def test_inequality_mean_cannot_anchor_std_or_corr_view() -> None:
         ValueError,
         match="StdView on 'A' cannot be anchored to an inequality mean view",
     ):
-        entropy_pooling_probs(
-            _panel(), [MeanView("A", ">=", 1.0), StdView("A", ">=", 0.5)]
-        )
+        entropy_pooling(_panel(), [MeanView("A", ">=", 1.0), StdView("A", ">=", 0.5)])
 
     panel = ScenarioPanel.from_levels(
         pl.DataFrame(
@@ -138,6 +130,6 @@ def test_inequality_mean_cannot_anchor_std_or_corr_view() -> None:
         ValueError,
         match="StdView on 'A' cannot be anchored to an inequality mean view",
     ):
-        entropy_pooling_probs(
+        entropy_pooling(
             panel, [MeanView("A", ">=", 1.0), CorrView(("A", "B"), "<=", 0.0)]
         )

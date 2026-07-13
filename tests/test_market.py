@@ -11,9 +11,10 @@ from qraft.core.market import (
     Prior,
 )
 from qraft.core.panel import ScenarioPanel
-from qraft.core.scenarios.transforms import Views
-from qraft.core.scenarios.view_types import MeanView
-from qraft.core.scenarios.views import ViewWindow
+from qraft.core.scenarios.copula_marginal import CMAConfig
+from qraft.core.scenarios.transforms import CMA, Views
+from qraft.core.scenarios.view_types import MeanView, ViewDiagnostics
+from qraft.core.scenarios.views import ViewedDistribution, ViewWindow
 from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecast_paths import AssetUniverse
@@ -54,21 +55,53 @@ def _market_data() -> MarketData:
     return MarketData.from_prices(_price_frame(), _universe(), cash=_cash_frame())
 
 
+def _diagnostics() -> ViewDiagnostics:
+    return ViewDiagnostics(
+        ens_prior=1.0,
+        ens_posterior=1.0,
+        constraints=(),
+        solver_status="test",
+        ens_collapsed=False,
+    )
+
+
 class _ScaleProbView:
     def __init__(self, factor: float) -> None:
         self.factor = factor
 
-    def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
+    def view_distribution(
+        self, panel: ScenarioPanel, *, as_of: datetime
+    ) -> ViewedDistribution:
         weights = np.arange(1, panel.values.height + 1, dtype=float) ** self.factor
-        return panel.with_prob(weights / weights.sum())
+        posterior = weights / weights.sum()
+        return ViewedDistribution(
+            panel=panel,
+            posterior=posterior,
+            prior=panel.prob,
+            diagnostics=_diagnostics(),
+            as_of=as_of,
+        )
 
 
 class _CapturePanelView:
     def __init__(self) -> None:
         self.panel: ScenarioPanel | None = None
 
-    def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
+    def view_distribution(
+        self, panel: ScenarioPanel, *, as_of: datetime
+    ) -> ViewedDistribution:
         self.panel = panel
+        return ViewedDistribution(
+            panel=panel,
+            posterior=panel.prob,
+            prior=panel.prob,
+            diagnostics=_diagnostics(),
+            as_of=as_of,
+        )
+
+
+class _ApplyOnlyView:
+    def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
         return panel
 
 
@@ -287,6 +320,20 @@ def test_with_views_rejects_overlapping_windows() -> None:
         _market_data().with_views(
             (datetime(2024, 1, 2), datetime(2024, 1, 3), _ScaleProbView(1.0)),
             (datetime(2024, 1, 3), datetime(2024, 1, 3), _ScaleProbView(2.0)),
+        )
+
+
+def test_with_views_rejects_apply_only_transform() -> None:
+    with pytest.raises(
+        TypeError,
+        match="with_views expects ScenarioView.*view_distribution.*forecast pipeline",
+    ):
+        _market_data().with_views(
+            (
+                datetime(2024, 1, 2),
+                datetime(2024, 1, 2),
+                CMA(CMAConfig(target_copula="norm")),
+            )
         )
 
 
@@ -538,6 +585,20 @@ def test_snapshot_at_carries_applied_view_distribution() -> None:
 
     assert snap.applied_views is not None
     assert snap.applied_views.as_of == snap.t
+    assert snap.applied_views.name == "view_1"
+    np.testing.assert_allclose(
+        snap.history.prob, snap.applied_views.prob_for(snap.history)
+    )
+
+
+def test_snapshot_at_accepts_custom_view_distribution_only_view() -> None:
+    view = _ScaleProbView(2.0)
+    md = _market_data().with_views((datetime(2024, 1, 3), datetime(2024, 1, 3), view))
+
+    snap = md.snapshot_at(datetime(2024, 1, 3), datetime(2024, 1, 3))
+
+    assert snap.applied_views is not None
+    assert snap.applied_views.diagnostics.solver_status == "test"
     assert snap.applied_views.name == "view_1"
     np.testing.assert_allclose(
         snap.history.prob, snap.applied_views.prob_for(snap.history)

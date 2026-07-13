@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import datetime
 
 import numpy as np
 from numpy.typing import NDArray
 
+from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.costs import CostModel
 from qraft.backtest.engine.policy_step import (
     PendingDecision,
@@ -16,6 +18,7 @@ from qraft.backtest.engine.schedule import DecisionPoint, decision_points
 from qraft.backtest.execution import execute_frictionless
 from qraft.backtest.inputs import OptimizerInputsProvider
 from qraft.backtest.result import BacktestPeriod, BacktestResult, BacktestWarning
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.policies import PolicyProtocol
 from qraft.construction.state import PortfolioState
 from qraft.core.market import MarketData
@@ -35,7 +38,14 @@ def run_backtest(
     step_size: int = 1,
     costs: CostModel | None = None,
     points: list[DecisionPoint] | None = None,
+    config: BacktestConfig | None = None,
 ) -> BacktestResult:
+    if config is None:
+        config = BacktestConfig(
+            schedule=schedule,
+            initial_cash=initial_cash,
+            periods_per_year=market.config.periods_per_year,
+        )
     if costs is None:
         costs = CostModel.from_policy(policy)
 
@@ -121,6 +131,9 @@ def run_backtest(
                 sigma=policy_step.sigma,
                 view_diagnostics=getattr(
                     policy_step.optimizer_inputs, "view_diagnostics", None
+                ),
+                optimizer_inputs=_retained_optimizer_inputs(
+                    policy_step.optimizer_inputs, config
                 ),
             )
 
@@ -265,5 +278,32 @@ def _fill_decision(
             dropped_assets=dropped_assets,
             asset_diagnostics=asset_diagnostics,
             view_diagnostics=pending.view_diagnostics,
+            optimizer_inputs=pending.optimizer_inputs,
         ),
+    )
+
+
+def _retained_optimizer_inputs(
+    optimizer_inputs: OptimizerInputs | None,
+    config: BacktestConfig,
+) -> OptimizerInputs | None:
+    if optimizer_inputs is None or not config.retain_optimizer_inputs:
+        return None
+    if config.retain_optimizer_scenarios or optimizer_inputs.scenario_returns is None:
+        return optimizer_inputs
+    if _has_non_scenario_horizon_input(optimizer_inputs):
+        return replace(optimizer_inputs, scenario_returns=None, scenario_probs=None)
+    return None
+
+
+def _has_non_scenario_horizon_input(optimizer_inputs: OptimizerInputs) -> bool:
+    return any(
+        value is not None
+        for value in (
+            optimizer_inputs.mean,
+            optimizer_inputs.covariances,
+            optimizer_inputs.correlations,
+            optimizer_inputs.cov_factor,
+            optimizer_inputs.cash_return,
+        )
     )

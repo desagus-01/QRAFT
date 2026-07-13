@@ -40,6 +40,7 @@ class PendingDecision:
     decision_error: str | None
     sigma: NDArray[np.floating] | None
     view_diagnostics: Any = None
+    optimizer_inputs: OptimizerInputs | None = None
 
 
 def decide_or_hold(

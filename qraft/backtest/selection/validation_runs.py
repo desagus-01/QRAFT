@@ -123,6 +123,8 @@ def walk_forward_from_evaluation(
         schedule=backtest_config.schedule,
         initial_cash=backtest_config.initial_cash,
         periods_per_year=periods_per_year,
+        retain_optimizer_inputs=backtest_config.retain_optimizer_inputs,
+        retain_optimizer_scenarios=backtest_config.retain_optimizer_scenarios,
     )
 
     nav, nav_dates, summary = _stitch(
@@ -219,6 +221,8 @@ def combinatorial_from_evaluation(
         schedule=backtest_config.schedule,
         initial_cash=backtest_config.initial_cash,
         periods_per_year=periods_per_year,
+        retain_optimizer_inputs=backtest_config.retain_optimizer_inputs,
+        retain_optimizer_scenarios=backtest_config.retain_optimizer_scenarios,
     )
     fold_test_group_returns: list[dict[int, NDArray[np.floating] | None]] = []
     fold_selected_params: list[PolicyParams | None] = []

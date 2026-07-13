@@ -163,4 +163,7 @@ def score_candidate_ranges(
 def find_candidate(
     results: Sequence[CandidateResult], params: PolicyParams
 ) -> CandidateResult:
-    return next(result for result in results if result.params == params)
+    try:
+        return next(result for result in results if result.params == params)
+    except StopIteration as exc:
+        raise ValueError(f"No candidate result found for params: {params}") from exc

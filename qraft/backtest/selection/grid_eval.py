@@ -43,6 +43,7 @@ def evaluate_candidates(
     periods_per_year: float | None = None,
     risk_free_rate: float = 0.0,
     points: list[DecisionPoint] | None = None,
+    config: BacktestConfig | None = None,
 ) -> tuple[CandidateResult, ...]:
     results: list[CandidateResult] = []
     for candidate in candidates:
@@ -55,6 +56,7 @@ def evaluate_candidates(
                 initial_cash=initial_cash,
                 step_size=step_size,
                 points=points,
+                config=config,
             )
             summary = PerformanceSummary.from_backtest(
                 backtest,
@@ -127,6 +129,11 @@ def run_selection_window(
         periods_per_year=periods_per_year,
         risk_free_rate=risk_free_rate,
         points=points,
+        config=BacktestConfig(
+            schedule=schedule,
+            initial_cash=initial_cash,
+            periods_per_year=periods_per_year,
+        ),
     )
 
 
@@ -179,6 +186,7 @@ def evaluate_candidate_grid(
         periods_per_year=backtest_config.periods_per_year,
         risk_free_rate=risk_free_rate,
         points=points,
+        config=backtest_config,
     )
     failures = sum(1 for result in candidate_results if result.failure is not None)
     info_event(

@@ -5,6 +5,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.policies import PolicyDecision
 from qraft.construction.state import PortfolioState
 from qraft.forecast.forecast_paths import ForecastPaths
@@ -26,3 +27,4 @@ class BacktestPeriod:
     asset_diagnostics: tuple[Any, ...] = ()
     invariance_drops: tuple[Any, ...] = ()
     view_diagnostics: Any = None
+    optimizer_inputs: OptimizerInputs | None = None

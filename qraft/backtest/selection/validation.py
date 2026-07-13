@@ -11,6 +11,7 @@ from qraft.backtest.configs import (
     CombinatorialCVConfig,
     WalkForwardConfig,
 )
+from qraft.backtest.result import BacktestResult
 from qraft.backtest.selection.candidate_eval import CandidateEvaluation
 from qraft.backtest.selection.candidates import apply_hyperparameters
 from qraft.backtest.selection.grid_eval import (
@@ -23,7 +24,7 @@ from qraft.backtest.selection.reports import (
     WalkForwardReport,
 )
 from qraft.backtest.selection.results import CandidateResult, PolicyParams
-from qraft.backtest.selection.scoring import Agg, ScoreSpec
+from qraft.backtest.selection.scoring import Agg, ScoreSpec, find_candidate
 from qraft.backtest.selection.select import _conservatism, _eligible
 from qraft.backtest.selection.splits import DateRange
 from qraft.backtest.selection.validation_runs import (
@@ -48,6 +49,23 @@ class ValidationResult:
         if self.selected_params is None:
             raise ValueError("Validation did not select a policy candidate.")
         return apply_hyperparameters(self.base_policy, self.selected_params)
+
+    @property
+    def selected_result(self) -> CandidateResult:
+        if self.selected_params is None:
+            raise ValueError("Validation did not select a policy candidate.")
+        if self.report.evaluation is None:
+            raise ValueError("Validation report does not include candidate evaluation.")
+        return find_candidate(
+            self.report.evaluation.candidate_results, self.selected_params
+        )
+
+    @property
+    def backtest(self) -> BacktestResult:
+        backtest = self.selected_result.backtest
+        if backtest is None:
+            raise ValueError("Selected candidate does not have a backtest.")
+        return backtest
 
 
 @dataclass(frozen=True, slots=True)

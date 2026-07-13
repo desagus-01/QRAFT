@@ -94,9 +94,91 @@ def test_backtest_facade_accepts_precomputed_source():
         schedule=config.schedule,
         inputs=PrecomputedInputsProvider(source),
         initial_cash=config.initial_cash,
+        config=config,
     )
 
     np.testing.assert_allclose(facade.nav, manual.nav)
+
+
+def test_backtest_retains_optimizer_inputs_when_configured() -> None:
+    market = _market()
+    config = BacktestConfig(
+        schedule=RebalanceSchedule("every_bar"),
+        retain_optimizer_inputs=True,
+    )
+    source = {
+        t: OptimizerInputs(
+            assets=["A"],
+            mean=np.ones((1, 1)),
+            covariances=np.ones((1, 1, 1)),
+            scenario_returns=np.ones((2, 1, 1)),
+            scenario_probs=np.array([0.5, 0.5]),
+        )
+        for t in market.trading_bars[:-1]
+    }
+
+    result = Backtest(
+        market,
+        EqualWeightPolicy(target_cash_weight=0.0),
+        forecasts=source,
+        config=config,
+    ).run()
+
+    retained = result.periods[0].optimizer_inputs
+    assert retained is not None
+    np.testing.assert_allclose(retained.mean, np.ones((1, 1)))
+    np.testing.assert_allclose(retained.covariances, np.ones((1, 1, 1)))
+    assert retained.scenario_returns is None
+    assert retained.scenario_probs is None
+
+
+def test_backtest_does_not_retain_optimizer_inputs_by_default() -> None:
+    market = _market()
+    source = {
+        t: OptimizerInputs.from_arrays(
+            assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
+        )
+        for t in market.trading_bars[:-1]
+    }
+
+    result = Backtest(
+        market,
+        EqualWeightPolicy(target_cash_weight=0.0),
+        forecasts=source,
+        config=BacktestConfig(schedule=RebalanceSchedule("every_bar")),
+    ).run()
+
+    assert result.periods[0].optimizer_inputs is None
+
+
+def test_backtest_retains_optimizer_scenarios_when_configured() -> None:
+    market = _market()
+    config = BacktestConfig(
+        schedule=RebalanceSchedule("every_bar"),
+        retain_optimizer_inputs=True,
+        retain_optimizer_scenarios=True,
+    )
+    source = {
+        t: OptimizerInputs(
+            assets=["A"],
+            mean=np.ones((1, 1)),
+            scenario_returns=np.ones((2, 1, 1)),
+            scenario_probs=np.array([0.5, 0.5]),
+        )
+        for t in market.trading_bars[:-1]
+    }
+
+    result = Backtest(
+        market,
+        EqualWeightPolicy(target_cash_weight=0.0),
+        forecasts=source,
+        config=config,
+    ).run()
+
+    retained = result.periods[0].optimizer_inputs
+    assert retained is not None
+    np.testing.assert_allclose(retained.scenario_returns, np.ones((2, 1, 1)))
+    np.testing.assert_allclose(retained.scenario_probs, np.array([0.5, 0.5]))
 
 
 def test_backtest_facade_empty_precompute_table_means_no_inputs(monkeypatch):
@@ -313,6 +395,56 @@ def test_validation_tune_returns_result_with_report() -> None:
     assert result.report is report
     assert result.selected_params == params
     assert isinstance(result.selected_policy, MPOPolicy)
+    assert result.selected_result is candidate
+    assert result.backtest is candidate_backtest
+
+
+def test_validation_result_accessors_raise_without_selection() -> None:
+    result = ValidationResult(
+        report=WalkForwardReport(
+            folds=(),
+            oos_summary=None,
+            oos_nav_dates=[],
+            oos_nav=np.array([], dtype=float),
+            evaluation=CandidateEvaluation(
+                candidate_results=(),
+                dates=[],
+                backtest_config=BacktestConfig(),
+            ),
+        ),
+        base_policy=EqualWeightPolicy(target_cash_weight=0.0),
+        selected_params=None,
+    )
+
+    with pytest.raises(ValueError, match="did not select"):
+        result.selected_result
+
+    with pytest.raises(ValueError, match="did not select"):
+        result.backtest
+
+
+def test_validation_result_backtest_raises_when_candidate_has_no_backtest() -> None:
+    params = PolicyParams.of(risk_aversion=2.0)
+    candidate = CandidateResult(params=params)
+    result = ValidationResult(
+        report=WalkForwardReport(
+            folds=(),
+            oos_summary=None,
+            oos_nav_dates=[],
+            oos_nav=np.array([], dtype=float),
+            evaluation=CandidateEvaluation(
+                candidate_results=(candidate,),
+                dates=[],
+                backtest_config=BacktestConfig(),
+            ),
+        ),
+        base_policy=EqualWeightPolicy(target_cash_weight=0.0),
+        selected_params=params,
+    )
+
+    assert result.selected_result is candidate
+    with pytest.raises(ValueError, match="does not have a backtest"):
+        result.backtest
 
 
 def test_validation_tune_defaults_to_most_selected_not_oos_argmax() -> None:

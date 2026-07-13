@@ -10,12 +10,12 @@ import polars as pl
 from numpy.typing import NDArray
 
 from qraft.core.cadence import resolve_periods_per_year
-from qraft.core.panel import ScenarioPanel, expand_posterior_to_parent
+from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.distributions import state_smooth_probs, uniform_probs
 from qraft.core.probability.prob_vector import ProbVector
-from qraft.core.scenarios.transforms import ViewedDistribution
 from qraft.core.scenarios.views import (
     ScenarioView,
+    ViewedDistribution,
     ViewInput,
     ViewState,
     normalize_view_window,
@@ -134,6 +134,14 @@ class MarketData:
         normalized = tuple(
             sorted((normalize_view_window(e) for e in events), key=lambda e: e.start)
         )
+        for window in normalized:
+            if not isinstance(window.views, ScenarioView):
+                got = type(window.views).__name__
+                raise TypeError(
+                    "with_views expects ScenarioView (...view_distribution...); "
+                    f"got {got} -- transforms belong in the forecast pipeline, "
+                    "not view windows"
+                )
         validate_non_overlapping_windows(normalized)
         normalized = tuple(
             replace(window, name=window.name or f"view_{i}")
@@ -162,7 +170,7 @@ class MarketData:
         """Return the entropy-pooling view applied to the exact history at ``t``."""
         as_of = self._as_datetime(t)
         window = self.views.active_window_at(as_of)
-        if window is None or not hasattr(window.views, "view_distribution"):
+        if window is None:
             return None
         returns = self._simple_return_history_through(as_of)
         viewed = window.views.view_distribution(returns, as_of=as_of)
@@ -180,7 +188,7 @@ class MarketData:
         """
         as_of = self._as_datetime(t)
         window = self.views.active_window_at(as_of)
-        if window is None or not hasattr(window.views, "view_distribution"):
+        if window is None:
             return None
         returns = self._simple_return_history_through(as_of)
         self._log_views_applied(
@@ -201,10 +209,6 @@ class MarketData:
         )
         if window is None:
             raise ValueError(f"No view window named {name!r}")
-        if not hasattr(window.views, "view_distribution"):
-            raise TypeError(
-                f"View window {name!r} does not provide entropy diagnostics"
-            )
         returns = self._simple_return_history_through(window.end)
         viewed = window.views.view_distribution(returns, as_of=window.end)
         return replace(viewed, name=window.name)
@@ -240,8 +244,10 @@ class MarketData:
         self, views: ScenarioView | None = None, t: DateLike | None = None
     ) -> ViewedDistribution | list[ViewedDistribution]:
         if views is not None:
-            if not hasattr(views, "view_distribution"):
-                raise TypeError("views must provide view_distribution(panel)")
+            if not isinstance(views, ScenarioView):
+                raise TypeError(
+                    "viewed_returns expects ScenarioView (...view_distribution...)"
+                )
             as_of = self.trading_bars[-1] if t is None else self._as_datetime(t)
             returns = self._simple_return_history_through(as_of)
             self._log_views_applied(
@@ -411,17 +417,9 @@ class MarketData:
             views=window.views,
             panel=returns,
         )
-        if hasattr(window.views, "view_distribution"):
-            viewed = window.views.view_distribution(returns, as_of=t)
-            viewed = replace(viewed, name=window.name)
-            return panel.with_prob(viewed.prob_for(panel)), viewed
-        viewed_panel = window.views.apply(returns)
-        return (
-            panel.with_prob(
-                expand_posterior_to_parent(viewed_panel.prob, panel.prob, 1)
-            ),
-            None,
-        )
+        viewed = window.views.view_distribution(returns, as_of=t)
+        viewed = replace(viewed, name=window.name)
+        return panel.with_prob(viewed.prob_for(panel)), viewed
 
     @staticmethod
     def _as_datetime(t: DateLike) -> datetime:

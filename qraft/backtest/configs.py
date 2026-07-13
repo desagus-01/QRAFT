@@ -13,6 +13,8 @@ class BacktestConfig:
     schedule: RebalanceSchedule = field(default_factory=RebalanceSchedule)
     initial_cash: float = 100.0
     periods_per_year: float | None = None
+    retain_optimizer_inputs: bool = False
+    retain_optimizer_scenarios: bool = False
 
     def __post_init__(self) -> None:
         if self.initial_cash <= 0:

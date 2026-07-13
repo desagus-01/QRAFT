@@ -158,7 +158,7 @@ base_policy = MPOPolicy.preset(
 val = Validation(
     market=market,
     base_policy=base_policy,
-    grid={"risk_aversion": [0.5, 3]},
+    grid={"risk_aversion": [2, 3, 4, 5]},
     forecasts=forecaster,
     backtest_config=backtest_config,
 )

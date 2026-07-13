@@ -24,6 +24,27 @@ def decision_points(
 ) -> list[DecisionPoint]:
     all_bars = market.trading_bars
     decision_bars = {d for d, _ in schedule.decision_steps(all_bars)}
+    eligible_bars = [
+        bar
+        for i, bar in enumerate(all_bars)
+        if bar in decision_bars and i + 1 >= warmup
+    ]
+    active_view_points = [
+        (bar, window)
+        for bar in eligible_bars
+        if (window := market.views.active_window_at(bar)) is not None
+    ]
+    if active_view_points:
+        info_event(
+            logger,
+            "views.decision_snapshots_pending",
+            "Decision snapshots will apply scenario views",
+            active_view_decisions=len(active_view_points),
+            eligible_decisions=len(eligible_bars),
+            views=tuple(dict.fromkeys(window.name for _, window in active_view_points)),
+            first_date=active_view_points[0][0],
+            last_date=active_view_points[-1][0],
+        )
     points: list[DecisionPoint] = []
 
     for i, bar in enumerate(all_bars):
