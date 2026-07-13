@@ -2,14 +2,31 @@
 
 **Quantitative Risk, Allocation, and Forecasting Toolkit**
 
-QRAFT is an end-to-end quantitative portfolio construction toolkit built for advanced p-style quants with an emphasis in scenarios. I've tried creating a package to allow the user to 
+QRAFT is an advanced end-to-end portfolio construction toolkit aimed at p-style quants who wish to emphasize scenarios based on their market views throughout the allocation process.
 
+The package is heavily inspired by the teachings of Atillio Meucci for the 'core' of views using entropy pooling and Stephen Boyd and the cvxportfolio library for policy creation and evaluation.
 
 > **Disclaimer:** Research and educational use only. Not financial or investment advice.
 
 ---
 
 ## What QRAFT Does
+
+There are 4 core pillars for this project:
+1. Views
+2. Forecaster
+3. Policy
+4. Risk Management
+
+I'll briefly explain each below (I will make docs at one point with more detail on each!).
+
+---
+
+### Views
+
+Probably the biggest differentation between this project and other portfolio construction packages out there. 'Views' refers to the ability of the investor to add their **market** views to the whole investment process explicity and in a formal manner. This is done through entropy pooling, which is formalized by Atillio Meucci in his paper regarding 'Fully Flexible Probabilities' [**I NEED TO CITE THIS**]. In short, the package allows investors to input their future market expectations (for example `VIX <= 15`), infer an updated discrete `scenario probability` from it, and simulate futures deriving from these views.
+
+[**Add example here**]
 
 ### Probabilistic Forecasting
 
