@@ -1,3 +1,5 @@
+"""State records used by univariate simulation forecasts."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -19,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class UnivariateState:
+    """Mutable simulation state for one fitted univariate time-series model."""
+
     series_hist: NDArray[np.floating]
     ma_residual_lags: NDArray[np.floating] | None = None
     vol_residual_lags: NDArray[np.floating] | None = None
@@ -127,6 +131,8 @@ class UnivariateState:
 
 @dataclass(slots=True)
 class SimulationForecast:
+    """Univariate model, initial simulation state, and variance-cap diagnostics."""
+
     model: UnivariateModel
     state0: UnivariateState
     variance_cap_diagnostics: dict[str, float | int | bool | None]

@@ -1,3 +1,5 @@
+"""Market-data containers for historical prices, cash rates, priors, and views."""
+
 from __future__ import annotations
 
 import logging
@@ -34,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class MarketDataConfig:
+    """Configure cash-rate handling and inferred market-data cadence."""
+
     cash_column: str = "DFF"
     cash_rate_unit: CashRateUnit = "percent"
     periods_per_year: float | None = None
@@ -42,15 +46,19 @@ class MarketDataConfig:
 
 @dataclass(frozen=True, slots=True)
 class Prior:
+    """Scenario-prior scheme used to weight historical market states."""
+
     scheme: PriorScheme = "uniform"
     half_life: float | None = None
 
     @classmethod
     def uniform(cls) -> "Prior":
+        """Return an equal-weight prior over the available history."""
         return cls(scheme="uniform")
 
     @classmethod
     def time_conditioned(cls, *, half_life: float) -> "Prior":
+        """Return an exponentially smoothed prior with the given half-life."""
         return cls(scheme="state_smooth", half_life=half_life)
 
     def __post_init__(self) -> None:
@@ -58,6 +66,7 @@ class Prior:
             raise ValueError("Prior.time_conditioned() requires a half_life")
 
     def probs(self, n: int) -> ProbVector:
+        """Return scenario probabilities for ``n`` historical observations."""
         if self.scheme == "uniform":
             return uniform_probs(n)
         if self.half_life is not None:
@@ -67,6 +76,8 @@ class Prior:
 
 @dataclass(frozen=True, slots=True)
 class MarketData:
+    """Validated market levels, cash data, prior weights, and optional views."""
+
     frame: pl.DataFrame
     universe: AssetUniverse
     cash: pl.DataFrame | None
@@ -84,6 +95,7 @@ class MarketData:
         prior: Prior = Prior.uniform(),
         config: MarketDataConfig = MarketDataConfig(),
     ) -> "MarketData":
+        """Create ``MarketData`` from positive price levels and optional cash rates."""
         return cls._from_frame(data, universe, cash, prior, config)
 
     @classmethod
@@ -131,6 +143,7 @@ class MarketData:
         )
 
     def with_views(self, *events: ViewInput) -> "MarketData":
+        """Return a copy with named, non-overlapping scenario-view windows."""
         normalized = tuple(
             sorted((normalize_view_window(e) for e in events), key=lambda e: e.start)
         )
@@ -151,9 +164,11 @@ class MarketData:
 
     @property
     def trading_bars(self) -> list[datetime]:
+        """Trading bars available in chronological order."""
         return self.frame.get_column("date").to_list()
 
     def prices_at(self, t: DateLike) -> NDArray[np.floating]:
+        """Return tradable-asset prices on the exact bar ``t``."""
         t = self._as_datetime(t)
         row = self.frame.filter(pl.col("date") == t)
         if row.height == 0:
@@ -204,6 +219,7 @@ class MarketData:
         return replace(viewed, name=window.name)
 
     def view_report_by_name(self, name: str) -> ViewedDistribution:
+        """Return entropy-pooling diagnostics for the named view window."""
         window = next(
             (window for window in self.views.windows if window.name == name), None
         )
@@ -214,6 +230,7 @@ class MarketData:
         return replace(viewed, name=window.name)
 
     def plot_view(self, view: str | DateLike):
+        """Plot an entropy-pooling view report selected by name or bar."""
         if isinstance(view, str) and any(
             window.name == view for window in self.views.windows
         ):
@@ -243,6 +260,7 @@ class MarketData:
     def viewed_returns(
         self, views: ScenarioView | None = None, t: DateLike | None = None
     ) -> ViewedDistribution | list[ViewedDistribution]:
+        """Return posterior simple-return distributions for explicit or stored views."""
         if views is not None:
             if not isinstance(views, ScenarioView):
                 raise TypeError(
@@ -376,6 +394,7 @@ class MarketData:
     def snapshot_at(
         self, t: DateLike, t_next: DateLike, *, step_size: int = 1
     ) -> MarketSnapshot:
+        """Return a ``MarketSnapshot`` for portfolio decisions at ``t``."""
         t = self._as_datetime(t)
         t_next = self._as_datetime(t_next)
         history, applied_views = self._history_and_applied_views_through(t)
@@ -390,6 +409,7 @@ class MarketData:
         )
 
     def forecast_snapshot_at(self, t: DateLike) -> ForecastSnapshot:
+        """Return a ``ForecastSnapshot`` for forecasts made as of ``t``."""
         t = self._as_datetime(t)
         history, applied_views = self._history_and_applied_views_through(t)
         return ForecastSnapshot(

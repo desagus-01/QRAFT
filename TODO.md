@@ -4,6 +4,8 @@
 - [ ] Update docstrings
 - [ ] Create examples
 - [x] Full green-suite + tests organization ✅ 2026-07-13
+- [ ] Review MarketData as a bit too large?
+- [ ] Also whether AssetUniverse is needed...
 
 
 ## Backtest

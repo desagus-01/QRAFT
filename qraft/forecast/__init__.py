@@ -11,7 +11,7 @@ __all__ = [
     "IIDConfig",
     "PreprocessConfig",
     "forecast_from_fit",
-    "Signal",
+    "build_forecast_recipe_history",
 ]
 
 from qraft.core.configs import (  # noqa: F401
@@ -31,5 +31,5 @@ from qraft.forecast.pipelines.forecasting import (  # noqa: F401
     forecast_from_fit,
     run_forecast,
 )
-from qraft.forecast.signals.raw_signals import Signal  # noqa: F401
+from qraft.forecast.run import build_forecast_recipe_history  # noqa: F401
 from qraft.utils.log_config import LogConfig

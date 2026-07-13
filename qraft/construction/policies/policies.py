@@ -1,3 +1,5 @@
+"""Portfolio construction policies and policy protocols."""
+
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
@@ -30,6 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 class PolicyProtocol(Protocol):
+    """Protocol implemented by policies that produce ``PolicyDecision`` objects."""
+
     @property
     def name(self) -> str: ...
 
@@ -64,6 +68,8 @@ def _decision_from_mpo(
 
 @dataclass(frozen=True, slots=True)
 class EqualWeightPolicy:
+    """Allocate equal risky weights across current assets plus a cash target."""
+
     target_cash_weight: float
     input_plan: InputPlan = field(default_factory=InputPlan)
     name: str = "equal_weight"
@@ -129,6 +135,7 @@ class MPOPolicy:
         costs: PresetCosts = "default",
         **solver_options: Any,
     ) -> "MPOPolicy":
+        """Create an ``MPOPolicy`` from a preset objective and cost configuration."""
         return cls(
             problem=MPOProblem.preset(
                 objective_type,
@@ -150,9 +157,11 @@ class MPOPolicy:
         )
 
     def cost_specs(self) -> tuple[TransactionCost | None, HoldingCost | None]:
+        """Return transaction and holding-cost specs used by the policy."""
         return self.problem.cost_specs()
 
     def required_inputs(self) -> RequiredOptimizerInputs:
+        """Return optimizer inputs required by the policy objective."""
         return self.problem.required_inputs()
 
     def _get_optimizer(self, optimizer_inputs: OptimizerInputs) -> MultiPeriodOptimizer:
@@ -178,6 +187,7 @@ class MPOPolicy:
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
+        """Return a policy decision by solving with explicit optimizer inputs."""
         if not isinstance(optimizer_inputs, OptimizerInputs):
             raise ValueError(
                 "MPOPolicy requires explicit OptimizerInputs. Call decide() (or "
@@ -194,6 +204,7 @@ class MPOPolicy:
         *,
         inputs: dict[str, Any] | None = None,
     ) -> PolicyDecision:
+        """Optimize from the current portfolio state and optimizer inputs."""
         current_weights, current_cash, dropped, dropped_weight = align_state_to_assets(
             state, optimizer_inputs.assets
         )

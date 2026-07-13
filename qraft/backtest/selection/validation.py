@@ -1,3 +1,5 @@
+"""Validation facade for walk-forward and combinatorial policy selection."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -40,18 +42,22 @@ TuneSelection = Literal["most_selected", "oos_score"]
 
 @dataclass(frozen=True, slots=True)
 class ValidationResult:
+    """Validation report plus selected policy parameters and backtest accessors."""
+
     report: ValidationReport
     base_policy: PolicyProtocol
     selected_params: PolicyParams | None
 
     @property
     def selected_policy(self) -> PolicyProtocol:
+        """Return the base policy with selected hyperparameters applied."""
         if self.selected_params is None:
             raise ValueError("Validation did not select a policy candidate.")
         return apply_hyperparameters(self.base_policy, self.selected_params)
 
     @property
     def selected_result(self) -> CandidateResult:
+        """Return the candidate result matching the selected parameters."""
         if self.selected_params is None:
             raise ValueError("Validation did not select a policy candidate.")
         if self.report.evaluation is None:
@@ -62,6 +68,7 @@ class ValidationResult:
 
     @property
     def backtest(self) -> BacktestResult:
+        """Return the selected candidate's backtest result."""
         backtest = self.selected_result.backtest
         if backtest is None:
             raise ValueError("Selected candidate does not have a backtest.")
@@ -70,6 +77,8 @@ class ValidationResult:
 
 @dataclass(frozen=True, slots=True)
 class Validation:
+    """Evaluate a policy grid with walk-forward or combinatorial validation."""
+
     market: MarketData
     base_policy: PolicyProtocol
     grid: Mapping[str, Sequence[Any]]
@@ -81,6 +90,7 @@ class Validation:
     )
 
     def walk_forward(self, cfg: WalkForwardConfig | None = None) -> WalkForwardReport:
+        """Return a walk-forward validation report for the policy grid."""
         if cfg is None:
             cfg = WalkForwardConfig()
         self._validate_folds_feasible(self._decision_bar_count(), cfg)
@@ -93,6 +103,7 @@ class Validation:
     def combinatorial(
         self, cfg: CombinatorialCVConfig | None = None
     ) -> CombinatorialReport:
+        """Return a combinatorial cross-validation report for the policy grid."""
         if cfg is None:
             cfg = CombinatorialCVConfig()
         self._validate_folds_feasible(self._decision_bar_count(), cfg)
@@ -111,6 +122,7 @@ class Validation:
         agg: Agg = "mean",
         selection: TuneSelection = "most_selected",
     ) -> ValidationResult:
+        """Return selected policy parameters from a validation report."""
         if cfg is None:
             cfg = _default_config_for_report(report)
         if score is None:

@@ -1,3 +1,5 @@
+"""Backtest facade for running a policy through historical market data."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -25,6 +27,8 @@ BacktestSource: TypeAlias = (
 
 @dataclass(frozen=True, slots=True)
 class Backtest:
+    """Configure market data, policy, forecasts, costs, and backtest settings."""
+
     market: MarketData
     policy: PolicyProtocol
     forecasts: BacktestSource | None = None
@@ -33,6 +37,7 @@ class Backtest:
     step_size: int = 1
 
     def run(self) -> BacktestResult:
+        """Return a ``BacktestResult`` for the configured policy and market."""
         inputs = None
         if self.forecasts is not None:
             table = precompute_inputs(

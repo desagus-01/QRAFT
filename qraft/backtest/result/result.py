@@ -1,3 +1,5 @@
+"""Backtest result records, summaries, and plotting helpers."""
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections.abc import Sequence
@@ -21,6 +23,8 @@ BacktestWarning = dict[str, Any]
 
 @dataclass(frozen=True, slots=True)
 class BacktestResult:
+    """Portfolio NAV, rebalance periods, costs, warnings, and diagnostics."""
+
     policy_name: str
     asset_order: list[str]
     nav_dates: list[datetime]
@@ -69,6 +73,7 @@ class BacktestResult:
         risk_free_rate: float = 0.0,
         active_only: bool = True,
     ):
+        """Return a ``PerformanceSummary`` for this backtest result."""
         from qraft.backtest.result.summary import PerformanceSummary
 
         return PerformanceSummary.from_backtest(
@@ -79,15 +84,19 @@ class BacktestResult:
         )
 
     def plot(self, **kwargs):
+        """Return a dashboard figure for NAV, drawdown, weights, and returns."""
         return plot_backtest_dashboard(self, **kwargs)
 
     def plot_nav(self, **kwargs):
+        """Return a NAV plot figure for this result."""
         return plot_nav(self, **kwargs)
 
     def plot_weights(self, **kwargs):
+        """Return a portfolio-weights plot figure for this result."""
         return plot_weights(self, **kwargs)
 
     def view_activity_df(self) -> pl.DataFrame:
+        """Return per-period scenario-view activity and entropy diagnostics."""
         rows = []
         for period in self.periods:
             diag = period.view_diagnostics
@@ -123,16 +132,19 @@ class BacktestResult:
 
     @property
     def dropped_assets(self) -> tuple[str, ...]:
+        """Return sorted assets dropped from any rebalance period."""
         return tuple(
             sorted({asset for p in self.periods for asset in p.dropped_assets})
         )
 
     @property
     def period_decision_bars(self) -> list[datetime]:
+        """Return decision bars for all rebalance periods."""
         return [p.decision_bar for p in self.periods]
 
     @property
     def period_execution_bars(self) -> list[datetime]:
+        """Return execution bars for all rebalance periods."""
         return [p.execution_bar for p in self.periods]
 
     @property
@@ -173,14 +185,17 @@ class BacktestResult:
 
     @property
     def total_transaction_cost(self) -> float:
+        """Return total realised transaction cost in NAV units."""
         return float(self.period_costs.sum())
 
     @property
     def total_holding_cost(self) -> float:
+        """Return total holding cost in NAV units."""
         return float(self.holding_costs.sum())
 
     @property
     def total_cost(self) -> float:
+        """Return total realised transaction and holding costs."""
         return self.total_transaction_cost + self.total_holding_cost
 
     @property

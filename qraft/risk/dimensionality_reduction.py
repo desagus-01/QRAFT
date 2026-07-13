@@ -1,3 +1,5 @@
+"""Dimensionality-reduction transforms for risk attribution."""
+
 import warnings
 from typing import Literal
 
@@ -69,6 +71,7 @@ def minimum_torsion_matrix(
     method: Literal["approximate", "exact"] = "approximate",
     max_iter: int | None = None,
 ) -> NDArray[np.floating]:
+    """Return the minimum-torsion matrix for correlated factor scenarios."""
     max_iter = _validate_torsion_args(method, max_iter)
 
     riccati = riccati_root(data, prob)

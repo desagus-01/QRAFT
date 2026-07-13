@@ -1,3 +1,5 @@
+"""Forecast-run records and helpers for recipe selection and simulation."""
+
 from __future__ import annotations
 
 import logging
@@ -33,6 +35,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class RecipePeriod:
+    """Recipe active over a dated interval in a forecast recipe history."""
+
     start: datetime
     end: datetime | None
     recipe: ForecastRecipe
@@ -44,10 +48,13 @@ class RecipePeriod:
 
 @dataclass(frozen=True, slots=True)
 class ForecastRecipeHistory:
+    """Chronological forecast recipes selected for a changing universe."""
+
     periods: tuple[RecipePeriod, ...]
     pipeline_config: PipelineConfig
 
     def period_at(self, as_of: datetime) -> tuple[int, RecipePeriod]:
+        """Return the active recipe-period index and record at ``as_of``."""
         if not self.periods:
             raise KeyError(f"No forecast recipes are available for {as_of!r}")
         for index, period in enumerate(self.periods):
@@ -63,6 +70,8 @@ class ForecastRecipeHistory:
 
 @dataclass(frozen=True, slots=True)
 class ForecastStep:
+    """One forecast result and recipe action for a single as-of date."""
+
     as_of: datetime
     recipe_period_index: int
     forecast: ForecastPaths
@@ -73,10 +82,13 @@ class ForecastStep:
 
 @dataclass(frozen=True, slots=True)
 class ForecastRun:
+    """Forecast steps plus the recipe history used to produce them."""
+
     recipe_history: ForecastRecipeHistory
     steps: tuple[ForecastStep, ...]
 
     def step_at(self, as_of: datetime) -> ForecastStep:
+        """Return the forecast step whose as-of date exactly matches ``as_of``."""
         for step in self.steps:
             if step.as_of == as_of:
                 return step
@@ -88,9 +100,11 @@ class ForecastRun:
         )
 
     def forecast_at(self, as_of: datetime) -> ForecastPaths:
+        """Return the ``ForecastPaths`` for the exact as-of date ``as_of``."""
         return self.step_at(as_of).forecast
 
     def model_health_df(self) -> pl.DataFrame:
+        """Return model-health diagnostics for all forecast steps."""
         frames = []
         for step in self.steps:
             health = step.forecast.model_health_df()
@@ -244,6 +258,7 @@ def simulate_forecast_paths(
     seed: int | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
 ) -> ForecastRun:
+    """Return a ``ForecastRun`` by simulating market snapshots on a cadence."""
     if min_history < 1:
         raise ValueError("min_history must be >= 1")
     snapshots = _forecast_snapshots_from_market(
@@ -364,6 +379,7 @@ def simulate_forecast_paths_from_snapshots(
     seed: int | None = None,
     simulation_config: SimulationForecastConfig = DEFAULT_SIMULATION_CONFIG,
 ) -> ForecastRun:
+    """Return a ``ForecastRun`` by applying recipe periods to snapshots."""
     steps: list[ForecastStep] = []
     snapshot_list = list(snapshots)
 

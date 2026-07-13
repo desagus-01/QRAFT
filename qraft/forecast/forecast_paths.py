@@ -1,3 +1,5 @@
+"""Forecast-path containers and plotting helpers."""
+
 from __future__ import annotations
 
 import logging
@@ -21,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class InnovationPaths:
+    """Innovation samples and their scenario probabilities."""
+
     values: NDArray[np.floating]
     path_probs: ProbVector
 
@@ -33,6 +37,8 @@ class InnovationPaths:
 
 @dataclass(frozen=True, slots=True)
 class ForecastPaths:
+    """Simulated future price paths with probabilities, dates, and diagnostics."""
+
     asset_paths: dict[str, NDArray[np.floating]]
     dates: DatetimeSeries
     path_probs: ProbVector
@@ -95,28 +101,34 @@ class ForecastPaths:
 
     @property
     def price_stack(self) -> NDArray[np.floating]:
+        """Return tradable price paths with shape ``(assets, paths, horizons)``."""
         return self.price_stack_for(list(self.tradable_paths.keys()))
 
     @property
     def n_simulations(self) -> int:
+        """Number of simulated paths."""
         first = next(iter(self.asset_paths.values()))
         return first.shape[0]
 
     @property
     def n_horizons(self) -> int:
+        """Number of forecast horizons per path."""
         first = next(iter(self.asset_paths.values()))
         return first.shape[1]
 
     @property
     def horizon_labels(self) -> list[str]:
+        """Return one-based horizon labels such as ``t+1``."""
         return [f"t+{step}" for step in range(1, self.n_horizons + 1)]
 
     @property
     def assets_and_factors_names(self) -> list[str]:
+        """Return all simulated asset and factor names in path order."""
         return list(self.asset_paths.keys())
 
     @property
     def tradable_paths(self) -> dict[str, NDArray[np.floating]]:
+        """Return paths for tradable assets only."""
         if self.universe is None:
             return self.asset_paths
         assets_set = set(self.universe.assets)
@@ -124,12 +136,14 @@ class ForecastPaths:
 
     @property
     def factor_paths(self) -> dict[str, NDArray[np.floating]]:
+        """Return paths for non-tradable factors only."""
         if self.universe is None:
             return {}
         factors_set = set(self.universe.factors)
         return {k: v for k, v in self.asset_paths.items() if k in factors_set}
 
     def price_stack_for(self, assets: list[str]) -> NDArray[np.floating]:
+        """Return selected price paths with shape ``(assets, paths, horizons)``."""
         missing = set(assets) - self.asset_paths.keys()
         if missing:
             raise ValueError(
@@ -149,6 +163,7 @@ class ForecastPaths:
         raise ValueError(f"Unknown subset: {subset}")
 
     def model_health_df(self) -> DataFrame:
+        """Return model-selection and variance-cap diagnostics as a DataFrame."""
         if self.model_health_frame is None:
             return DataFrame(
                 schema={
@@ -172,6 +187,7 @@ class ForecastPaths:
         assets: list[str] | None = None,
         ncols: int = 3,
     ):
+        """Plot simulated paths for selected tradable assets or factors."""
         if max_assets < 1:
             raise ValueError("max_assets must be >= 1")
         if ncols < 1:

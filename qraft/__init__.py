@@ -43,6 +43,11 @@ __all__ = [
     "OptimizerInputs",
     "InputPlan",
     "ExpectedReturnSource",
+    "LongOnly",
+    "FullyInvested",
+    "MinCashWeight",
+    "TurnoverLimit",
+    "MaxWeight",
     "PortfolioRisk",
     "var",
     "cvar",
@@ -58,6 +63,13 @@ from qraft.construction.optimization.inputs import (
     ExpectedReturnSource,
     InputPlan,
     OptimizerInputs,
+)
+from qraft.construction.optimization.constraints import (
+    FullyInvested,
+    LongOnly,
+    MaxWeight,
+    MinCashWeight,
+    TurnoverLimit,
 )
 from qraft.construction.policies import (
     Allocation,

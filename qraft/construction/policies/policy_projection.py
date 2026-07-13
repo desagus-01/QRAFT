@@ -1,3 +1,5 @@
+"""Projected portfolio outcomes from a policy decision and forecast paths."""
+
 import logging
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -32,6 +34,8 @@ def create_cash_forecasts(
 
 @dataclass(frozen=True, slots=True)
 class PolicyProjection:
+    """Projected portfolio value paths and target allocation details."""
+
     initial_value: NDArray[np.floating]
     forecast_values: NDArray[np.floating]
     path_probs: ProbVector
@@ -48,6 +52,7 @@ class PolicyProjection:
         forecasts: ForecastPaths,
         state: PortfolioState,
     ) -> "PolicyProjection":
+        """Create a projection by applying a decision to forecast price paths."""
         if decision.cash_return is None:
             raise ValueError(
                 "PolicyDecision.cash_return is required to project policy forecasts"
@@ -91,10 +96,12 @@ class PolicyProjection:
 
     @property
     def target_weights(self) -> dict[str, float]:
+        """Return risky target weights keyed by asset."""
         return dict(zip(self.asset_order, self.target_weights_risk.tolist()))
 
     @property
     def total_target_weights(self) -> dict[str, float]:
+        """Return risky and cash target weights keyed by asset and ``cash``."""
         return dict(zip(self.asset_order + ["cash"], self.total_target_weights_array))
 
     @property
@@ -103,9 +110,11 @@ class PolicyProjection:
 
     @property
     def cumulative_returns(self) -> NDArray[np.floating]:
+        """Return projected cumulative returns for each scenario and horizon."""
         return self.forecast_values / self.initial_value - 1
 
     def performance_at_period(self, period: int) -> NDArray[np.floating]:
+        """Return scenario cumulative returns at the zero-based horizon ``period``."""
         return self.cumulative_returns[:, period]
 
     def risk(
@@ -115,6 +124,7 @@ class PolicyProjection:
         auto_select_factors: bool = False,
         criterion: Criterion | None = None,
     ) -> PortfolioRisk:
+        """Return a ``PortfolioRisk`` report for this projected allocation."""
         return PortfolioRisk.from_projection(
             policy_projection=self,
             forecasts=forecasts,
@@ -125,6 +135,7 @@ class PolicyProjection:
     def plot(
         self, type: Literal["value", "cum_performance"] = "cum_performance"
     ) -> None:
+        """Plot projected portfolio values or cumulative performance."""
         value_to_plot = (
             self.forecast_values if type == "value" else self.cumulative_returns
         )

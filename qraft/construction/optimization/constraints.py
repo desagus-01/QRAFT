@@ -1,3 +1,5 @@
+"""Portfolio constraints compiled into CVXPY expressions."""
+
 from typing import Literal, Protocol, cast, runtime_checkable
 
 import cvxpy as cp
@@ -134,6 +136,8 @@ class MaxWeight:
 
 
 class MinCashWeight:
+    """Require total risky weight to leave at least ``limit`` in cash."""
+
     def __init__(
         self,
         limit: float | NDArray[np.floating],

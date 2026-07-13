@@ -1,3 +1,5 @@
+"""Portfolio and tail-risk metric functions."""
+
 from __future__ import annotations
 
 import logging
@@ -41,6 +43,7 @@ def var(
     *,
     distribution_type: Literal["pnl", "loss"] = "loss",
 ) -> NDArray[np.floating]:
+    """Return loss VaR, converting PnL inputs to positive losses when needed."""
     axis = normalize_axis_index(axis, distribution.ndim)
     if distribution.shape[axis] == 0:
         out_shape = distribution.shape[:axis] + distribution.shape[axis + 1 :]
@@ -97,7 +100,7 @@ def cvar(
 
 
 def returns_from_nav(nav: NDArray[np.floating]) -> NDArray[np.floating]:
-    """Simple per-bar returns from a NAV path."""
+    """Return simple per-bar returns from a NAV path."""
     _validate_nav(nav)
     return np.diff(nav) / nav[:-1]
 

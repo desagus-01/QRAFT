@@ -1,3 +1,5 @@
+"""Asset-universe helpers for tradable assets and non-tradable factors."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -29,6 +31,7 @@ class AssetUniverse:
 
     @classmethod
     def factors_free(cls, assets: list[str]) -> "AssetUniverse":
+        """Create a universe containing only tradable assets."""
         return cls(assets=assets, factors=[])
 
     @property
@@ -37,7 +40,9 @@ class AssetUniverse:
         return self.assets + self.factors
 
     def is_factor(self, ticker: str) -> bool:
+        """Return whether ``ticker`` is a non-tradable factor."""
         return ticker in set(self.factors)
 
     def is_asset(self, ticker: str) -> bool:
+        """Return whether ``ticker`` is a tradable asset."""
         return ticker in set(self.assets)

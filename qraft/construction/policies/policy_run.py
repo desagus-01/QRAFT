@@ -1,3 +1,5 @@
+"""Policy-run record and execution helper."""
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -33,6 +35,7 @@ class PolicyRun:
 
     @property
     def target_weights(self) -> dict[str, float]:
+        """Return risky target weights keyed by asset."""
         return dict(
             zip(
                 self.decision.asset_order,
@@ -42,6 +45,7 @@ class PolicyRun:
 
     @property
     def view_diagnostics(self) -> ViewDiagnostics | None:
+        """Return entropy-pooling diagnostics carried by optimizer inputs, if any."""
         return getattr(self.optimizer_inputs, "view_diagnostics", None)
 
     def _mpo_result(self) -> MPOResult:
@@ -59,15 +63,19 @@ class PolicyRun:
         return diagnostics
 
     def plan_metrics(self) -> dict[str, float]:
+        """Return diagnostic metrics for the optimizer's forecast plan."""
         return forecast_plan_metrics(self._mpo_result(), self.optimizer_inputs)
 
     def terminal_cvar(self, alpha: float = 0.05) -> float:
+        """Return terminal forecast CVaR for the optimized plan."""
         return forecast_terminal_cvar(self._mpo_result(), self.optimizer_inputs, alpha)
 
     def in_model_cvar(self, alpha: float = 0.05) -> float:
+        """Return in-model CVaR from the optimizer inputs and solution."""
         return in_model_cvar(self._mpo_result(), self.optimizer_inputs, alpha)
 
     def plot_weights(self, top_n: int | None = None):
+        """Plot target risky weights plus cash weight."""
         weights = {**self.target_weights, "cash": self.decision.target_cash_weight}
         items = sorted(weights.items(), key=lambda item: item[1])
         if top_n is not None:
@@ -108,7 +116,6 @@ def run_policy(
     as_of: datetime | None = None,
 ) -> PolicyRun:
     """Make a policy decision and optionally project it through supplied forecasts."""
-
     decision = policy.decide(state, optimizer_inputs, inputs=inputs)
 
     projection = PolicyProjection.from_decision(decision, forecasts, state)

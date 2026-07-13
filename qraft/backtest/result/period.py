@@ -1,3 +1,5 @@
+"""Per-period backtest records."""
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -13,6 +15,8 @@ from qraft.forecast.forecast_paths import ForecastPaths
 
 @dataclass(frozen=True, slots=True)
 class BacktestPeriod:
+    """State, decision, trades, costs, and diagnostics for one rebalance."""
+
     decision_bar: datetime
     execution_bar: datetime
     state_before: PortfolioState

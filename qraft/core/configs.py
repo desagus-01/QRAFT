@@ -1,3 +1,5 @@
+"""Configuration dataclasses for forecasting and simulation pipelines."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -121,6 +123,8 @@ SelectionMetric = Literal[
 
 @dataclass(frozen=True)
 class CMAConfig:
+    """Select target copula and marginal distributions for CMA transforms."""
+
     target_copula: Literal["t", "norm"] | None = None
     target_marginals: dict[str, Literal["t", "norm"]] | None = None
     copula_fit_method: Literal["ml", "irho", "itau"] = "itau"
@@ -134,6 +138,8 @@ class CMAConfig:
 
 @dataclass(frozen=True, slots=True)
 class SimulationForecastConfig:
+    """Simulation horizon, sample count, method, and price reconstruction settings."""
+
     horizon: int = 10
     n_sims: int = 1000
     method: SamplingMethod = "bootstrap"

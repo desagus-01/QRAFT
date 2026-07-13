@@ -1,3 +1,5 @@
+"""CVXPY-backed multi-period portfolio optimizer."""
+
 from __future__ import annotations
 
 import logging
@@ -51,9 +53,7 @@ def _structural_constraints(
     horizon_cash: Expression,
     previous_cash: float | Expression,
 ) -> list[Constraint]:
-    """
-    Self-financing and horizon-linking constraints with explicit scalar cash.
-    """
+    """Self-financing and horizon-linking constraints with explicit scalar cash."""
     return cast(
         list[Constraint],
         [
@@ -193,7 +193,7 @@ class MPOResult:
     @property
     def turnover(self) -> float:
         """
-        Cash-aware one-way turnover of the first trade:
+        Cash-aware one-way turnover of the first trade.
 
             0.5 * (||risky_trade||_1 + |cash_trade|).
         """
@@ -218,6 +218,8 @@ class OptimizationFailure(RuntimeError):
 
 
 class MultiPeriodOptimizer:
+    """Compiled reusable CVXPY optimizer for multi-period portfolio decisions."""
+
     def __init__(
         self,
         objective: ObjectiveSpec,

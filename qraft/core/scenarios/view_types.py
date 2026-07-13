@@ -1,3 +1,5 @@
+"""Entropy-pooling view specifications and diagnostics."""
+
 from dataclasses import dataclass
 from typing import Literal, TypeAlias, TypedDict
 
@@ -8,6 +10,8 @@ Sign: TypeAlias = Literal["<=", ">=", "=="]
 
 @dataclass(frozen=True)
 class MeanView:
+    """Constrain an asset's expected return in the view panel."""
+
     asset: str
     sign: Sign
     target: float
@@ -15,6 +19,8 @@ class MeanView:
 
 @dataclass(frozen=True)
 class StdView:
+    """Constrain an asset's return standard deviation in the view panel."""
+
     asset: str
     sign: Sign
     target: float
@@ -22,6 +28,8 @@ class StdView:
 
 @dataclass(frozen=True)
 class CorrView:
+    """Constrain pairwise return correlation in the view panel."""
+
     pair: tuple[str, str]
     sign: Sign
     target: float
@@ -48,6 +56,8 @@ class RankingView:
 
 @dataclass(frozen=True)
 class QuantileView:
+    """Constrain the probability mass below an asset return quantile."""
+
     asset: str
     quantile: float
     target_prob: float

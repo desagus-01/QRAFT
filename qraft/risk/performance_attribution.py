@@ -1,3 +1,5 @@
+"""Portfolio performance attribution to forecast factor returns."""
+
 from __future__ import annotations
 
 import logging
@@ -29,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PortfolioPerformanceAttribution:
+    """OLS factor model and joint scenario panel for portfolio performance."""
+
     horizon: int
     model: FactorAttributionModel
     factor_performance_forecast: dict[str, NDArray[np.floating]]
@@ -81,6 +85,7 @@ def portfolio_factor_attribution(
     auto_select_factors: bool = False,
     criterion: Criterion | None = None,
 ) -> PortfolioPerformanceAttribution:
+    """Return factor attribution for forecast portfolio cumulative returns."""
     factor_names = list(factors_forecast.keys())
 
     factors_cum = factor_cumulative_returns(

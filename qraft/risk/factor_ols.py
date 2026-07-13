@@ -1,3 +1,5 @@
+"""Weighted OLS helpers for factor performance attribution."""
+
 import logging
 from dataclasses import dataclass
 
@@ -23,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class FactorAttributionModel:
+    """Factor exposures, intercept shift, residuals, and fit quality."""
+
     exposures: dict[str, float]
     shift_term: float
     residuals: NDArray[np.floating]
@@ -31,6 +35,8 @@ class FactorAttributionModel:
 
 @dataclass(frozen=True, slots=True)
 class FactorOLSResult:
+    """OLS result plus selected factor names and optional selection trace."""
+
     ols: OLSResults
     selected_factors: list[str]
     selection_result: ForwardRegressionResult | None
@@ -110,6 +116,7 @@ def factor_ols_regression(
     prob: ProbVector | None = None,
     eq_type: EquationTypes = "c",
 ) -> FactorOLSResult:
+    """Fit a weighted OLS factor model for portfolio cumulative returns."""
     if (auto_select_factors) and criterion is None:
         raise ValueError(
             "You must select a criterion if you wish for auto factor selection."
@@ -170,6 +177,7 @@ def extract_factor_attribution_model(
     ols_results: OLSResults,
     selected_factors: list[str],
 ) -> FactorAttributionModel:
+    """Extract factor exposures and residuals from OLS results."""
     if ols_results.feature_names_order is None:
         raise ValueError("OLSResults.feature_names_order is required")
 

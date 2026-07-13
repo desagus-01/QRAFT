@@ -1,3 +1,5 @@
+"""Scenario transforms for entropy views and copula-marginal adjustment."""
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol, Sequence
@@ -33,12 +35,14 @@ class Views:
             )
 
     def apply(self, panel: ScenarioPanel) -> ScenarioPanel:
+        """Return ``panel`` with entropy-pooled posterior probabilities applied."""
         viewed = self.view_distribution(panel, as_of=panel.dates[-1])
         return viewed.panel.with_prob(viewed.posterior)
 
     def view_distribution(
         self, panel: ScenarioPanel, *, as_of: datetime
     ) -> ViewedDistribution:
+        """Return prior, posterior, and diagnostics for applying views to ``panel``."""
         if panel.kind != "return":
             raise ValueError("Views must be applied to a simple-return panel")
         result = entropy_pooling(
@@ -57,11 +61,14 @@ class Views:
         )
 
     def against(self, market: Any) -> ViewedDistribution:
+        """Return viewed returns by applying this transform against market data."""
         return market.viewed_returns(self)
 
 
 @dataclass(frozen=True)
 class CMA:
+    """Copula-marginal adjustment transform for scenario panels."""
+
     config: CMAConfig
     seed: int | None = None
 

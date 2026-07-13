@@ -1,3 +1,5 @@
+"""High-level forecast facade for recipe selection and path simulation."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -21,6 +23,8 @@ from qraft.forecast.run import (
 
 @dataclass(frozen=True, slots=True)
 class Forecaster:
+    """Configure recipe refits and simulation settings for forecast runs."""
+
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
     simulation: SimulationForecastConfig = field(
         default_factory=SimulationForecastConfig
@@ -34,6 +38,7 @@ class Forecaster:
             raise ValueError("refit_every must be >= 1")
 
     def recipes(self, market: MarketData, min_history: int) -> ForecastRecipeHistory:
+        """Return a ``ForecastRecipeHistory`` built from market-data snapshots."""
         return build_forecast_recipe_history(
             market,
             min_history=min_history,
@@ -47,6 +52,7 @@ class Forecaster:
         self,
         snapshots: Iterable[ForecastSnapshot],
     ) -> ForecastRecipeHistory:
+        """Return a ``ForecastRecipeHistory`` built from supplied snapshots."""
         return build_forecast_recipe_history_from_snapshots(
             snapshots,
             refit_every=self.refit_every,
@@ -62,6 +68,7 @@ class Forecaster:
         cadence: Cadence,
         recipes: ForecastRecipeHistory | None = None,
     ) -> ForecastRun:
+        """Return a ``ForecastRun`` from market data; inspect ``run.steps`` next."""
         return simulate_forecast_paths(
             market,
             recipes or self.recipes(market, min_history),
@@ -76,6 +83,7 @@ class Forecaster:
         snapshots: Iterable[ForecastSnapshot],
         recipes: ForecastRecipeHistory | None = None,
     ) -> ForecastRun:
+        """Return a ``ForecastRun`` from snapshots; inspect ``run.steps`` next."""
         snapshot_list = list(snapshots)
         recipe_history = (
             recipes

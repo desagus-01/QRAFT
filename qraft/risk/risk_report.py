@@ -1,3 +1,5 @@
+"""Portfolio risk reports from projected policy outcomes."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -27,6 +29,8 @@ RiskMetrics = Literal["var", "cvar"]
 
 @dataclass(frozen=True, slots=True)
 class PortfolioRisk:
+    """Factor-attributed portfolio risk for one forecast horizon."""
+
     horizon: int
     r2: float
     policy_projection: PolicyProjection
@@ -40,6 +44,7 @@ class PortfolioRisk:
         auto_select_factors: bool = False,
         criterion: Criterion | None = None,
     ):
+        """Create ``PortfolioRisk`` from a policy projection and forecast paths."""
         if auto_select_factors and criterion is None:
             criterion = "bic"
 
@@ -70,6 +75,7 @@ class PortfolioRisk:
     def risk_contribution(
         self, risk_metric: RiskMetrics, alpha: float = 0.05
     ) -> RiskContributions:
+        """Return factor and idiosyncratic contributions to VaR or CVaR."""
         return (
             self.risk_attribution.var(alpha=alpha)
             if risk_metric == "var"
@@ -77,6 +83,7 @@ class PortfolioRisk:
         )
 
     def summary_df(self, alpha: float = 0.05) -> pl.DataFrame:
+        """Return risk metrics and CVaR contributions as a DataFrame."""
         var_contrib = self.risk_contribution("var", alpha=alpha)
         cvar_contrib = self.risk_contribution("cvar", alpha=alpha)
         enb = self.effective_bets().effective_bets
@@ -142,6 +149,7 @@ class PortfolioRisk:
         risk_metric: RiskMetrics,
         alpha: float = 0.05,
     ) -> NDArray[np.floating]:
+        """Return portfolio VaR or CVaR at the report horizon."""
         losses = -self.policy_projection.performance_at_period(self.horizon)
         return (
             var(
@@ -166,4 +174,5 @@ class PortfolioRisk:
         method: Literal["approximate", "exact"] = "approximate",
         max_iter: int | None = None,
     ) -> EffectiveBets:
+        """Return effective number of factor bets for the attributed risk."""
         return self.risk_attribution.effective_bets(method=method, max_iter=max_iter)

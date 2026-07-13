@@ -1,3 +1,5 @@
+"""Backtest performance summary metrics."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -13,6 +15,8 @@ from qraft.core.cadence import infer_periods_per_year
 
 @dataclass(frozen=True, slots=True)
 class PerformanceSummary:
+    """Aggregate return, risk, turnover, cost, and warning metrics."""
+
     total_return: float
     annualised_return: float
     annualised_vol: float

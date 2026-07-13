@@ -1,3 +1,5 @@
+"""Factor risk-attribution and effective-bets utilities."""
+
 from __future__ import annotations
 
 import logging
@@ -22,11 +24,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class RiskContributions:
+    """Total risk value and additive contributions by risk driver."""
+
     risk_measure: str
     value: float
     contributions: dict[str, float]
 
     def plot(self):
+        """Plot a waterfall-style contribution chart."""
         items = list(self.contributions.items())
 
         labels = [label for label, _ in items]
@@ -49,10 +54,13 @@ class RiskContributions:
 
 @dataclass(frozen=True)
 class EffectiveBets:
+    """Minimum-torsion factor contributions and effective bet count."""
+
     factor_contributions: dict[str, float]
     effective_bets: float
 
     def plot(self) -> None:
+        """Plot minimum-torsion factor contributions and effective bets."""
         from qraft.utils.visuals import plot_effective_bets
 
         return plot_effective_bets(self)
@@ -60,6 +68,8 @@ class EffectiveBets:
 
 @dataclass(frozen=True, slots=True)
 class PortfolioRiskAttribution:
+    """Loss-space factor exposures and joint risk-driver distribution."""
+
     horizon: int
     exposures: dict[str, float]
     joint_panel: ScenarioPanel
@@ -174,9 +184,7 @@ def validate_exposures_for_panel(
     panel: ScenarioPanel,
     exposures: dict[str, float],
 ) -> list[str]:
-    """
-    Validate exposures and return ordered risk-driver columns.
-    """
+    """Validate exposures and return ordered risk-driver columns."""
     driver_cols = risk_driver_cols(panel)
 
     missing = [c for c in driver_cols if c not in exposures]
@@ -194,9 +202,7 @@ def get_var_data(
     panel: ScenarioPanel,
     alpha: float,
 ) -> DataFrame:
-    """
-    Return all scenarios in the VaR/CVaR tail.
-    """
+    """Return all scenarios in the VaR/CVaR tail."""
     validate_alpha(alpha)
 
     panel_with_prob = with_prob(panel)
@@ -218,9 +224,7 @@ def get_var_row(
     panel: ScenarioPanel,
     alpha: float,
 ) -> DataFrame:
-    """
-    Return the first row crossing the VaR quantile threshold.
-    """
+    """Return the first row crossing the VaR quantile threshold."""
     var_data = get_var_data(panel, alpha).head(1)
 
     if var_data.height == 0:
@@ -234,9 +238,7 @@ def get_var_window(
     alpha: float,
     min_prob_mass: float | None = None,
 ) -> DataFrame:
-    """
-    Return scenarios around the VaR cutoff for more stable Euler contributions.
-    """
+    """Return scenarios around the VaR cutoff for stable Euler contributions."""
     validate_alpha(alpha)
     if min_prob_mass is None:
         min_prob_mass = min(alpha, 0.01)
@@ -269,9 +271,7 @@ def cvar_contribution(
     exposures: dict[str, float],
     alpha: float = 0.05,
 ) -> RiskContributions:
-    """
-    Compute CVaR contribution decomposition from a risk attribution panel.
-    """
+    """Compute CVaR contribution decomposition from a risk attribution panel."""
     driver_cols = validate_exposures_for_panel(panel, exposures)
     cvar_tail = get_var_data(panel, alpha)
 
@@ -376,10 +376,7 @@ def effective_bets(
     method: Literal["approximate", "exact"] = "approximate",
     max_iter: int | None = None,
 ) -> EffectiveBets:
-    """
-    Compute effective bets and minimum-torsion factor risk contributions.
-    """
-
+    """Compute effective bets and minimum-torsion factor risk contributions."""
     if factor_joint_distribution.ndim != 2:
         raise ValueError(
             "factor_joint_distribution must be 2-D "

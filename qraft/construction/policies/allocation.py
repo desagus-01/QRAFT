@@ -1,3 +1,5 @@
+"""Allocation facade for applying construction policies to market forecasts."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,6 +23,8 @@ from qraft.risk.risk_report import PortfolioRisk
 
 @dataclass(frozen=True, slots=True)
 class Allocation:
+    """Bundle market data, a policy, forecasts, and optional portfolio state."""
+
     market: MarketData
     policy: PolicyProtocol
     forecasts: ForecastSpec | ForecastPaths
@@ -29,6 +33,7 @@ class Allocation:
     step_size: int = 1
 
     def at(self, as_of: datetime | None = None) -> PolicyRun:
+        """Return a ``PolicyRun`` for the requested as-of bar."""
         if as_of is None:
             as_of = self.market.trading_bars[-1]
 

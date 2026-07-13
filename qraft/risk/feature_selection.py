@@ -1,3 +1,5 @@
+"""Forward feature-selection helpers for factor models."""
+
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -9,6 +11,8 @@ from numpy.typing import NDArray
 
 @dataclass(frozen=True, slots=True)
 class StepResult:
+    """One accepted feature-selection step and its criterion score."""
+
     step: int
     feature_added: str
     score: float
@@ -23,16 +27,20 @@ class StepResult:
 
 @dataclass(frozen=True, slots=True)
 class ForwardRegressionResult:
+    """Selected feature names, final OLS model, and selection steps."""
+
     selected_features: list[str]
     final_model: OLSResults
     steps: list[StepResult] = field(default_factory=list)
 
     @property
     def n_selected(self) -> int:
+        """Number of selected features."""
         return len(self.selected_features)
 
 
 Criterion = Literal["bic", "aic", "r2", "p_value"]
+"""Supported forward-regression model-selection criteria."""
 
 
 def _score_candidate(res: OLSResults, criterion: Criterion) -> float:
@@ -71,8 +79,7 @@ def _prune_insignificant(
     p_value_threshold: float,
     prob: ProbVector | None,
 ) -> list[int]:
-    """Re-fit the model and iteratively drop the worst feature whose p-value
-    exceeds *p_value_threshold*."""
+    """Re-fit the model and drop features above ``p_value_threshold``."""
     changed = True
     while changed:
         changed = False
@@ -132,6 +139,7 @@ def forward_regression(
     p_value_threshold: float = 0.05,
     prob: ProbVector | None = None,
 ) -> ForwardRegressionResult:
+    """Select features greedily by improving the requested criterion."""
     included_idx: list[int] = []
     n_features = independent_vars.shape[1]
     best_score = np.inf if criterion in ("aic", "bic") else -np.inf

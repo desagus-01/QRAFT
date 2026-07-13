@@ -1,3 +1,5 @@
+"""Problem specifications for multi-period portfolio optimization."""
+
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
@@ -26,6 +28,8 @@ from qraft.construction.optimization.presets import (
 
 @dataclass(frozen=True, slots=True)
 class MPOProblem:
+    """Immutable optimization problem specification for MPO policies."""
+
     objective: ObjectiveSpec
     cvar_auto: bool = False
 
@@ -109,10 +113,7 @@ class MPOProblem:
         n_assets: int,
         n_scenarios: int,
     ) -> MultiPeriodOptimizer:
-        """
-        Allocate CVXPY variables and return a compiled
-        :class:`MultiPeriodOptimizer` ready to be solved.
-        """
+        """Allocate CVXPY variables and return a compiled optimizer."""
         self._validate_objective_weights()
         objective = (
             resolve_cvar_auto(self.objective, horizons, n_scenarios)

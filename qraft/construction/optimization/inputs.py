@@ -1,3 +1,5 @@
+"""Optimizer input containers and forecast-to-input transforms."""
+
 import logging
 from dataclasses import dataclass, replace
 from typing import Any, Literal, Mapping
@@ -624,9 +626,7 @@ class OptimizerInputs:
         invariance_drops: tuple[object, ...] = (),
         view_diagnostics: ViewDiagnostics | None = None,
     ) -> "OptimizerInputs":
-        """
-        Build optimizer inputs from forecasts and inferred policy requirements.
-        """
+        """Build optimizer inputs from forecasts and inferred policy requirements."""
         if expected_returns not in {"historical", "forecast"}:
             raise ValueError(
                 "expected_returns must be one of 'historical' or 'forecast'."
@@ -773,6 +773,13 @@ class OptimizerInputs:
 
 @dataclass(frozen=True, slots=True)
 class InputPlan:
+    """Describe how forecast paths become optimizer inputs.
+
+    ``expected_returns`` selects whether means come from forecast scenarios or
+    historical estimates. ``max_horizons`` can cap the number of forecast horizons
+    passed into the optimizer while leaving shorter forecasts unchanged.
+    """
+
     expected_returns: ExpectedReturnSource = "forecast"
     max_horizons: int | None = None
     subset: AssetSubset = "tradable"
