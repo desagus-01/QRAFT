@@ -46,7 +46,8 @@ class PolicyProtocol(Protocol):
 
     def required_inputs(self) -> RequiredOptimizerInputs: ...
 
-    input_plan: InputPlan
+    @property
+    def input_plan(self) -> InputPlan: ...
 
 
 def _decision_from_mpo(

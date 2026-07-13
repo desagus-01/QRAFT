@@ -165,9 +165,10 @@ val = Validation(
 
 # %%
 # %%
-report = val.combinatorial(CombinatorialCVConfig(n_groups=4, n_test_groups=1))
+cv_config = CombinatorialCVConfig(n_groups=4, n_test_groups=1)
+report = val.combinatorial(cv_config)
 # %%
-tuned = val.tune(report, score="sortino")
+tuned = val.tune(report, cfg=cv_config, score="sortino")
 # tuned = val.tune(report, score="sharpe")
 policy = tuned.selected_policy
 tuned.selected_params
