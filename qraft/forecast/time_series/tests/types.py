@@ -58,3 +58,6 @@ def format_hyp_test_result(
         reject_null=hyp_conc["reject_null"],
         desc=hyp_conc["desc"],
     )
+
+
+__test__ = False

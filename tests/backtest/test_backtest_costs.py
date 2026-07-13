@@ -1,9 +1,9 @@
 from datetime import datetime
 
 import numpy as np
-import polars as pl
 import pytest
 
+from conftest import market_data
 from qraft.backtest.costs import CostModel
 from qraft.core.market import MarketData, MarketDataConfig
 from qraft.core.schedule import RebalanceSchedule
@@ -15,23 +15,17 @@ from qraft.construction.optimization.objectives.specs import (
     transaction_cost_value,
 )
 from qraft.construction.policies import EqualWeightPolicy
-from qraft.forecast.forecast_paths import AssetUniverse
 
 
 DATES = [datetime(2024, 1, d) for d in (1, 2, 3, 4)]
 
 
 def _market() -> MarketData:
-    return MarketData.from_prices(
-        pl.DataFrame(
-            {
-                "date": DATES,
-                "A": [10.0, 12.0, 12.0, 15.0],
-                "B": [20.0, 18.0, 18.0, 18.0],
-            }
-        ),
-        AssetUniverse.factors_free(["A", "B"]),
-        cash=pl.DataFrame({"date": DATES, "DFF": [3.6, 7.2, 7.2, 7.2]}),
+    return market_data(
+        DATES,
+        A=[10.0, 12.0, 12.0, 15.0],
+        B=[20.0, 18.0, 18.0, 18.0],
+        cash_rates=[3.6, 7.2, 7.2, 7.2],
     )
 
 
@@ -58,10 +52,31 @@ def test_frictionless_default_for_costless_policy():
 def test_linear_cost_matches_traded_notional():
     rate = 0.001
     for p in _run(TransactionCost(cost=rate, market_impact=0.0)).periods:
-        notional = float(
+        nav = float(
+            p.state_before.shares @ p.state_before.initial_prices + p.state_before.cash
+        )
+        pre_cost_target = nav * 0.75
+        after_cost_target = (nav - p.cost) * 0.75
+        pre_cost_trade_notional = float(
+            np.abs(
+                pre_cost_target / 2.0
+                - p.state_before.shares * p.state_before.initial_prices
+            ).sum()
+        )
+        expected_executed_notional = float(
+            np.abs(
+                after_cost_target / 2.0
+                - p.state_before.shares * p.state_before.initial_prices
+            ).sum()
+        )
+        executed_notional = float(
             np.abs(p.executed_share_trades * p.state_before.initial_prices).sum()
         )
-        np.testing.assert_allclose(p.cost, rate * notional, rtol=1e-10)
+
+        np.testing.assert_allclose(p.cost, rate * pre_cost_trade_notional, rtol=1e-10)
+        np.testing.assert_allclose(
+            executed_notional, expected_executed_notional, rtol=1e-10
+        )
 
 
 def test_self_financing_with_cost():
@@ -102,10 +117,10 @@ def test_long_book_accrues_holding_drag():
 
 def test_holding_cost_scales_with_calendar_gap():
     dates = [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 12)]
-    market = MarketData.from_prices(
-        pl.DataFrame({"date": dates, "A": [20.0, 20.0, 20.0]}),
-        AssetUniverse.factors_free(["A"]),
-        cash=pl.DataFrame({"date": dates, "DFF": [0.0, 0.0, 0.0]}),
+    market = market_data(
+        dates,
+        A=[20.0, 20.0, 20.0],
+        cash_rates=[0.0, 0.0, 0.0],
         config=MarketDataConfig(cash_day_count=360),
     )
 
@@ -122,10 +137,10 @@ def test_holding_cost_scales_with_calendar_gap():
 
 def test_holding_cost_uses_market_cadence_not_holding_default():
     dates = [datetime(2024, 1, 1), datetime(2024, 1, 8), datetime(2024, 1, 15)]
-    market = MarketData.from_prices(
-        pl.DataFrame({"date": dates, "A": [20.0, 20.0, 20.0]}),
-        AssetUniverse.factors_free(["A"]),
-        cash=pl.DataFrame({"date": dates, "DFF": [0.0, 0.0, 0.0]}),
+    market = market_data(
+        dates,
+        A=[20.0, 20.0, 20.0],
+        cash_rates=[0.0, 0.0, 0.0],
         config=MarketDataConfig(cash_day_count=365),
     )
 
@@ -181,8 +196,17 @@ def test_per_share_cost():
     for p in _run(
         TransactionCost(cost=0.0, pershare_cost=0.05, market_impact=0.0)
     ).periods:
-        shares = float(np.abs(p.executed_share_trades).sum())
-        np.testing.assert_allclose(p.cost, 0.05 * shares, rtol=1e-10)
+        nav = float(
+            p.state_before.shares @ p.state_before.initial_prices + p.state_before.cash
+        )
+        pre_cost_target = nav * 0.75
+        pre_cost_shares = float(
+            np.abs(
+                pre_cost_target / 2.0 / p.state_before.initial_prices
+                - p.state_before.shares
+            ).sum()
+        )
+        np.testing.assert_allclose(p.cost, 0.05 * pre_cost_shares, rtol=1e-10)
 
 
 def test_cost_is_nav_drag():
@@ -212,5 +236,5 @@ def test_impact_uses_forecast_sigma():
 
 
 def test_cost_overdraft_fails_loudly():
-    with pytest.raises(ValueError, match="drove cash negative"):
+    with pytest.raises(ValueError, match="trade cost at execution exceeded NAV"):
         _run(TransactionCost(cost=10.0, market_impact=0.0))

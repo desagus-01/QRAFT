@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import cvxpy as cp
 import numpy as np
 
+from conftest import portfolio_state
 from qraft.backtest.engine.policy_step import decide_or_hold
 from qraft.backtest.engine.schedule import DecisionPoint
 from qraft.construction.optimization.inputs import RequiredOptimizerInputs
@@ -71,12 +72,7 @@ class _HappyPolicy:
 
 
 def _state() -> PortfolioState:
-    return PortfolioState(
-        asset_order=["A"],
-        initial_prices=np.array([100.0]),
-        shares=np.array([1.0]),
-        cash=100.0,
-    )
+    return portfolio_state(["A"], [100.0], [1.0], 100.0)
 
 
 def _point() -> DecisionPoint:

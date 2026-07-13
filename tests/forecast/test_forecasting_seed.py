@@ -5,6 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from conftest import scenario_panel_from_log_prices
 from qraft.core.configs import (
     PipelineConfig,
     PreprocessConfig,
@@ -76,14 +77,10 @@ class DummyFittedUniverse:
 
 
 def _panel() -> ScenarioPanel:
-    return ScenarioPanel.from_log_prices(
-        pl.DataFrame(
-            {
-                "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
-                "asset": [1.0, 1.1],
-            }
-        ),
-        prob=np.full(2, 0.5),
+    return scenario_panel_from_log_prices(
+        [datetime(2024, 1, 1), datetime(2024, 1, 2)],
+        asset=[1.0, 1.1],
+        prob=[0.5, 0.5],
     )
 
 

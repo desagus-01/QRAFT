@@ -1,3 +1,11 @@
+## Alpha releast checklist
+- [ ] Update README
+- [ ] Get pypi ready
+- [ ] Update docstrings
+- [ ] Create examples
+- [ ] Full green-suite + tests organization
+
+
 ## Backtest
 - [ ] risk evaluation/backtest
 Kupiec test
@@ -17,8 +25,6 @@ Tail calibration
 ## Optimization
 - [ ] Review and implement better covariances techniques
     - [ ] Look at 72.2.1
-- [x] Apply efficient frontier ✅ 2026-06-18
-    - [ ] OOS hypertuning
 - [ ] Add option to do against benchmark
     - [ ] current portfolio
     - [ ] equal weight portfolio

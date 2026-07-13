@@ -5,6 +5,7 @@ import polars as pl
 import pytest
 from matplotlib.figure import Figure
 
+from conftest import portfolio_state
 from qraft.backtest.costs import CostModel
 from qraft.backtest.execution import execute_frictionless
 from qraft.backtest.result.period import BacktestPeriod
@@ -44,12 +45,7 @@ def _forecasts() -> ForecastPaths:
 
 
 def _state() -> PortfolioState:
-    return PortfolioState(
-        asset_order=["A", "B"],
-        initial_prices=np.array([10.0, 20.0]),
-        shares=np.array([0, 0], dtype=np.int32),
-        cash=100.0,
-    )
+    return portfolio_state(["A", "B"], [10.0, 20.0], [0.0, 0.0], 100.0)
 
 
 def test_policy_decide_returns_decision_without_projecting() -> None:

@@ -4,6 +4,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from conftest import portfolio_state
 from qraft.construction.market_snapshot import MarketSnapshot
 from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.objectives.specs import ExpectedReturn
@@ -15,12 +16,7 @@ from qraft.forecast.forecast_paths import AssetUniverse
 
 
 def _state() -> PortfolioState:
-    return PortfolioState(
-        asset_order=["A"],
-        initial_prices=np.array([10.0]),
-        shares=np.array([0.0]),
-        cash=100.0,
-    )
+    return portfolio_state(["A"], [10.0], [0.0], 100.0)
 
 
 def _snapshot() -> MarketSnapshot:

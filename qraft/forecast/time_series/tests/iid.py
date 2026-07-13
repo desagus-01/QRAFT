@@ -654,3 +654,6 @@ def univariate_arch_test(
         )
 
     return out
+
+
+__test__ = False

@@ -198,3 +198,6 @@ def stationarity_tests(
     return infer_stationarity(
         adf_c=adf_c, adf_ct=adf_ct, kpss_level=kpss_res_lvl, kpss_trend=kpss_res_trend
     )
+
+
+__test__ = False

@@ -3,6 +3,7 @@ from datetime import datetime
 
 import polars as pl
 
+from conftest import market_data
 from qraft.core.market import MarketData
 from qraft.core.schedule import RebalanceSchedule
 from qraft.core.snapshot import forecast_snapshot_at
@@ -48,14 +49,15 @@ def _forecast_paths(universe: AssetUniverse | None = None):
 def _market(universe: AssetUniverse | None = None) -> MarketData:
     if universe is None:
         universe = AssetUniverse.factors_free(["A"])
-    data = pl.DataFrame(
-        {
-            "date": [datetime(2024, 1, day) for day in range(1, 7)],
-            "A": [18.0, 20.0, 22.0, 24.0, 26.0, 28.0],
-            "B": [19.0, 20.0, 21.0, 22.0, 23.0, 24.0],
-        }
+    prices = {
+        "A": [18.0, 20.0, 22.0, 24.0, 26.0, 28.0],
+        "B": [19.0, 20.0, 21.0, 22.0, 23.0, 24.0],
+    }
+    return market_data(
+        [datetime(2024, 1, day) for day in range(1, 7)],
+        assets=universe.all_tickers,
+        **{asset: prices[asset] for asset in universe.all_tickers},
     )
-    return MarketData.from_prices(data.select("date", *universe.all_tickers), universe)
 
 
 def _patch_runner(monkeypatch):

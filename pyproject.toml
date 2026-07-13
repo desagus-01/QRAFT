@@ -35,6 +35,13 @@ dependencies = [
 where = ["."]
 
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: long-running backtest/optimization tests",
+]
+
+
 [tool.pyrefly]
 python_version = "3.13"
 search_path = ["."]
@@ -53,4 +60,3 @@ project-excludes = [
 dev = [
     "ipykernel>=7.1.0",
 ]
-

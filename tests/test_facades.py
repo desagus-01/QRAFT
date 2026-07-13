@@ -1,9 +1,9 @@
 from datetime import datetime
 
 import numpy as np
-import polars as pl
 import pytest
 
+from conftest import market_data
 from qraft import Backtest, ForecastSpec, Validation
 from qraft.backtest.configs import (
     BacktestConfig,
@@ -28,9 +28,10 @@ from qraft.backtest.engine.loop import run_backtest
 from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.policies import EqualWeightPolicy, MPOPolicy
 from qraft.core.schedule import RebalanceSchedule
-from qraft.forecast.forecast_paths import AssetUniverse
 from qraft.backtest.selection.results import PolicyParams
 from qraft.backtest.selection.validation import ValidationResult
+
+pytestmark = pytest.mark.slow
 
 
 class _NoopView:
@@ -47,14 +48,9 @@ class _FakeCpcvReport:
 
 
 def _market() -> MarketData:
-    return MarketData.from_prices(
-        pl.DataFrame(
-            {
-                "date": [datetime(2024, 1, day) for day in range(1, 5)],
-                "A": [20.0, 22.0, 24.0, 26.0],
-            }
-        ),
-        AssetUniverse.factors_free(["A"]),
+    return market_data(
+        [datetime(2024, 1, day) for day in range(1, 5)],
+        A=[20.0, 22.0, 24.0, 26.0],
     )
 
 

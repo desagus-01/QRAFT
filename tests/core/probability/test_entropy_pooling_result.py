@@ -5,6 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from conftest import scenario_panel_from_levels
 from qraft.core.panel import ScenarioPanel
 from qraft.core.probability.entropy_pooling import (
     InfeasibleViewsError,
@@ -20,17 +21,9 @@ from qraft.core.scenarios.view_types import (
 
 
 def _panel() -> ScenarioPanel:
-    return ScenarioPanel.from_levels(
-        pl.DataFrame(
-            {
-                "date": [
-                    datetime(2024, 1, 1),
-                    datetime(2024, 1, 2),
-                    datetime(2024, 1, 3),
-                ],
-                "A": [0.0, 1.0, 2.0],
-            }
-        )
+    return scenario_panel_from_levels(
+        [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+        A=[0.0, 1.0, 2.0],
     )
 
 

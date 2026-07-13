@@ -7,6 +7,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from conftest import asset_universe, price_frame
 from qraft.backtest.baselines import AllCashPolicy, NoTradePolicy
 from qraft.backtest.result import BacktestResult
 from qraft.core.market import MarketData, Prior
@@ -19,17 +20,19 @@ from qraft.construction.state import PortfolioState
 from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.forecast_paths import AssetUniverse
 
+pytestmark = pytest.mark.slow
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
 def _universe(*assets: str) -> AssetUniverse:
-    return AssetUniverse.factors_free(list(assets))
+    return asset_universe(*assets)
 
 
 def _price_frame(dates, **prices) -> pl.DataFrame:
-    return pl.DataFrame({"date": dates, **prices})
+    return price_frame(dates, **prices)
 
 
 def _cash_frame(dates, rates: list[float]) -> pl.DataFrame:

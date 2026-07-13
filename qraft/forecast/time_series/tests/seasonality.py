@@ -235,3 +235,6 @@ def periodogram_seasonality_test(data, seasonal_period) -> SeasonalityPeriodTest
     return SeasonalityPeriodTest(
         seasonal_period, 2 * np.pi / seasonal_period_n, res.reject_null, res
     )
+
+
+__test__ = False

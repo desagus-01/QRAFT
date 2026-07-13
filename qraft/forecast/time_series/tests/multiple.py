@@ -13,3 +13,6 @@ def multiple_tests_rejected(
     return multipletests(p_values, alpha=significance_level, method="holm-sidak")[
         0
     ].tolist()
+
+
+__test__ = False

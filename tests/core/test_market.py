@@ -5,6 +5,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from conftest import asset_universe, price_frame
 from qraft.core.market import (
     MarketData,
     MarketDataConfig,
@@ -21,20 +22,14 @@ from qraft.forecast.forecast_paths import AssetUniverse
 
 
 def _universe() -> AssetUniverse:
-    return AssetUniverse.factors_free(["A", "B"])
+    return asset_universe("A", "B")
 
 
 def _price_frame() -> pl.DataFrame:
-    return pl.DataFrame(
-        {
-            "date": [
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-                datetime(2024, 1, 3),
-            ],
-            "A": [10.0, 11.0, 12.0],
-            "B": [20.0, 22.0, 24.0],
-        }
+    return price_frame(
+        [datetime(2024, 1, 1), datetime(2024, 1, 2), datetime(2024, 1, 3)],
+        A=[10.0, 11.0, 12.0],
+        B=[20.0, 22.0, 24.0],
     )
 
 
@@ -224,7 +219,7 @@ def test_from_prices_without_cash() -> None:
     assert md.cash is None
 
 
-def test_from_prices_rejects_log_price_like_values() -> None:
+def test_from_prices_accepts_small_positive_price_levels() -> None:
     df = pl.DataFrame(
         {
             "date": [datetime(2024, 1, 1), datetime(2024, 1, 2)],
@@ -232,8 +227,11 @@ def test_from_prices_rejects_log_price_like_values() -> None:
             "B": [np.log(20.0), np.log(22.0)],
         }
     )
-    with pytest.raises(ValueError, match="values look like log prices"):
-        MarketData.from_prices(df, _universe())
+    md = MarketData.from_prices(df, _universe())
+
+    np.testing.assert_allclose(
+        md.prices_at(datetime(2024, 1, 1)), [np.log(10.0), np.log(20.0)]
+    )
 
 
 # ---------------------------------------------------------------------------

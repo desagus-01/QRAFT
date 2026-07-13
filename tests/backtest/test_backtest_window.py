@@ -5,6 +5,7 @@ from datetime import datetime
 import numpy as np
 import pytest
 
+from conftest import portfolio_state
 from qraft.backtest.result import BacktestPeriod, BacktestResult, PerformanceSummary
 from qraft.construction.policies import PolicyDecision
 from qraft.construction.state import PortfolioState
@@ -13,7 +14,7 @@ DATES = [datetime(2024, 1, d) for d in (1, 2, 3, 4, 5, 8)]
 
 
 def _state() -> PortfolioState:
-    return PortfolioState(["A"], np.array([1.0]), np.array([0.0]), 100.0)
+    return portfolio_state(["A"], [1.0], [0.0], 100.0)
 
 
 def _period(decision: datetime, execution: datetime) -> BacktestPeriod:
