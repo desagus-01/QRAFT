@@ -69,8 +69,9 @@ market = MarketData.from_prices(
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),
     simulation=SimulationForecastConfig(horizon=10, method="bootstrap", n_sims=10_000),
-    # refit_every=int(prices.height / 4),
-    refit_every=1,
+    # new_recipe_every=int(prices.height / 4),
+    new_recipe_every=1,
+    new_recipe_cadence="every_bar",
     seed=10,
 )
 

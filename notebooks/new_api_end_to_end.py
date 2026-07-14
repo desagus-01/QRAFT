@@ -134,7 +134,8 @@ forecaster = Forecaster(
         n_sims=1_000,
         cma_config=CMAConfig(target_copula="t"),
     ),
-    refit_every=int(prices.height / 4),
+    new_recipe_every=int(prices.height / 4),
+    new_recipe_cadence="every_bar",
     seed=10,
 )
 plan = InputPlan(expected_returns="forecast")

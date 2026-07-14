@@ -138,14 +138,18 @@ def build_forecast_recipe_history(
     market,
     *,
     min_history: int,
-    refit_every: int,
+    new_recipe_every: int,
+    new_recipe_cadence: Cadence = "every_bar",
     reselect_on_universe_change: bool = True,
     seed: int | None = None,
     pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
 ) -> ForecastRecipeHistory:
-    """Build recipes from every-bar snapshots; ``refit_every`` is in bars."""
-    if min_history < 1 or refit_every < 1:
-        raise ValueError("min_history and refit_every must be >= 1")
+    """Build recipes from recipe-cadence snapshots.
+
+    ``new_recipe_every`` is measured in ``new_recipe_cadence`` decision steps.
+    """
+    if min_history < 1 or new_recipe_every < 1:
+        raise ValueError("min_history and new_recipe_every must be >= 1")
 
     recipe: ForecastRecipe | None = None
     last_universe: tuple[str, ...] | None = None
@@ -154,7 +158,7 @@ def build_forecast_recipe_history(
     eligible_steps = 0
     all_bars = market.trading_bars
     forecast_bars = {
-        d for d, _ in RebalanceSchedule("every_bar").decision_steps(all_bars)
+        d for d, _ in RebalanceSchedule(new_recipe_cadence).decision_steps(all_bars)
     }
     n_snapshots = sum(
         1
@@ -167,7 +171,8 @@ def build_forecast_recipe_history(
         "forecast.recipe_build_started",
         "Forecast recipe history build started",
         snapshots=n_snapshots,
-        refit_every=refit_every,
+        new_recipe_every=new_recipe_every,
+        new_recipe_cadence=new_recipe_cadence,
         reselect_on_universe_change=reselect_on_universe_change,
     )
 
@@ -182,7 +187,7 @@ def build_forecast_recipe_history(
         rebuild_recipe = (
             recipe is None
             or (reselect_on_universe_change and universe_changed)
-            or eligible_steps % refit_every == 0
+            or eligible_steps % new_recipe_every == 0
         )
         if not rebuild_recipe:
             last_universe = universe_key
@@ -194,7 +199,7 @@ def build_forecast_recipe_history(
             if recipe is None
             else "universe_changed"
             if reselect_on_universe_change and universe_changed
-            else "refit_every"
+            else "new_recipe_every"
         )
 
         snapshot = forecast_snapshot_at(market, bar)
@@ -278,14 +283,17 @@ def simulate_forecast_paths(
 def build_forecast_recipe_history_from_snapshots(
     snapshots: Iterable[ForecastSnapshot],
     *,
-    refit_every: int,
+    new_recipe_every: int,
     reselect_on_universe_change: bool = True,
     seed: int | None = None,
     pipeline_config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
 ) -> ForecastRecipeHistory:
-    """Build recipes from supplied snapshots; ``refit_every`` is in snapshot steps."""
-    if refit_every < 1:
-        raise ValueError("refit_every must be >= 1")
+    """Build recipes from supplied snapshots.
+
+    ``new_recipe_every`` is measured in supplied snapshot steps.
+    """
+    if new_recipe_every < 1:
+        raise ValueError("new_recipe_every must be >= 1")
     recipe: ForecastRecipe | None = None
     last_universe: tuple[str, ...] | None = None
     current_period: RecipePeriod | None = None
@@ -297,7 +305,7 @@ def build_forecast_recipe_history_from_snapshots(
         "forecast.recipe_build_started",
         "Forecast recipe history build started",
         snapshots=len(snapshot_list),
-        refit_every=refit_every,
+        new_recipe_every=new_recipe_every,
         reselect_on_universe_change=reselect_on_universe_change,
     )
 
@@ -307,7 +315,7 @@ def build_forecast_recipe_history_from_snapshots(
         rebuild_recipe = (
             recipe is None
             or (reselect_on_universe_change and universe_changed)
-            or step % refit_every == 0
+            or step % new_recipe_every == 0
         )
         if not rebuild_recipe:
             last_universe = universe_key
@@ -318,7 +326,7 @@ def build_forecast_recipe_history_from_snapshots(
             if recipe is None
             else "universe_changed"
             if reselect_on_universe_change and universe_changed
-            else "refit_every"
+            else "new_recipe_every"
         )
 
         panel = snapshot.history

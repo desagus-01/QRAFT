@@ -86,12 +86,12 @@ def _patch_runner(monkeypatch):
     return selected, applied
 
 
-def test_forecast_recipe_history_records_refit_periods(monkeypatch):
+def test_forecast_recipe_history_records_new_recipe_periods(monkeypatch):
     selected, applied = _patch_runner(monkeypatch)
     history = build_forecast_recipe_history(
         _market(),
         min_history=2,
-        refit_every=2,
+        new_recipe_every=2,
     )
 
     assert len(selected) == 2
@@ -108,7 +108,7 @@ def test_forecast_run_applies_existing_recipe_history(monkeypatch):
     history = build_forecast_recipe_history(
         _market(AssetUniverse.factors_free(["A", "B"])),
         min_history=3,
-        refit_every=12,
+        new_recipe_every=12,
     )
     run = simulate_forecast_paths(
         _market(AssetUniverse.factors_free(["A", "B"])),
@@ -131,7 +131,7 @@ def test_forecast_run_logs_step_applications_at_debug(monkeypatch, caplog):
     history = build_forecast_recipe_history(
         _market(AssetUniverse.factors_free(["A", "B"])),
         min_history=3,
-        refit_every=12,
+        new_recipe_every=12,
     )
 
     with caplog.at_level(logging.INFO, logger="qraft.forecast.run"):
@@ -151,10 +151,10 @@ def test_forecast_run_logs_step_applications_at_debug(monkeypatch, caplog):
 def test_forecaster_run_returns_forecast_run(monkeypatch):
     _patch_runner(monkeypatch)
 
-    run = Forecaster(refit_every=12).run(
+    run = Forecaster(new_recipe_every=12).run(
         _market(AssetUniverse.factors_free(["A", "B"])),
         min_history=3,
-        cadence="every_bar",
+        forecast_cadence="every_bar",
     )
 
     assert [step.action for step in run.steps] == [
@@ -168,7 +168,7 @@ def test_forecaster_run_returns_forecast_run(monkeypatch):
 def test_forecaster_run_reuses_supplied_recipes(monkeypatch):
     selected, applied = _patch_runner(monkeypatch)
     market = _market(AssetUniverse.factors_free(["A", "B"]))
-    forecaster = Forecaster(refit_every=12)
+    forecaster = Forecaster(new_recipe_every=12)
     recipes = forecaster.recipes(market, min_history=3)
     selected_count = len(selected)
     applied.clear()
@@ -176,7 +176,7 @@ def test_forecaster_run_reuses_supplied_recipes(monkeypatch):
     run = forecaster.run(
         market,
         min_history=3,
-        cadence="every_bar",
+        forecast_cadence="every_bar",
         recipes=recipes,
     )
 
@@ -185,16 +185,22 @@ def test_forecaster_run_reuses_supplied_recipes(monkeypatch):
     assert run.recipe_history is recipes
 
 
-def test_forecaster_run_from_snapshots_reuses_recipes(monkeypatch):
+def test_snapshot_run_reuses_recipes(monkeypatch):
     selected, applied = _patch_runner(monkeypatch)
     market = _market(AssetUniverse.factors_free(["A", "B"]))
-    forecaster = Forecaster(refit_every=1)
+    forecaster = Forecaster(new_recipe_every=1)
     recipes = forecaster.recipes(market, min_history=3)
     selected_count = len(selected)
     applied.clear()
     snapshots = [forecast_snapshot_at(market, bar) for bar in market.trading_bars[2:]]
 
-    run = forecaster.run_from_snapshots(snapshots, recipes)
+    run = simulate_forecast_paths_from_snapshots(
+        snapshots,
+        recipes,
+        pipeline_config=forecaster.pipeline,
+        seed=forecaster.seed,
+        simulation_config=forecaster.simulation,
+    )
 
     assert len(selected) == selected_count
     assert len(applied) == 4
@@ -273,7 +279,7 @@ def test_forecast_cadence_selects_backtest_style_market_bars(monkeypatch):
     history = build_forecast_recipe_history(
         _market(),
         min_history=2,
-        refit_every=1,
+        new_recipe_every=1,
     )
     run = simulate_forecast_paths(
         _market(),
@@ -290,6 +296,24 @@ def test_forecast_cadence_selects_backtest_style_market_bars(monkeypatch):
     ]
 
 
+def test_new_recipe_cadence_selects_new_recipe_steps(monkeypatch):
+    _patch_runner(monkeypatch)
+    market = market_data(
+        [datetime(2024, 1, 30), datetime(2024, 1, 31), datetime(2024, 2, 1)],
+        assets=["A"],
+        A=[18.0, 20.0, 22.0],
+    )
+
+    history = build_forecast_recipe_history(
+        market,
+        min_history=2,
+        new_recipe_every=1,
+        new_recipe_cadence="month_end",
+    )
+
+    assert [period.start for period in history.periods] == [datetime(2024, 1, 31)]
+
+
 def test_forecast_run_seeds_each_forecast_step_by_date(monkeypatch):
     captured: list[tuple[int | None, int]] = []
 
@@ -302,7 +326,7 @@ def test_forecast_run_seeds_each_forecast_step_by_date(monkeypatch):
     history = build_forecast_recipe_history(
         _market(),
         min_history=2,
-        refit_every=12,
+        new_recipe_every=12,
     )
 
     full_run = simulate_forecast_paths(
@@ -402,7 +426,7 @@ def test_policy_input_precompute_refits_recipes_on_market_bars(monkeypatch):
         market,
         schedule=RebalanceSchedule("every_bar"),
         warmup=2,
-        forecasts=Forecaster(refit_every=2),
+        forecasts=Forecaster(new_recipe_every=2),
         policy=ForecastPolicy(),
     )
 
@@ -440,7 +464,9 @@ def test_policy_input_single_final_bar_uses_prior_recipe(monkeypatch):
     market = _market()
     snapshot = market.snapshot_at(market.trading_bars[-1], market.trading_bars[-1])
 
-    run = forecast_run_for_source([snapshot], Forecaster(refit_every=1), market=market)
+    run = forecast_run_for_source(
+        [snapshot], Forecaster(new_recipe_every=1), market=market
+    )
 
     assert selected_steps == [5]
     assert len(applied) == 1
@@ -462,7 +488,7 @@ def test_recipe_history_only_builds_snapshots_for_refit_bars(monkeypatch):
     build_forecast_recipe_history(
         _market(),
         min_history=2,
-        refit_every=2,
+        new_recipe_every=2,
     )
 
     assert snapshot_dates == [

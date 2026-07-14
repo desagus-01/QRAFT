@@ -116,7 +116,8 @@ plan = InputPlan(expected_returns="historical", max_horizons=1)
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),
     simulation=SimulationForecastConfig(horizon=3, n_sims=200),
-    refit_every=int(market.frame.height / 3),
+    new_recipe_every=int(market.frame.height / 3),
+    new_recipe_cadence="every_bar",
     seed=10,
 )
 policy = MPOPolicy.preset(

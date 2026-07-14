@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from typing import Callable, Literal, NamedTuple
+import warnings
 
 import polars as pl
+from statsmodels.tools.sm_exceptions import InterpolationWarning
 from statsmodels.tsa.stattools import adfuller as sm_adfuller
 from statsmodels.tsa.stattools import kpss as sm_kpss
 
@@ -133,15 +135,17 @@ def augmented_dickey_fuller(
 def kpss(
     data: pl.DataFrame, asset: str, null_type_stationarity: Literal["trend", "level"]
 ) -> StationaryTestsRes:
-    test_stat, p_val, *_ = sm_kpss(
-        data.select(asset).to_series().to_numpy(),
-        regression=KPSS_REGRESSION_TYPES[null_type_stationarity],
-        nlags="auto",
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", InterpolationWarning)
+        test_stat, p_val, *_ = sm_kpss(
+            data.select(asset).to_series().to_numpy(),
+            regression=KPSS_REGRESSION_TYPES[null_type_stationarity],
+            nlags="auto",
+        )
 
     return StationaryTestsRes(
-        test_stat=test_stat,
-        p_val=p_val,
+        test_stat=float(test_stat),
+        p_val=float(p_val),
         std_error=None,
     )
 

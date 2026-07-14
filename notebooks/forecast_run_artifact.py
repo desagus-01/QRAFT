@@ -57,7 +57,8 @@ market = MarketData.from_prices(
 recipe_history = build_forecast_recipe_history(
     market,
     min_history=150,
-    refit_every=int(data.height / 5),
+    new_recipe_every=int(data.height / 5),
+    new_recipe_cadence="every_bar",
     seed=3,
     pipeline_config=PipelineConfig(exclude_non_invariants=False),
 )

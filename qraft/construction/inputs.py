@@ -20,6 +20,7 @@ from qraft.forecast.forecaster import Forecaster, ForecastSpec
 from qraft.forecast.run import (
     ForecastRecipeHistory,
     ForecastRun,
+    build_forecast_recipe_history_from_snapshots,
     simulate_forecast_paths_from_snapshots,
 )
 from qraft.utils.log import info_event
@@ -181,7 +182,20 @@ def forecast_run_for_source(
         for snapshot in market_snapshots
     ]
     if market is None:
-        return forecasts.run_from_snapshots(forecast_snapshots)
+        recipe_history = build_forecast_recipe_history_from_snapshots(
+            forecast_snapshots,
+            new_recipe_every=forecasts.new_recipe_every,
+            reselect_on_universe_change=forecasts.reselect_on_universe_change,
+            seed=forecasts.seed,
+            pipeline_config=forecasts.pipeline,
+        )
+        return simulate_forecast_paths_from_snapshots(
+            forecast_snapshots,
+            recipe_history,
+            pipeline_config=forecasts.pipeline,
+            seed=forecasts.seed,
+            simulation_config=forecasts.simulation,
+        )
     else:
         min_history = min(
             snapshot.history.values.height for snapshot in market_snapshots
@@ -192,7 +206,13 @@ def forecast_run_for_source(
         ):
             min_history = max(1, min_history - 1)
         recipe_history = forecasts.recipes(market, min_history=min_history)
-        return forecasts.run_from_snapshots(forecast_snapshots, recipe_history)
+        return simulate_forecast_paths_from_snapshots(
+            forecast_snapshots,
+            recipe_history,
+            pipeline_config=forecasts.pipeline,
+            seed=forecasts.seed,
+            simulation_config=forecasts.simulation,
+        )
 
 
 _forecast_run_for_source = forecast_run_for_source

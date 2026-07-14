@@ -10,9 +10,7 @@ def multiple_tests_rejected(
     The ``significance_level`` default of 0.05 mirrors ``IIDConfig.significance_level``.
     Prefer passing ``cfg.significance_level`` explicitly from a config object in new code.
     """
-    return multipletests(p_values, alpha=significance_level, method="holm-sidak")[
-        0
-    ].tolist()
+    return multipletests(p_values, alpha=significance_level, method="holm")[0].tolist()
 
 
 __test__ = False

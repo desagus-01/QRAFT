@@ -127,7 +127,8 @@ forecaster = Forecaster(
         n_sims=10_000,
         cma_config=CMAConfig(target_copula="t"),
     ),
-    refit_every=int(prices.height / 4),
+    new_recipe_every=int(prices.height / 4),
+    new_recipe_cadence="every_bar",
     seed=10,
 )
 
@@ -136,7 +137,7 @@ recipes = forecaster.recipes(market, min_history=min_history)
 run = forecaster.run(
     market,
     min_history=min_history,
-    cadence="quarter_end",
+    forecast_cadence="quarter_end",
     recipes=recipes,
 )
 

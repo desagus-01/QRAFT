@@ -1,6 +1,7 @@
 # QRAFT
 
-> [!WARNING] This package is still in alpha so please expect breaking changes.
+> [!WARNING]
+> This package is still in alpha so please expect breaking changes.
 
 **Quantitative Risk, Allocation, and Forecasting Toolkit**
 

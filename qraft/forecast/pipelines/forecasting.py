@@ -21,6 +21,7 @@ from qraft.core.universe import AssetUniverse
 from qraft.forecast.forecast_paths import ForecastPaths, InnovationPaths
 from qraft.forecast.pipelines.fitted_universe import (
     FittedUniverse,
+    ForecastRecipe,
     apply_forecast_recipe,
     create_forecast_recipe,
     fit_diagnostics,
@@ -132,6 +133,13 @@ def _model_name(order: object, distribution: object | None = None) -> str | None
     return f"{order} {distribution}"
 
 
+def _mean_model_name(recipe: ForecastRecipe, asset: str) -> str | None:
+    identity = recipe.mean_fallback_identity.get(asset)
+    if identity is not None:
+        return identity
+    return _model_name(recipe.mean_orders.get(asset))
+
+
 def _model_health_frame(fit: FittedUniverse) -> DataFrame:
     recipe = fit.recipe()
     diagnostics = fit_diagnostics(fit)
@@ -142,7 +150,7 @@ def _model_health_frame(fit: FittedUniverse) -> DataFrame:
         rows.append(
             {
                 "asset": asset,
-                "mean_model": _model_name(recipe.mean_orders.get(asset)),
+                "mean_model": _mean_model_name(recipe, asset),
                 "vol_model": _model_name(
                     recipe.vol_orders.get(asset), recipe.vol_distributions.get(asset)
                 ),

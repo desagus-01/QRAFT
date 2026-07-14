@@ -111,8 +111,50 @@ def test_fit_with_orders_demean_fallback() -> None:
     assert ures.volatility_res is None
     assert ures.quality is not None
     assert ures.quality.grade == "A"
-
     assert abs(float(np.mean(ures.mean_res.residuals))) < 1e-10
+
+
+def test_model_health_reports_mean_fallback_identity() -> None:
+    from qraft.forecast.pipelines.forecasting import _model_health_frame
+    from qraft.forecast.time_series.models.fitted_types import RandomWalkRes
+
+    data = _post_data({"A": np.array([1.0, 2.0, 3.0])})
+    recipe = ForecastRecipe(
+        detrend={},
+        deseason={},
+        needs_modelling=[],
+        mean_orders={"A": None},
+        vol_orders={"A": None},
+        mean_fallback_identity={"A": "random_walk"},
+        vol_distributions={"A": None},
+        quality={"A": None},
+        admissible={"A": None},
+        fallback_reason={"A": None},
+        variance_cap_diagnostics={},
+        survivors=["A"],
+    )
+    models = fit_with_orders(data, recipe, PipelineConfig())
+
+    assert isinstance(models["A"].mean_res, RandomWalkRes)
+
+    class FitStub:
+        def __init__(self):
+            self.assets = ["A"]
+            self.models = models
+            self.simulation_forecasts = {
+                "A": SimulationForecast.from_res_and_series(
+                    models["A"], np.array([1.0, 2.0, 3.0])
+                )
+            }
+
+        def recipe(self):
+            return recipe
+
+    health = _model_health_frame(FitStub())
+
+    assert health.select("asset", "mean_model").to_dicts() == [
+        {"asset": "A", "mean_model": "random_walk"}
+    ]
 
 
 def test_fit_with_orders_arma() -> None:
