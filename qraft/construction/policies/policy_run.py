@@ -48,7 +48,8 @@ class PolicyRun:
         """Return entropy-pooling diagnostics carried by optimizer inputs, if any."""
         return getattr(self.optimizer_inputs, "view_diagnostics", None)
 
-    def _mpo_result(self) -> MPOResult:
+    def mpo_result(self) -> MPOResult:
+        """Return optimizer diagnostics for policies backed by an MPO solve."""
         diagnostics = self.decision.diagnostics
         if not isinstance(diagnostics, MPOResult):
             raise ValueError(
@@ -64,15 +65,15 @@ class PolicyRun:
 
     def plan_metrics(self) -> dict[str, float]:
         """Return diagnostic metrics for the optimizer's forecast plan."""
-        return forecast_plan_metrics(self._mpo_result(), self.optimizer_inputs)
+        return forecast_plan_metrics(self.mpo_result(), self.optimizer_inputs)
 
     def terminal_cvar(self, alpha: float = 0.05) -> float:
         """Return terminal forecast CVaR for the optimized plan."""
-        return forecast_terminal_cvar(self._mpo_result(), self.optimizer_inputs, alpha)
+        return forecast_terminal_cvar(self.mpo_result(), self.optimizer_inputs, alpha)
 
     def in_model_cvar(self, alpha: float = 0.05) -> float:
         """Return in-model CVaR from the optimizer inputs and solution."""
-        return in_model_cvar(self._mpo_result(), self.optimizer_inputs, alpha)
+        return in_model_cvar(self.mpo_result(), self.optimizer_inputs, alpha)
 
     def plot_weights(self, top_n: int | None = None):
         """Plot target risky weights plus cash weight."""
