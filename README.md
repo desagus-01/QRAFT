@@ -55,7 +55,27 @@ QRAFT uses a derivative of filtered historical simulation (FHS) for forecasting 
 Following the univariate structural models from `ForecastRecipes`, we are able to run a **forecast simulation** of assets' returns taking into account their cross-asset depedencies from their joint distribution of IID residuals. The simulation is done by **bootstraping** our innovations using the scenario probability (which can reflect our current views of the market).  Users can also opt to use the **Copula-Marginal Algorithm** [**PUT CITATION FOR MEUCCIS WORK**] for bootstrapping instead of just using the non-parametric method, this allows users to specify either/or the marginal of assets and/or the copula.
 
 
-[**ADD IMAGE EXAMPLE HERE**]
+```python
+from qraft import Forecaster, PipelineConfig, SimulationForecastConfig
+from qraft.utils.example_data import synthetic_vix_market
+
+market = synthetic_vix_market()
+
+forecaster = Forecaster(
+    pipeline=PipelineConfig(exclude_non_invariants=False),
+    simulation=SimulationForecastConfig(horizon=10, n_sims=250, method="bootstrap"),
+    new_recipe_every=120,
+    new_recipe_cadence="every_bar",
+    seed=42,
+)
+
+run = forecaster.run(market, min_history=180, forecast_cadence="quarter_end")
+latest_forecast = run.steps[-1].forecast
+
+print(run.model_health_df())
+print(latest_forecast.at_step(1, subset="tradable").values.head())
+latest_forecast.plot_asset_paths(subset="tradable", max_assets=3, ncols=3)
+```
 
 ### Policies
 
@@ -63,7 +83,41 @@ This module is heavily inspired by the existing `cvxportfolio` python package, a
 
 The core of this module is to allow the user to craft their own multi-period optimization problem by using the `MPOProblem` and the `MPOProblemBuilder` objects, or alternatives using one of the preset ones. 
 
-[**ADD EXAMPLE HERE**]
+```python
+from qraft import Allocation, Forecaster, InputPlan, MPOPolicy
+from qraft import PipelineConfig, SimulationForecastConfig
+from qraft.construction import LongOnly, MaxWeight, MinCashWeight, TurnoverLimit
+from qraft.utils.example_data import synthetic_vix_market
+
+market = synthetic_vix_market()
+
+forecaster = Forecaster(
+    pipeline=PipelineConfig(exclude_non_invariants=False),
+    simulation=SimulationForecastConfig(horizon=10, n_sims=500, method="bootstrap"),
+    new_recipe_every=120,
+    new_recipe_cadence="every_bar",
+    seed=42,
+)
+
+policy = MPOPolicy.preset(
+    objective_type="mean_covariance",
+    risk_aversion=5.0,
+    constraints=(LongOnly(), MinCashWeight(0.05), MaxWeight(0.60), TurnoverLimit(0.25)),
+    input_plan=InputPlan(expected_returns="forecast", max_horizons=10),
+    min_history=180,
+    name="mean_covariance_example",
+)
+
+run = Allocation(
+    market=market,
+    policy=policy,
+    forecasts=forecaster,
+    initial_cash=100_000,
+).at()
+
+print(run.target_weights)
+print(run.plan_metrics())
+```
 
 This module is then responsible for taking our previous simulated forecasts and the current portfolio, applying a policy and producing the next portfolio allocation.
 

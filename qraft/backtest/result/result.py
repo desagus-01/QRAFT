@@ -83,10 +83,6 @@ class BacktestResult:
             active_only=active_only,
         )
 
-    def plot(self, **kwargs):
-        """Return a dashboard figure for NAV, drawdown, weights, and returns."""
-        return plot_backtest_dashboard(self, **kwargs)
-
     def plot_nav(self, **kwargs):
         """Return a NAV plot figure for this result."""
         return plot_nav(self, **kwargs)
@@ -94,6 +90,29 @@ class BacktestResult:
     def plot_weights(self, **kwargs):
         """Return a portfolio-weights plot figure for this result."""
         return plot_weights(self, **kwargs)
+
+    def plot_drawdown(self, **kwargs):
+        """Return a drawdown plot figure for this result."""
+        return plot_drawdown(self, **kwargs)
+
+    def plot_turnover_and_costs(self, **kwargs):
+        """Return a turnover and transaction-cost plot figure for this result."""
+        return plot_turnover_and_costs(self, **kwargs)
+
+    def summary_df(
+        self,
+        *,
+        periods_per_year: float | None = None,
+        risk_free_rate: float = 0.0,
+        active_only: bool = True,
+    ) -> pl.DataFrame:
+        """Return one-row performance summary metrics as a Polars DataFrame."""
+        summary = self.summary(
+            periods_per_year=periods_per_year,
+            risk_free_rate=risk_free_rate,
+            active_only=active_only,
+        ).to_dict()
+        return pl.DataFrame([summary])
 
     def view_activity_df(self) -> pl.DataFrame:
         """Return per-period scenario-view activity and entropy diagnostics."""
@@ -694,131 +713,5 @@ def plot_comparison(
         )
 
     fig.suptitle(title, fontsize=14, y=1.01)
-    fig.tight_layout()
-    return fig
-
-
-def plot_backtest_dashboard(
-    result: BacktestResult,
-    *,
-    risk_free_rate: float = 0.0,
-    periods_per_year: float = 252,
-    figsize: tuple[float, float] = (14, 10),
-    title: str | None = None,
-) -> Figure:
-    fig, axes = plt.subplots(2, 3, figsize=figsize)
-
-    nav = np.asarray(result.nav, dtype=float)
-    dates_nav = _to_dates(result.nav_dates)
-    dd = drawdown_curve(nav)
-    returns = returns_from_nav(nav)
-
-    ax = axes[0, 0]
-    ax.plot(dates_nav, nav, linewidth=1.5, color="steelblue")
-    _mark_rebalances(ax, result.period_execution_bars)
-    ax.set_title("NAV")
-    ax.set_ylabel("NAV")
-    format_date_axis(ax)
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[0, 1]
-    ax.fill_between(dates_nav, 0.0, dd, color="crimson", alpha=0.4)
-    ax.plot(dates_nav, dd, color="crimson", linewidth=1.0)
-    _mark_rebalances(ax, result.period_execution_bars, label=False)
-    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax.set_title("Drawdown")
-    format_date_axis(ax)
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[0, 2]
-    dates_ex = _to_dates(result.period_execution_bars)
-    to = np.asarray(result.period_turnovers, dtype=float)
-    costs = np.asarray(result.period_costs, dtype=float)
-    ax.bar(dates_ex, to, color="steelblue", alpha=0.5, label="Turnover")
-    ax_twin = ax.twinx()
-    ax_twin.plot(
-        dates_ex,
-        costs,
-        color="crimson",
-        marker="o",
-        linewidth=1.0,
-        markersize=3,
-        label="Costs",
-    )
-    ax.set_title("Turnover & Costs")
-    ax.set_ylabel("Turnover")
-    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax_twin.set_ylabel("Costs")
-    format_date_axis(ax)
-    lines1, labels1 = ax.get_legend_handles_labels()
-    lines2, labels2 = ax_twin.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=7, loc="upper left")
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[1, 0]
-    rets_clean = returns[np.isfinite(returns)]
-    ax.hist(
-        rets_clean,
-        bins=50,
-        density=True,
-        alpha=0.6,
-        color="steelblue",
-        edgecolor="white",
-    )
-    ax.axvline(0.0, color="red", linewidth=1.0, linestyle="--")
-    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax.set_title("Daily Return Distribution")
-    ax.set_xlabel("Return")
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[1, 1]
-    perf_text_lines = []
-    s = summary_stats(result, risk_free_rate, periods_per_year)
-    for k, v in s.items():
-        if isinstance(v, float):
-            if abs(v) < 1.0:
-                perf_text_lines.append(f"{k:20s}: {v:>8.4f}")
-            else:
-                perf_text_lines.append(f"{k:20s}: {v:>8.2f}")
-        else:
-            perf_text_lines.append(f"{k:20s}: {v!s:>8}")
-    ax.text(
-        0.1,
-        0.95,
-        "\n".join(perf_text_lines),
-        transform=ax.transAxes,
-        fontsize=9,
-        family="monospace",
-        va="top",
-    )
-    ax.set_title("Summary Statistics")
-    ax.axis("off")
-
-    ax = axes[1, 2]
-    w = result.period_weights_array
-    n_assets = len(result.asset_order)
-    if w.shape[1] <= 12:
-        weights_to_plot = w[:, :-1]
-        labels_w = result.asset_order
-    else:
-        mean_w = np.mean(w[:, :-1], axis=0)
-        top_idx = np.argsort(mean_w)[-8:]
-        remaining_idx = [i for i in range(n_assets) if i not in top_idx]
-        weights_to_plot = np.column_stack(
-            [w[:, top_idx], np.sum(w[:, remaining_idx], axis=1)]
-        )
-        labels_w = [result.asset_order[i] for i in sorted(top_idx)] + ["Others"]
-    colors = plt.cm.tab20(np.linspace(0, 1, weights_to_plot.shape[1]))
-    ax.stackplot(dates_ex, weights_to_plot.T, labels=labels_w, colors=colors, alpha=0.8)
-    _mark_rebalances(ax, result.period_execution_bars, label=False)
-    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax.set_title("Allocation Over Time")
-    ax.set_ylim(0.0, 1.0)
-    format_date_axis(ax)
-    ax.legend(loc="upper left", fontsize=6, frameon=True, ncol=2)
-
-    fig.suptitle(
-        title or f"Backtest Dashboard — {result.policy_name}", fontsize=14, y=1.01
-    )
     fig.tight_layout()
     return fig
