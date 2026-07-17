@@ -14,9 +14,10 @@ from qraft import (
     PipelineConfig,
     RebalanceSchedule,
     SimulationForecastConfig,
+    TurnoverLimit,
     setup_logging,
 )
-from qraft.construction import LongOnly, MinCashWeight, TurnoverLimit
+from qraft.construction import LongOnly, MinCashWeight
 from qraft.utils.example_data import synthetic_vix_market
 
 setup_logging(LogConfig(level=logging.INFO))
@@ -44,12 +45,12 @@ policy = MPOPolicy.preset(
     risk_aversion=5.0,
     constraints=(
         LongOnly(),
-        FullyInvested(),
+        FullyInvested(constraint_type="soft"),
         MinCashWeight(0.05),
         TurnoverLimit(0.25),
     ),
     input_plan=plan,
-    min_history=180,
+    min_history=30,
     name="cvar_auto_backtest",
 )
 

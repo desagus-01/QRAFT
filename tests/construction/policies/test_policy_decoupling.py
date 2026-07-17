@@ -6,9 +6,10 @@ import pytest
 
 from conftest import portfolio_state
 from qraft.construction.market_snapshot import MarketSnapshot
+from qraft.construction import FullyInvested, MinCashWeight
 from qraft.construction.optimization.inputs import OptimizerInputs
 from qraft.construction.optimization.objectives.specs import ExpectedReturn
-from qraft.construction.optimization.problem import MPOProblemBuilder
+from qraft.construction.optimization.problem import MPOProblem, MPOProblemBuilder
 from qraft.construction.policies import MPOPolicy
 from qraft.construction.state import PortfolioState
 from qraft.core.panel import ScenarioPanel
@@ -59,3 +60,24 @@ def test_mpo_policy_optimizes_user_supplied_optimizer_inputs() -> None:
 
     assert decision.asset_order == ["A"]
     assert decision.diagnostics.is_optimal
+
+
+def test_mpo_policy_rejects_hard_fully_invested_with_hard_min_cash() -> None:
+    problem = MPOProblem(
+        objective=MPOProblemBuilder().add(ExpectedReturn()).build().objective,
+        constraints=(FullyInvested(), MinCashWeight(0.05)),
+    )
+
+    with pytest.raises(ValueError, match="Incompatible hard constraints"):
+        MPOPolicy(problem=problem)
+
+
+def test_mpo_policy_allows_soft_fully_invested_with_hard_min_cash() -> None:
+    problem = MPOProblem(
+        objective=MPOProblemBuilder().add(ExpectedReturn()).build().objective,
+        constraints=(FullyInvested(constraint_type="soft"), MinCashWeight(0.05)),
+    )
+
+    policy = MPOPolicy(problem=problem)
+
+    assert policy.problem is problem

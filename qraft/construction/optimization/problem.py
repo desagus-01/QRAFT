@@ -3,7 +3,13 @@
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
-from qraft.construction.optimization.constraints import PortfolioConstraint
+import numpy as np
+
+from qraft.construction.optimization.constraints import (
+    FullyInvested,
+    MinCashWeight,
+    PortfolioConstraint,
+)
 from qraft.construction.optimization.inputs import RequiredOptimizerInputs
 from qraft.construction.optimization.objectives.specs import (
     CovarianceRisk,
@@ -37,6 +43,35 @@ class MPOProblem:
     allow_borrow: bool = False
     max_iter: int = 200
     solver_options: Mapping[str, Any] = field(default_factory=dict)
+
+    def validate_constraints(self) -> None:
+        """Raise early for hard constraint combinations known to be infeasible."""
+        hard_fully_invested = any(
+            isinstance(constraint, FullyInvested)
+            and constraint.constraint_type == "hard"
+            for constraint in self.constraints
+        )
+        hard_min_cash = [
+            constraint
+            for constraint in self.constraints
+            if isinstance(constraint, MinCashWeight)
+            and constraint.constraint_type == "hard"
+        ]
+
+        if not hard_fully_invested:
+            return
+
+        for constraint in hard_min_cash:
+            max_required_cash = float(np.max(np.asarray(constraint.limit)))
+
+            if max_required_cash > 0.0:
+                raise ValueError(
+                    "Incompatible hard constraints: FullyInvested requires risky "
+                    "weights to sum to 1.0, while MinCashWeight "
+                    f"({max_required_cash:g}) requires risky weights to sum to at "
+                    f"most {1.0 - max_required_cash:g}. Remove one constraint, "
+                    "or make FullyInvested soft if it should be a preference."
+                )
 
     @classmethod
     def preset(

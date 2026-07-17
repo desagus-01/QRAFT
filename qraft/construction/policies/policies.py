@@ -115,6 +115,9 @@ class MPOPolicy:
         field(default_factory=dict, compare=False, repr=False)
     )
 
+    def __post_init__(self) -> None:
+        self.problem.validate_constraints()
+
     @classmethod
     def preset(
         cls,
