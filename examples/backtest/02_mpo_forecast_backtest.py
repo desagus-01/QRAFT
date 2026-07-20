@@ -8,16 +8,15 @@ from qraft import (
     BacktestConfig,
     Forecaster,
     FullyInvested,
-    InputPlan,
-    LogConfig,
     MPOPolicy,
     PipelineConfig,
     RebalanceSchedule,
     SimulationForecastConfig,
     TurnoverLimit,
-    setup_logging,
 )
 from qraft.construction import LongOnly, MinCashWeight
+from qraft.construction.optimization import InputPlan
+from qraft.utils import LogConfig, setup_logging
 from qraft.utils.example_data import synthetic_vix_market
 
 setup_logging(LogConfig(level=logging.INFO))

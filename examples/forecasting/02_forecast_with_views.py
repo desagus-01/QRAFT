@@ -8,14 +8,13 @@ import polars as pl
 
 from qraft import (
     Forecaster,
-    LogConfig,
     PipelineConfig,
     SimulationForecastConfig,
     Views,
-    setup_logging,
 )
 from qraft.core.scenarios.view_types import MeanView, RankingView
 from qraft.core.scenarios.views import ViewWindow
+from qraft.utils import LogConfig, setup_logging
 from qraft.utils.example_data import synthetic_vix_market
 
 setup_logging(LogConfig(level=logging.INFO))

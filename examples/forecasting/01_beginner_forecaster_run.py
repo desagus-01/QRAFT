@@ -5,11 +5,10 @@ import logging
 
 from qraft import (
     Forecaster,
-    LogConfig,
     PipelineConfig,
     SimulationForecastConfig,
-    setup_logging,
 )
+from qraft.utils import LogConfig, setup_logging
 from qraft.utils.example_data import synthetic_vix_market
 
 setup_logging(LogConfig(level=logging.INFO))

@@ -6,14 +6,13 @@ import logging
 from qraft import (
     Allocation,
     Forecaster,
-    InputPlan,
-    LogConfig,
     MPOPolicy,
     PipelineConfig,
     SimulationForecastConfig,
-    setup_logging,
 )
 from qraft.construction import LongOnly, MaxWeight, MinCashWeight, TurnoverLimit
+from qraft.construction.optimization import InputPlan
+from qraft.utils import LogConfig, setup_logging
 from qraft.utils.example_data import synthetic_vix_market
 
 setup_logging(LogConfig(level=logging.INFO))

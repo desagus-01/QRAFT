@@ -6,18 +6,17 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
-    CMAConfig,
     Forecaster,
     Prior,
-    LogConfig,
     MarketData,
     PipelineConfig,
     SimulationForecastConfig,
     Views,
-    setup_logging,
 )
+from qraft.core import CMAConfig
 from qraft.core.scenarios.view_types import MeanView, QuantileView, RankingView, StdView
 from qraft.core.scenarios.views import ViewWindow
+from qraft.utils import LogConfig, setup_logging
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)

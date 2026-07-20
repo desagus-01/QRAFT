@@ -7,11 +7,8 @@ import polars as pl
 from qraft import (
     AssetUniverse,
     BacktestConfig,
-    CMAConfig,
     CombinatorialCVConfig,
     Forecaster,
-    InputPlan,
-    LogConfig,
     MarketData,
     MPOPolicy,
     PipelineConfig,
@@ -19,13 +16,15 @@ from qraft import (
     SimulationForecastConfig,
     Validation,
     Views,
-    setup_logging,
 )
 from qraft.construction import FullyInvested, LongOnly, MinCashWeight, TurnoverLimit
+from qraft.construction.optimization import InputPlan
 from qraft.construction.policies.allocation import Allocation
+from qraft.core import CMAConfig
 from qraft.core.scenarios.view_types import MeanView, QuantileView, RankingView, StdView
 from qraft.core.scenarios.views import ViewWindow
 from qraft.core.schedule import RebalanceSchedule
+from qraft.utils import LogConfig, setup_logging
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)

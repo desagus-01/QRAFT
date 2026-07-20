@@ -9,20 +9,19 @@ from qraft import (
     Backtest,
     BacktestConfig,
     Forecaster,
-    InputPlan,
-    LogConfig,
     MarketData,
     MPOPolicy,
     PipelineConfig,
     Prior,
     SimulationForecastConfig,
     Views,
-    setup_logging,
 )
 from qraft.construction import FullyInvested, LongOnly, MinCashWeight, TurnoverLimit
+from qraft.construction.optimization import InputPlan
 from qraft.core.scenarios.view_types import MeanView, RankingView
 from qraft.core.scenarios.views import ViewWindow
 from qraft.core.schedule import RebalanceSchedule
+from qraft.utils import LogConfig, setup_logging
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)

@@ -6,12 +6,11 @@ import polars as pl
 
 from qraft import (
     AssetUniverse,
-    LogConfig,
     PipelineConfig,
-    setup_logging,
 )
 from qraft.core.market import MarketData, Prior
 from qraft.forecast.run import build_forecast_recipe_history
+from qraft.utils import LogConfig, setup_logging
 from qraft.utils.tiingo import import_tickers_and_factors
 
 logging.getLogger("py.warnings").setLevel(logging.ERROR)
