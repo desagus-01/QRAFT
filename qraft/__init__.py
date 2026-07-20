@@ -1,4 +1,5 @@
 __all__ = [
+    "__version__",
     "Allocation",
     "AssetUniverse",
     "Backtest",
@@ -43,6 +44,10 @@ __all__ = [
     "var",
     "cvar",
 ]
+
+from importlib.metadata import version
+
+__version__ = version("qraft-quant")
 
 from qraft.construction.optimization.problem import (
     MPOProblem,

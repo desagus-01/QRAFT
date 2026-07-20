@@ -2,4 +2,7 @@ prune notebooks
 prune .venv
 prune dist
 prune qraft.egg-info
+include CHANGELOG.md
+graft examples
+graft tests
 global-exclude __pycache__ *.py[cod]

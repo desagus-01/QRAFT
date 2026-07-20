@@ -170,6 +170,19 @@ def test_holding_cost_handler_updates_period_rates_and_signs_objective() -> None
     assert expr.value == pytest.approx(-(0.02 * 0.5) - (0.01 * 1.5) + 0.005 * 1.0)
 
 
+def test_holding_cost_rates_use_annual_decimal_units() -> None:
+    spec = HoldingCost(
+        short_fees=0.02,
+        long_fees=0.00119,
+        dividends=0.01,
+        periods_per_year=252,
+    )
+
+    assert holding_cost_rates(spec) == pytest.approx(
+        (0.02 / 252, 0.00119 / 252, 0.01 / 252)
+    )
+
+
 def test_cvar_risk_handler_updates_scenarios_and_rejects_bad_alpha() -> None:
     with pytest.raises(ValueError, match="CVaR alpha"):
         CVaRRiskHandler().allocate(CVaRRisk(alpha=0.0), 1, 2, 3)

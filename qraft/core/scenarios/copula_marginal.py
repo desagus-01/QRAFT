@@ -161,7 +161,7 @@ class CopulaMarginalModel:
 
     def update_copula(
         self,
-        fit_method: Literal["ml", "irho", "itau"],
+        fit_method: Literal["ml", "itau"],
         target_copula: Literal["t", "norm"],
         seed: int | None = None,
         use_weighted_fit: bool = False,

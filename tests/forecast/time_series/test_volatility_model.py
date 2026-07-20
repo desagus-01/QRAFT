@@ -58,7 +58,7 @@ def test_auto_garch_fits_on_percent_scale_and_returns_original_scale(monkeypatch
     np.testing.assert_allclose(res.invariants, np.array([0.1, -0.2, 0.3]))
 
 
-def test_auto_garch_allows_high_persistence_baseline(monkeypatch):
+def test_auto_garch_marks_high_persistence_baseline_inadmissible(monkeypatch):
     def fake_arch_model(y, **_kwargs):
         assert y is not None
 
@@ -76,6 +76,10 @@ def test_auto_garch_allows_high_persistence_baseline(monkeypatch):
     cfg = VolatilityModelConfig(max_p_order=1, max_q_order=1, max_o_order=0)
     res = volatility.auto_garch(np.array([0.01, -0.02, 0.03]), cfg=cfg)[0]
 
-    assert res.admissible is True
+    assert res.admissible is False
     assert res.persistence == 1.1
-    assert res.fallback_reason is None
+    assert res.fallback_reason == "baseline_failed_admissibility_checks"
+
+
+def test_volatility_config_enables_variance_cap_by_default() -> None:
+    assert VolatilityModelConfig().variance_overflow_cap_multiple == 100.0

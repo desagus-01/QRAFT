@@ -65,8 +65,12 @@ class TransactionCost:
 
 @dataclass(frozen=True)
 class HoldingCost:
-    """
-    Cost of holding positions overnight.
+    """Annualized holding-cost rates expressed as decimal fractions.
+
+    For example, ``long_fees=0.00119`` means 0.119% annually, not 0.00119%.
+    ``short_fees`` and ``long_fees`` are costs; ``dividends`` is income. Each
+    annual rate is divided by ``periods_per_year`` for optimization and realized
+    backtest charges.
     """
 
     short_fees: float
@@ -110,7 +114,7 @@ def transaction_cost_coeffs(
 def holding_cost_rates(
     spec: HoldingCost,
 ) -> tuple[float, float, float]:
-    """Per-period holding cost rates (short_fees, long_fees, dividends) per bar."""
+    """Convert annual decimal rates to per-period rates by dividing by ppy."""
     ppy = spec.periods_per_year
     return spec.short_fees / ppy, spec.long_fees / ppy, spec.dividends / ppy
 

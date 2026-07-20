@@ -553,7 +553,8 @@ class HoldingCostHandler:
         - long_rate  * sum(pos(w_h))   # custody / financing on longs
         + div_rate   * sum(w_h)        # dividend income (if using price returns)
 
-    where ``*_rate = annual_pct / (100 * periods_per_year)``.
+    where ``*_rate = annual_decimal_rate / periods_per_year``. For example,
+    ``0.00119`` means 0.119% annually.
 
     DCP validity
     ------------
@@ -607,7 +608,7 @@ class HoldingCostHandler:
         self, spec: HoldingCost, params: dict[str, Any], inputs: dict[str, Any]
     ) -> None:
         """
-        Converts annualised percentages to per-period rates and fills
+        Converts annualized decimal rates to per-period rates and fills
         the CVXPY parameters.
 
         No ``inputs`` keys are required — all rates come from the spec.

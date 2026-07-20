@@ -12,6 +12,34 @@ def test_cma_config_defaults_to_itau_copula_fit() -> None:
     assert cfg.copula_fit_method == "itau"
 
 
+def test_sample_copula_rejects_removed_irho_method() -> None:
+    with pytest.raises(ValueError, match="irho.*unsupported.*'ml'.*'itau'"):
+        sampling.sample_copula(
+            pl.DataFrame(
+                {
+                    "x": np.linspace(0.1, 0.9, 5),
+                    "y": np.linspace(0.9, 0.1, 5),
+                    "z": np.linspace(0.2, 0.8, 5),
+                }
+            ),
+            fit_method="irho",  # type: ignore[arg-type]
+        )
+
+
+def test_sample_copula_rejects_two_dimensional_itau() -> None:
+    with pytest.raises(ValueError, match="itau.*2-dimensional.*'ml'"):
+        sampling.sample_copula(
+            pl.DataFrame(
+                {
+                    "x": np.linspace(0.1, 0.9, 5),
+                    "y": np.linspace(0.9, 0.1, 5),
+                }
+            ),
+            parametric_copula="norm",
+            fit_method="itau",
+        )
+
+
 def test_sample_copula_does_not_fallback_to_ml_after_failed_method(
     monkeypatch,
 ) -> None:
@@ -33,6 +61,7 @@ def test_sample_copula_does_not_fallback_to_ml_after_failed_method(
                 {
                     "x": np.linspace(0.1, 0.9, 5),
                     "y": np.linspace(0.9, 0.1, 5),
+                    "z": np.linspace(0.2, 0.8, 5),
                 }
             ),
             parametric_copula="t",

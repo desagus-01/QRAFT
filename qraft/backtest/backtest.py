@@ -27,7 +27,12 @@ BacktestSource: TypeAlias = (
 
 @dataclass(frozen=True, slots=True)
 class Backtest:
-    """Configure market data, policy, forecasts, costs, and backtest settings."""
+    """Configure a next-bar, fractional-share historical simulation.
+
+    Decisions use information through bar ``t`` and execute at bar ``t+1``.
+    Dividends and corporate actions are not modeled. Realized costs are debited
+    from cash and raise if the configured cash allocation cannot cover them.
+    """
 
     market: MarketData
     policy: PolicyProtocol

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qraft-quant"
-version = "0.1.0"
+version = "0.1.0a1"
 description = "Quantitative Risk, Allocation, and Forecasting Toolkit"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -39,6 +39,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/desagus-01/QRAFT"
+Changelog = "https://github.com/desagus-01/QRAFT/blob/main/CHANGELOG.md"
 Repository = "https://github.com/desagus-01/QRAFT"
 Issues = "https://github.com/desagus-01/QRAFT/issues"
 

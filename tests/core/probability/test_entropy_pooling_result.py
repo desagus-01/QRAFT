@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+import cvxpy as cp
 import numpy as np
 import polars as pl
 import pytest
@@ -73,6 +74,24 @@ def test_entropy_pooling_warns_when_ens_collapses(caplog) -> None:
 
     assert result.diagnostics.ens_collapsed
     assert any(record.qraft_event == "views.ens_collapsed" for record in caplog.records)
+
+
+def test_entropy_pooling_warns_when_solver_is_inaccurate(monkeypatch, caplog) -> None:
+    original_solve = cp.Problem.solve
+
+    def inaccurate_solve(problem, *args, **kwargs):
+        value = original_solve(problem, *args, **kwargs)
+        problem._status = "optimal_inaccurate"
+        return value
+
+    monkeypatch.setattr(cp.Problem, "solve", inaccurate_solve)
+    caplog.set_level(logging.WARNING, logger="qraft.core.probability.entropy_pooling")
+
+    result = entropy_pooling(_panel(), [MeanView("A", ">=", 1.5)])
+
+    assert result.diagnostics.solver_status == "optimal_inaccurate"
+    messages = [record.getMessage() for record in caplog.records]
+    assert sum("optimal_inaccurate" in message for message in messages) == 1
 
 
 def test_ranking_view_requires_at_least_two_distinct_assets() -> None:

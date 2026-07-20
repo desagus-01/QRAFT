@@ -87,7 +87,7 @@ def _admissable_garch_model(
     if omega <= 0:
         return False
 
-    return True
+    return _garch_persistence_calc(params) < 1.0
 
 
 def fit_garch(

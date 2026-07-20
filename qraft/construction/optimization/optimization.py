@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from dataclasses import dataclass
+from dataclasses import replace
 from typing import Any, Literal, Sequence, cast
 
 import cvxpy as cp
@@ -22,6 +24,7 @@ from qraft.construction.optimization.objectives.protocol import (
 )
 from qraft.construction.optimization.objectives.specs import (
     CVaRCuttingPlane,
+    CVaRRisk,
     ObjectiveSpec,
 )
 from qraft.utils.log import debug_event, warning_event
@@ -101,7 +104,8 @@ class MPOResult:
     Outcome of a multi-period portfolio optimization.
 
     The optimizer plans an entire risky-weight path plus an explicit cash path.
-    Only horizon 0 is actionable; later rows are informational.
+    Only horizon 0 is actionable; later rows are informational. Planned weights
+    are linked by trades without applying forecast-return drift between horizons.
     """
 
     assets: list[str]
@@ -412,6 +416,13 @@ class MultiPeriodOptimizer:
     def _failure_if_not_optimal(self, raise_on_failure: bool) -> MPOFailure | None:
         status = cast(SolverStatus, self.problem.status)
         if status in _OPTIMAL_STATUSES:
+            if status == "optimal_inaccurate":
+                warnings.warn(
+                    "MPO solver returned optimal_inaccurate; results may not "
+                    "satisfy requested tolerances.",
+                    RuntimeWarning,
+                    stacklevel=3,
+                )
             return None
 
         message = f"Optimization failed: {status}"
@@ -581,6 +592,39 @@ class MultiPeriodOptimizer:
                 self.problem.solve(enforce_dpp=True, warm_start=True, **solver_options)
             except cp.error.SolverError as exc:
                 return self._solver_error_failure(exc, raise_on_failure)
+
+            if self.problem.status in {"unbounded", "unbounded_inaccurate"}:
+                warning_event(
+                    logger,
+                    "optimization.cvar_fallback",
+                    "CVaR cutting-plane relaxation is unbounded; falling back to RU-LP",
+                    status=self.problem.status,
+                )
+                fallback_objective = replace(
+                    self.objective,
+                    terms=tuple(
+                        replace(term, spec=CVaRRisk(alpha=term.spec.alpha))
+                        if isinstance(term.spec, CVaRCuttingPlane)
+                        else term
+                        for term in self.objective.terms
+                    ),
+                )
+                fallback = MultiPeriodOptimizer(
+                    objective=fallback_objective,
+                    horizons=self.horizons,
+                    n_assets=self.n_assets,
+                    n_scenarios=self.n_scenarios,
+                    constraints=self.constraints,
+                    allow_borrow=self.allow_borrow,
+                )
+                return fallback.solve(
+                    optimizer_inputs=optimizer_inputs,
+                    current_weights=initial_weights,
+                    current_cash=initial_cash,
+                    inputs=inputs,
+                    raise_on_failure=raise_on_failure,
+                    **solver_options,
+                )
 
             failure = self._failure_if_not_optimal(raise_on_failure)
             if failure is not None:

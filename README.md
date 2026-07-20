@@ -358,6 +358,17 @@ effective_bets.plot()
 
 At a lower level, `qraft.risk` also exposes objects and functions such as `RiskContributions`, `EffectiveBets`, `PortfolioRiskAttribution`, `portfolio_factor_attribution`, `factor_ols_regression`, `var`, `cvar`, and `minimum_torsion_matrix`. Most users should not need to start there, but they are available for more custom attribution workflows.
 
+## Alpha Limitations and Modeling Assumptions
+
+- Backtest decisions use market information through decision bar `t` and execute at the single observed price on the next available trading bar, `t+1`.
+- Execution assumes fractional shares. Lot sizes, bid-ask paths, intrabar fills, and partial fills are not modeled.
+- Dividends and corporate actions are not applied to market prices or positions. `HoldingCost.dividends` is only an explicit optimizer/backtest income-rate assumption.
+- Transaction and holding costs are debited from cash. A fully invested portfolio, or any allocation without enough cash, can fail when costs are charged; use a positive cash target such as `MinCashWeight`.
+- `HoldingCost` inputs are annualized decimal rates: `0.00119` means 0.119% annually. QRAFT divides these values by `periods_per_year`; it does not divide them by 100.
+- MPO weights are linked across planning horizons by trades without applying forecast-return drift. Only horizon 0 is actionable; later horizons are planning and diagnostic outputs.
+- When `periods_per_year` is not configured, daily observations map to 252 and other cadences use `365.25 / median calendar-day spacing`. This annualization heuristic is not an exchange-calendar or trading-day model. Holding-cost accrual uses actual elapsed calendar days, so it can differ from simple per-trading-bar assumptions.
+- CMA copula fitting supports `ml` and `itau`; `irho` is not supported. With the pinned `copulae` implementation, two-dimensional panels require `ml` because rank-based `itau` fitting is unsupported.
+
 
 ## Contributing
 

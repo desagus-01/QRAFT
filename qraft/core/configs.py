@@ -44,7 +44,7 @@ class VolatilityModelConfig:
 
     # Overflow guard for simulated GARCH variance. None disables the upper cap;
     # when set, cap = multiple * fitted unconditional variance.
-    variance_overflow_cap_multiple: float | None = None
+    variance_overflow_cap_multiple: float | None = 100.0
     variance_cap_frequent_bind_threshold: float = 0.01
     tolerance_zero: float = 1e-10
     tolerance_dups: float = 1e-6
@@ -123,11 +123,16 @@ SelectionMetric = Literal[
 
 @dataclass(frozen=True)
 class CMAConfig:
-    """Select target copula and marginal distributions for CMA transforms."""
+    """Select target copula and marginal distributions for CMA transforms.
+
+    ``ml`` supports two-dimensional panels. The pinned ``copulae`` rank fit
+    implementation requires at least three dimensions, so ``itau`` is checked
+    once panel dimensionality is known.
+    """
 
     target_copula: Literal["t", "norm"] | None = None
     target_marginals: dict[str, Literal["t", "norm"]] | None = None
-    copula_fit_method: Literal["ml", "irho", "itau"] = "itau"
+    copula_fit_method: Literal["ml", "itau"] = "itau"
 
     def __post_init__(self) -> None:
         if self.target_copula is None and self.target_marginals is None:

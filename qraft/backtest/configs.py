@@ -8,7 +8,12 @@ from qraft.core.schedule import RebalanceSchedule
 
 @dataclass(frozen=True, slots=True)
 class BacktestConfig:
-    """Execution and scoring settings shared by backtest entry points."""
+    """Execution and scoring settings shared by backtest entry points.
+
+    ``periods_per_year`` controls annualization. When omitted, daily observations
+    infer 252 and other cadences use 365.25 divided by the median calendar-day
+    spacing; this is a heuristic rather than an exchange-calendar calculation.
+    """
 
     schedule: RebalanceSchedule = field(default_factory=RebalanceSchedule)
     initial_cash: float = 100.0

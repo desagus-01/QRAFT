@@ -423,6 +423,11 @@ def entropy_pooling(
 
     if problem.status not in SUCCESS_STATUSES:
         _raise_infeasible_views(problem.status, compiled)
+    if problem.status == "optimal_inaccurate":
+        logger.warning(
+            "Entropy pooling solver returned optimal_inaccurate; results may not "
+            "satisfy requested tolerances."
+        )
 
     posterior_value: NDArray[np.floating] | None = posterior_var.value
     if posterior_value is None:

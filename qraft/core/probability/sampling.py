@@ -48,7 +48,7 @@ def sample_copula(
     copula: pl.DataFrame,
     seed: int | None = None,
     parametric_copula: Literal["t", "norm"] = "t",
-    fit_method: Literal["ml", "irho", "itau"] = "ml",
+    fit_method: Literal["ml", "itau"] = "ml",
     to_pobs: bool = False,
 ) -> pl.DataFrame:
     """
@@ -62,7 +62,7 @@ def sample_copula(
         Random seed for reproducibility.
     parametric_copula : {"t", "norm"}
         Which copula family to fit.
-    fit_method : {"ml", "irho", "itau"}
+    fit_method : {"ml", "itau"}
         Fitting method.
     to_pobs : bool
         Whether to transform input values to pseudo-observations during fitting.
@@ -77,6 +77,14 @@ def sample_copula(
 
     values = copula.to_numpy()
     n_dim = values.shape[1]
+
+    if fit_method == "irho":
+        raise ValueError("fit_method='irho' is unsupported; use 'ml' or 'itau'.")
+    if n_dim == 2 and fit_method == "itau":
+        raise ValueError(
+            "fit_method='itau' is unsupported for a 2-dimensional copula by the "
+            "installed copulae version; use fit_method='ml'."
+        )
 
     cop_cls = {"t": StudentCopula, "norm": NormalCopula}.get(parametric_copula)
     if cop_cls is None:

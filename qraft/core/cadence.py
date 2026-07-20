@@ -6,6 +6,11 @@ from typing import Sequence
 
 
 def infer_periods_per_year(dates: Sequence[datetime]) -> float:
+    """Infer annual periods from median spacing using a cadence heuristic.
+
+    Daily observations map to 252 trading periods; other cadences use 365.25
+    calendar days divided by the median observation spacing.
+    """
     if len(dates) < 2:
         raise ValueError("At least two dates are required to infer periods_per_year.")
     deltas = [
