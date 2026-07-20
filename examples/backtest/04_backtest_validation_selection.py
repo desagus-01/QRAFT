@@ -66,15 +66,11 @@ walk_cfg = WalkForwardConfig(
 walk = validation.walk_forward(walk_cfg)
 
 print(walk.summary_df())
-print(walk.folds_df())
 print(walk.selected_params_df())
-print(walk.diagnostics_df())
-print(walk.selection_counts_df())
 
 # %%
 # Tune returns a selected policy and exposes its full-candidate backtest result.
 tuned = validation.tune(walk, cfg=walk_cfg)
-print({"selected_params": tuned.selected_params})
 print(tuned.backtest.summary_df())
 
 # %%

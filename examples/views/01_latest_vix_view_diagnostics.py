@@ -1,5 +1,5 @@
 # %%
-"""Latest VIX-state view with diagnostics and plotting."""
+"""Latest STRESS_INDEX-state view with diagnostics and plotting."""
 
 import numpy as np
 
@@ -9,26 +9,28 @@ from qraft.core.scenarios.views import ViewWindow
 from qraft.utils.example_data import synthetic_vix_market
 
 # %%
-# Build a synthetic market where VIX is a non-tradable state indicator.
+# Build a synthetic market where STRESS_INDEX, GROWTH_PULSE, and RATE_WAVE are non-tradable state indicators.
 market_without_views = synthetic_vix_market()
 
 # %%
-# Express the latest market view as a high-VIX state.
+# Express the latest market view as a high-stress state.
 as_of = market_without_views.trading_bars[-1]
 returns = market_without_views.returns_through(as_of)
-high_vix_move = float(np.quantile(returns.values.get_column("VIX").to_numpy(), 0.80))
+high_stress_move = float(
+    np.quantile(returns.values.get_column("STRESS_INDEX").to_numpy(), 0.80)
+)
 
 latest_view = ViewWindow(
     start=as_of,
     end=as_of,
     views=Views(
         [
-            MeanView("VIX", ">=", high_vix_move),
-            RankingView(["TLT", "GLD", "SPY"]),
+            MeanView("STRESS_INDEX", ">=", high_stress_move),
+            RankingView(["ORION", "TERRA", "CYPHER", "LUMEN", "NOVA"]),
         ],
         confidence=1.0,
     ),
-    name="latest_high_vix_state",
+    name="latest_high_stress_state",
 )
 
 market = market_without_views.with_views([latest_view])

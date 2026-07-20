@@ -16,7 +16,7 @@ from qraft.utils.example_data import synthetic_vix_market
 setup_logging(LogConfig(level=logging.INFO))
 
 # %%
-# Build a small synthetic market with three tradable assets and VIX as a factor.
+# Build a small synthetic market with five tradable assets and STRESS_INDEX, GROWTH_PULSE, and RATE_WAVE as factors.
 market = synthetic_vix_market()
 
 # %%
@@ -45,13 +45,11 @@ run = Allocation(
 # %%
 # The decision is the target allocation to rebalance to now.
 print(run.target_weights)
-print({"cash": run.decision.target_cash_weight})
 
 # %%
 # Diagnostics are lighter for this baseline policy, but the projection is still
 # available for forecast-based performance and risk inspection.
 print(run.projection.total_target_weights)
-print(run.projection.cumulative_returns[:, -1].mean())
 
 # %%
 run.plot_weights()

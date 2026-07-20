@@ -60,15 +60,11 @@ run = Allocation(
 ).at()
 
 print(run.target_weights)
-print({"cash": run.decision.target_cash_weight})
 
 # %%
 # Optimizer diagnostics are baked into the run. Mean-covariance policies require
 # covariance inputs, so plan metrics are available without scenario CVaR inputs.
 print(run.plan_metrics())
-
-result = run.mpo_result()
-print({"solver_status": result.status, "turnover": result.turnover})
 
 # %%
 run.plot_weights()

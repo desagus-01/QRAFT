@@ -1,5 +1,5 @@
 # %%
-"""VIX-regime view windows with diagnostics and plotting."""
+"""STRESS_INDEX-regime view windows with diagnostics and plotting."""
 
 import numpy as np
 
@@ -9,7 +9,7 @@ from qraft.core.scenarios.views import ViewWindow
 from qraft.utils.example_data import synthetic_vix_market
 
 # %%
-# Build a synthetic market with three broad VIX regimes.
+# Build a synthetic market with three broad STRESS_INDEX regimes.
 market_without_views = synthetic_vix_market()
 
 # %%
@@ -23,54 +23,54 @@ risk_on_returns = market_without_views.returns_through(risk_on_start)
 risk_off_returns = market_without_views.returns_through(risk_off_start)
 normalizing_returns = market_without_views.returns_through(normalizing_start)
 
-low_vix_move = float(
-    np.quantile(risk_on_returns.values.get_column("VIX").to_numpy(), 0.25)
+low_stress_move = float(
+    np.quantile(risk_on_returns.values.get_column("STRESS_INDEX").to_numpy(), 0.25)
 )
-high_vix_move = float(
-    np.quantile(risk_off_returns.values.get_column("VIX").to_numpy(), 0.80)
+high_stress_move = float(
+    np.quantile(risk_off_returns.values.get_column("STRESS_INDEX").to_numpy(), 0.80)
 )
-normal_vix_move = float(
-    np.quantile(normalizing_returns.values.get_column("VIX").to_numpy(), 0.50)
+normal_stress_move = float(
+    np.quantile(normalizing_returns.values.get_column("STRESS_INDEX").to_numpy(), 0.50)
 )
 
 # %%
-# Define regime views from VIX state assumptions plus cross-asset ranking views.
+# Define regime views from STRESS_INDEX state assumptions plus cross-asset ranking views.
 view_windows = [
     ViewWindow(
         risk_on_start,
         risk_on_end,
         Views(
             [
-                MeanView("VIX", "<=", low_vix_move),
-                RankingView(["SPY", "GLD", "TLT"]),
+                MeanView("STRESS_INDEX", "<=", low_stress_move),
+                RankingView(["NOVA", "LUMEN", "CYPHER", "TERRA", "ORION"]),
             ],
             confidence=0.60,
         ),
-        name="risk_on_low_vix",
+        name="risk_on_low_stress",
     ),
     ViewWindow(
         risk_off_start,
         risk_off_end,
         Views(
             [
-                MeanView("VIX", ">=", high_vix_move),
-                RankingView(["TLT", "GLD", "SPY"]),
+                MeanView("STRESS_INDEX", ">=", high_stress_move),
+                RankingView(["ORION", "TERRA", "CYPHER", "LUMEN", "NOVA"]),
             ],
             confidence=0.75,
         ),
-        name="risk_off_high_vix",
+        name="risk_off_high_stress",
     ),
     ViewWindow(
         normalizing_start,
         normalizing_end,
         Views(
             [
-                MeanView("VIX", "==", normal_vix_move),
-                QuantileView("SPY", 0.10, 0.07),
+                MeanView("STRESS_INDEX", "==", normal_stress_move),
+                QuantileView("NOVA", 0.10, 0.07),
             ],
             confidence=0.70,
         ),
-        name="normalizing_vix",
+        name="normalizing_stress",
     ),
 ]
 
@@ -81,7 +81,6 @@ market = market_without_views.with_views(view_windows)
 view_names = [
     report.name for report in market.viewed_returns() if report.name is not None
 ]
-print(view_names)
 
 # %%
 # Plot each registered view window.

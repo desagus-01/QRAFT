@@ -67,9 +67,7 @@ mpo = Backtest(
 
 # %%
 # Summary metrics are available as a dataclass or a one-row Polars DataFrame.
-print(mpo.summary())
 print(mpo.summary_df())
-print(mpo.summary(risk_free_rate=0.02, active_only=False))
 
 # %%
 # Windowing returns another BacktestResult over an inclusive date range. This is
@@ -77,44 +75,6 @@ print(mpo.summary(risk_free_rate=0.02, active_only=False))
 midpoint = len(mpo.nav_dates) // 2
 recent = mpo.window(mpo.nav_dates[midpoint], mpo.nav_dates[-1])
 print(recent.summary_df())
-
-# %%
-# Rebalance-level arrays are convenient for dashboards and custom diagnostics.
-print(
-    {
-        "first_decisions": mpo.period_decision_bars[:3],
-        "first_executions": mpo.period_execution_bars[:3],
-        "period_returns": mpo.period_returns[:3],
-        "period_turnovers": mpo.period_turnovers[:3],
-        "period_costs": mpo.period_costs[:3],
-        "period_cash": mpo.period_cash[:3],
-        "total_transaction_cost": mpo.total_transaction_cost,
-        "total_holding_cost": mpo.total_holding_cost,
-        "total_cost": mpo.total_cost,
-    }
-)
-
-print({"weights_shape": mpo.period_weights_array.shape})
-print({"target_weights_shape": mpo.period_target_weights_array.shape})
-
-# %%
-# Diagnostics are attached both to the result and to each rebalance period. MPO
-# periods include solver status and optimizer diagnostics.
-print({"warnings": mpo.warnings_log})
-print({"dropped_assets": mpo.dropped_assets})
-
-for period in mpo.periods[:3]:
-    print(
-        {
-            "decision_bar": period.decision_bar,
-            "execution_bar": period.execution_bar,
-            "solver_status": period.solver_status,
-            "decision_error": period.decision_error,
-            "cost": period.cost,
-            "cash_weight_after": period.state_after.cash_weight,
-            "dropped_assets": period.dropped_assets,
-        }
-    )
 
 # %%
 # If the market has active scenario views, view_activity_df summarizes which

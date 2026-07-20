@@ -2,16 +2,13 @@
 
 > [!WARNING]
 > This package is still in alpha so please expect breaking changes.
+> Research and educational use only. Not financial or investment advice.
 
 **Quantitative Risk, Allocation, and Forecasting Toolkit**
 
 QRAFT is an advanced end-to-end portfolio construction toolkit aimed at practitioners and quants who wish to emphasize scenarios based on their market views throughout the allocation process.
 
 The package is heavily inspired by the teachings of Attilio Meucci for the 'core' of views using entropy pooling and Stephen Boyd and the cvxportfolio library for policy creation and evaluation.
-
-> **Disclaimer:** Research and educational use only. Not financial or investment advice.
-
----
 
 ## What QRAFT Does
 
@@ -26,6 +23,18 @@ There are 5 core pillars for this project:
 I'll briefly explain each below (I will make docs at one point with more detail on each!).
 
 Please have a look at the `examples/` directory for clear use cases (but also read the below so that they make sense!). A bit of setup is repeated in the examples below so that each section can be read on its own.
+
+For a first pass through the whole workflow, start with `examples/quickstart.py`. It builds a synthetic market, adds a view, runs forecasts, creates a preset MPO allocation, looks at risk, and then runs a simple backtest with allocation plots.
+
+### Data
+
+At the moment, QRAFT is mainly built around clean daily price data. In practice this means a table with a `date` column, columns for the assets you can trade, and optionally columns for extra market/factor series you want to use for views, forecasting, or risk attribution.
+
+The price data should be strictly positive and should not contain NaNs or infinite values for the assets/factors you include in the universe. Users define what is tradable and what is a factor through `AssetUniverse`, and wrap the data into `MarketData` using `MarketData.from_prices(...)`.
+
+After this point, most of the package works from the same `MarketData` object: views are attached with `market.with_views(...)`, forecasts are run with `Forecaster`, policies use it through `Allocation`, and backtests use it through `Backtest`.
+
+For examples, `qraft.utils.example_data.synthetic_vix_market()` creates a small made-up market with synthetic assets (`NOVA`, `ORION`, `TERRA`, `LUMEN`, `CYPHER`) and synthetic factors (`STRESS_INDEX`, `GROWTH_PULSE`, `RATE_WAVE`).
 
 ---
 
@@ -44,19 +53,19 @@ from qraft.utils.example_data import synthetic_vix_market
 market_without_views = synthetic_vix_market()
 as_of = market_without_views.trading_bars[-1]
 returns = market_without_views.returns_through(as_of)
-high_vix_move = float(np.quantile(returns.values.get_column("VIX").to_numpy(), 0.80))
+high_stress_move = float(np.quantile(returns.values.get_column("STRESS_INDEX").to_numpy(), 0.80))
 
 latest_view = ViewWindow(
     start=as_of,
     end=as_of,
     views=Views(
         [
-            MeanView("VIX", ">=", high_vix_move),
-            RankingView(["TLT", "GLD", "SPY"]),
+            MeanView("STRESS_INDEX", ">=", high_stress_move),
+            RankingView(["ORION", "TERRA", "CYPHER", "LUMEN", "NOVA"]),
         ],
         confidence=1.0,
     ),
-    name="latest_high_vix_state",
+    name="latest_high_stress_state",
 )
 
 market = market_without_views.with_views([latest_view])
@@ -105,7 +114,7 @@ latest_step = run.steps[-1]
 latest_forecast = latest_step.forecast
 
 print(latest_forecast.at_step(1, subset="tradable").values.head())
-latest_forecast.plot_asset_paths(subset="tradable", max_assets=3, ncols=3)
+latest_forecast.plot_asset_paths(subset="tradable", max_assets=5, ncols=3)
 ```
 
 Forecasting also naturally takes views into account. If `MarketData` has active `ViewWindow` events, the forecast snapshot for that date uses the posterior scenario probabilities from the active view. This means users can express something like a risk-on or risk-off state, attach it to the market, and then simulate forecast paths from the viewed scenario distribution rather than the original prior distribution.
@@ -126,15 +135,15 @@ forecast_dates = [
 ]
 as_of = forecast_dates[-1]
 returns = market_without_views.returns_through(as_of)
-high_vix_move = float(np.quantile(returns.values.get_column("VIX").to_numpy(), 0.80))
+high_stress_move = float(np.quantile(returns.values.get_column("STRESS_INDEX").to_numpy(), 0.80))
 
 risk_off = ViewWindow(
     start=as_of,
     end=as_of,
     views=Views(
         [
-            MeanView("VIX", ">=", high_vix_move),
-            RankingView(["TLT", "GLD", "SPY"]),
+            MeanView("STRESS_INDEX", ">=", high_stress_move),
+            RankingView(["ORION", "TERRA", "CYPHER", "LUMEN", "NOVA"]),
         ],
         confidence=0.75,
     ),
@@ -155,7 +164,7 @@ run = forecaster.run(market, min_history=180, forecast_cadence="quarter_end")
 forecast = run.forecast_at(as_of)
 
 print(market.view_report(as_of).diagnostics)
-forecast.plot_asset_paths(subset="tradable", max_assets=3, ncols=3)
+forecast.plot_asset_paths(subset="tradable", max_assets=5, ncols=3)
 ```
 
 ### Policies
@@ -260,12 +269,12 @@ from qraft.utils.example_data import synthetic_vix_market
 market_without_views = synthetic_vix_market()
 bars = market_without_views.trading_bars
 returns = market_without_views.returns_through(bars[120])
-high_vix_move = float(np.quantile(returns.values.get_column("VIX").to_numpy(), 0.80))
+high_stress_move = float(np.quantile(returns.values.get_column("STRESS_INDEX").to_numpy(), 0.80))
 
 risk_off = ViewWindow(
     start=bars[120],
     end=bars[180],
-    views=Views([MeanView("VIX", ">=", high_vix_move)], confidence=0.75),
+    views=Views([MeanView("STRESS_INDEX", ">=", high_stress_move)], confidence=0.75),
     name="risk_off",
 )
 

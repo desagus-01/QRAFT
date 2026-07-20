@@ -13,7 +13,7 @@ from qraft.utils.example_data import synthetic_vix_market
 
 setup_logging(LogConfig(level=logging.INFO))
 # %%
-# Build a small synthetic market with three tradable assets and VIX as a factor.
+# Build a small synthetic market with five tradable assets and STRESS_INDEX, GROWTH_PULSE, and RATE_WAVE as factors.
 market = synthetic_vix_market()
 
 # %%
@@ -54,4 +54,4 @@ print(one_step_panel.values.head())
 
 # %%
 # Plot simulated price paths for the tradable assets.
-latest_forecast.plot_asset_paths(subset="tradable", max_assets=3, ncols=3)
+latest_forecast.plot_asset_paths(subset="tradable", max_assets=5, ncols=3)

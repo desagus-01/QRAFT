@@ -69,21 +69,7 @@ result = Backtest(
 ).run()
 
 # %%
-summary = result.summary()
-print(summary)
-
-# %%
-# Per-period diagnostics are useful when reviewing how the optimizer behaved.
-for period in result.periods[:3]:
-    print(
-        {
-            "decision_bar": period.decision_bar,
-            "execution_bar": period.execution_bar,
-            "solver_status": period.solver_status,
-            "cost": period.cost,
-            "cash_weight_after": period.state_after.cash_weight,
-        }
-    )
+print(result.summary_df())
 
 # %%
 result.plot_nav()

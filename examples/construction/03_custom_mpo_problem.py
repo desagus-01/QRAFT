@@ -75,14 +75,10 @@ run = Allocation(
 ).at()
 
 print(run.target_weights)
-print({"cash": run.decision.target_cash_weight})
 
 # %%
 # The custom problem still returns the same PolicyRun diagnostics interface.
 print(run.plan_metrics())
-
-result = run.mpo_result()
-print({"solver_status": result.status, "turnover": result.turnover})
 
 # %%
 run.plot_weights()
