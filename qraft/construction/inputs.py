@@ -15,7 +15,6 @@ from qraft.construction.optimization.inputs import (
 )
 from qraft.core.market import MarketData
 from qraft.core.snapshot import MarketSnapshot, forecast_snapshot_from_decision_snapshot
-from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.forecaster import Forecaster, ForecastSpec
 from qraft.forecast.run import (
     ForecastRecipeHistory,
@@ -82,26 +81,13 @@ def build_optimizer_input_table(
             return {}
 
     forecasts = forecast_run_for_source(market_snapshots, forecasts, market=market)
-    forecast_paths = (
-        [step.forecast for step in forecasts.steps]
-        if isinstance(forecasts, ForecastRun)
-        else list(forecasts)
-    )
-    if isinstance(forecasts, ForecastRun):
-        forecast_diagnostics = [step.diagnostics for step in forecasts.steps]
-        forecast_invariance_drops = [step.invariance_drops for step in forecasts.steps]
-    else:
-        forecast_diagnostics = [None] * len(forecast_paths)
-        forecast_invariance_drops = [()] * len(forecast_paths)
 
     table: dict[datetime, OptimizerInputs] = {}
-    for snapshot, forecast, diagnostics, invariance_drops in zip(
-        market_snapshots,
-        forecast_paths,
-        forecast_diagnostics,
-        forecast_invariance_drops,
-        strict=True,
-    ):
+    for snapshot in market_snapshots:
+        step = forecasts.step_at(snapshot.t)
+        forecast = step.forecast
+        diagnostics = step.diagnostics
+        invariance_drops = step.invariance_drops
         asset_diagnostics = ()
         if diagnostics is not None:
             asset_diagnostics = tuple(
@@ -152,7 +138,7 @@ def forecast_run_for_source(
     forecasts: ForecastSpec,
     *,
     market: MarketData | None = None,
-) -> ForecastRun | Iterable[ForecastPaths]:
+) -> ForecastRun:
     if isinstance(forecasts, ForecastRun):
         return forecasts
     if isinstance(forecasts, ForecastRecipeHistory):
@@ -166,7 +152,9 @@ def forecast_run_for_source(
             pipeline_config=forecasts.pipeline_config,
         )
     if not isinstance(forecasts, Forecaster):
-        return forecasts
+        raise TypeError(
+            "forecasts must be a Forecaster, ForecastRun, or ForecastRecipeHistory"
+        )
 
     if not market_snapshots:
         return ForecastRun(

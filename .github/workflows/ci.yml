@@ -1,0 +1,51 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --frozen
+      - name: Lint
+        run: uvx ruff@0.11.13 check .
+      - name: Format check
+        run: uvx ruff@0.11.13 format --check .
+      - name: Tests
+        run: uv run pytest -q
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: uv build
+      - name: Metadata check
+        run: uvx twine check dist/*
+      - name: Licence present in artifacts
+        run: |
+          unzip -l dist/*.whl | grep -i licen
+          tar -tf dist/*.tar.gz | grep -i licen
+      - name: Clean-install smoke (outside repo)
+        run: |
+          uv venv /tmp/rel
+          uv pip install --python /tmp/rel/bin/python dist/*.whl
+          cd /tmp && /tmp/rel/bin/python -c "import qraft; from qraft.utils.example_data import synthetic_market_example; synthetic_market_example(); print('smoke OK')"
+      - name: README + examples smoke
+        env:
+          MPLBACKEND: Agg
+        run: |
+          for f in examples/**/*.py; do /tmp/rel/bin/python "$f" || exit 1; done

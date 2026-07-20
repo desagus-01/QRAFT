@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TypeAlias
 
 from qraft.core.configs import PipelineConfig, SimulationForecastConfig
 from qraft.core.market import MarketData
 from qraft.core.schedule import Cadence
-from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.run import (
     ForecastRecipeHistory,
     ForecastRun,
@@ -65,6 +63,4 @@ class Forecaster:
         )
 
 
-ForecastSpec: TypeAlias = (
-    Forecaster | ForecastRun | ForecastRecipeHistory | Iterable[ForecastPaths]
-)
+ForecastSpec: TypeAlias = Forecaster | ForecastRun | ForecastRecipeHistory

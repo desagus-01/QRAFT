@@ -34,13 +34,13 @@ The price data should be strictly positive and should not contain NaNs or infini
 
 After this point, most of the package works from the same `MarketData` object: views are attached with `market.with_views(...)`, forecasts are run with `Forecaster`, policies use it through `Allocation`, and backtests use it through `Backtest`.
 
-For examples, `qraft.utils.example_data.synthetic_vix_market()` creates a small made-up market with synthetic assets (`NOVA`, `ORION`, `TERRA`, `LUMEN`, `CYPHER`) and synthetic factors (`STRESS_INDEX`, `GROWTH_PULSE`, `RATE_WAVE`).
+For examples, `qraft.utils.example_data.synthetic_market_example()` creates a small made-up market with synthetic assets (`NOVA`, `ORION`, `TERRA`, `LUMEN`, `CYPHER`) and synthetic factors (`STRESS_INDEX`, `GROWTH_PULSE`, `RATE_WAVE`).
 
 ---
 
 ### Views
 
-Probably the biggest differentiation between this project and other portfolio construction packages out there. 'Views' refers to the ability of the investor to add their **market** views to the whole investment process explicitly and in a formal manner. This is done through entropy pooling, which is formalized by Attilio Meucci in his paper regarding 'Fully Flexible Probabilities' [**I NEED TO CITE THIS**]. In short, the package allows investors to input their future market expectations, infer updated discrete `scenario probabilities` from them, and simulate futures deriving from these views.
+Probably the biggest differentiation between this project and other portfolio construction packages out there. 'Views' refers to the ability of the investor to add their **market** views to the whole investment process explicitly and in a formal manner. This is done through entropy pooling, formalized by Attilio Meucci in "Fully Flexible Views: Theory and Practice" (Meucci, A., 2008, Risk, 21(10), 97-102; SSRN 1213325) and the companion "Historical Scenarios with Fully Flexible Probabilities" (Meucci, A., 2010, GARP Risk Professional; SSRN 1696802). In short, the package allows investors to input their future market expectations, infer updated discrete `scenario probabilities` from them, and simulate futures deriving from these views.
 
 The main public object is `Views`, which combines one or more view specifications such as `MeanView`, `StdView`, `CorrView`, `RankingView`, or `QuantileView`. A `ViewWindow` makes those views active over a specific date range, and `MarketData.with_views(...)` attaches the windows to the market. Users can then inspect the posterior distribution with `market.viewed_returns(...)`, review entropy-pooling diagnostics with `market.view_report(...)`, or plot the probability movement with `market.plot_view(...)`.
 
@@ -48,9 +48,9 @@ The main public object is `Views`, which combines one or more view specification
 import numpy as np
 
 from qraft import MeanView, RankingView, ViewWindow, Views
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
-market_without_views = synthetic_vix_market()
+market_without_views = synthetic_market_example()
 as_of = market_without_views.trading_bars[-1]
 returns = market_without_views.returns_through(as_of)
 high_stress_move = float(np.quantile(returns.values.get_column("STRESS_INDEX").to_numpy(), 0.80))
@@ -80,19 +80,19 @@ Users are also able to add view events for specific date windows. For example, i
 
 ### Forecasting
 
-QRAFT uses a variant of filtered historical simulation (FHS) for forecasting assets' future paths. Instead of the standard FHS, we broadly follow Meucci's 'The Prayer' [**INSERT CITATION HERE**] to derive this. This starts by finding a suitable **univariate** model that makes the asset's innovation strongly IID. The forecast stack in QRAFT follows a general Box-Jenkins methodology (ie remove determinism -> model mean -> model vol), with checks in between to determine the necessity of each step. Once the forecast stack determines a suitable model for each asset, a `ForecastRecipe` is created for a specific date. Users can determine how often they wish to re-run the forecast stack to create new recipes through history.
+QRAFT uses a variant of filtered historical simulation (FHS) for forecasting assets' future paths. Instead of the standard FHS, we broadly follow Meucci's "The Prayer: Ten-Step Checklist for Advanced Risk and Portfolio Management" (Meucci, A., 2011; SSRN 1753788) to derive this. This starts by finding a suitable **univariate** model that makes the asset's innovation strongly IID. The forecast stack in QRAFT follows a general Box-Jenkins methodology (ie remove determinism -> model mean -> model vol), with checks in between to determine the necessity of each step. Once the forecast stack determines a suitable model for each asset, a `ForecastRecipe` is created for a specific date. Users can determine how often they wish to re-run the forecast stack to create new recipes through history.
 
 In practice, QRAFT first tries to make each asset's history closer to IID, then simulates forward from those cleaned innovations.
 
 The main public object is `Forecaster`, which combines a `PipelineConfig` for model selection and a `SimulationForecastConfig` for path simulation. Users can call `forecaster.recipes(...)` to build a `ForecastRecipeHistory`, or `forecaster.run(...)` to directly produce a `ForecastRun`. Each run contains dated forecast steps, and each step contains `ForecastPaths`, which stores simulated future price paths, path probabilities, diagnostics, and plotting helpers.
 
-Following the univariate structural models from `ForecastRecipe`, we are able to run a **forecast simulation** of assets' returns taking into account their cross-asset dependencies from their joint distribution of IID residuals. The simulation is usually done by **bootstrapping** innovations using the scenario probabilities, which can reflect our current views of the market. Users can also opt to use the **Copula-Marginal Algorithm** [**PUT CITATION FOR MEUCCI'S WORK**] through `CMAConfig`, allowing them to specify the marginal distributions, the copula, or both.
+Following the univariate structural models from `ForecastRecipe`, we are able to run a **forecast simulation** of assets' returns taking into account their cross-asset dependencies from their joint distribution of IID residuals. The simulation is usually done by **bootstrapping** innovations using the scenario probabilities, which can reflect our current views of the market. Users can also opt to use the **Copula-Marginal Algorithm** (Meucci, A., "A New Breed of Copulas for Risk and Portfolio Management," 2011, Risk, 24(9); SSRN 1752702) through `CMAConfig`, allowing them to specify the marginal distributions, the copula, or both.
 
 ```python
 from qraft import Forecaster, PipelineConfig, SimulationForecastConfig
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
-market = synthetic_vix_market()
+market = synthetic_market_example()
 
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),
@@ -124,9 +124,9 @@ import numpy as np
 
 from qraft import Forecaster, MeanView, PipelineConfig, RankingView
 from qraft import RebalanceSchedule, SimulationForecastConfig, ViewWindow, Views
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
-market_without_views = synthetic_vix_market()
+market_without_views = synthetic_market_example()
 bars = market_without_views.trading_bars
 forecast_dates = [
     d
@@ -169,7 +169,7 @@ forecast.plot_asset_paths(subset="tradable", max_assets=5, ncols=3)
 
 ### Policies
 
-This module is heavily inspired by the existing `cvxportfolio` python package, and more in general by the accompanying paper related to it [**cite paper here**]. In short, the core problem we solve here is multi-period and **MUST** be convex. In this instance, only the first horizon is actionable; future ones are diagnostic/planning information.
+This module is heavily inspired by the existing `cvxportfolio` python package, and more in general by the accompanying paper related to it: Boyd, S., Busseti, E., Diamond, S., Kahn, R. N., Koh, K., Nystrup, P., & Speth, J. (2017). "Multi-Period Trading via Convex Optimization." Foundations and Trends in Optimization, 3(1), 1-76 (arXiv:1705.00109). In short, the core problem we solve here is multi-period and **MUST** be convex. In this instance, only the first horizon is actionable; future ones are diagnostic/planning information.
 
 The main public objects are `Allocation`, `EqualWeightPolicy`, and `MPOPolicy`. `Allocation` is the facade that takes a `MarketData` object, a policy, forecasts, and an optional `PortfolioState`, then produces a point-in-time `PolicyRun`. The `PolicyRun` contains the actual `PolicyDecision`, target weights, forecast projection, optimizer inputs, and diagnostics. Users can start simple with `EqualWeightPolicy`, use `MPOPolicy.preset(...)` for common multi-period optimization objectives, or build a custom convex problem with `MPOProblem` / `MPOProblemBuilder`.
 
@@ -180,9 +180,9 @@ from qraft import Allocation, Forecaster, MPOPolicy
 from qraft import PipelineConfig, SimulationForecastConfig
 from qraft.construction import LongOnly, MaxWeight, MinCashWeight, TurnoverLimit
 from qraft.construction.optimization import InputPlan
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
-market = synthetic_vix_market()
+market = synthetic_market_example()
 
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),
@@ -232,9 +232,9 @@ Following our policy creation and forecast recipes, we are able to simulate how 
 
 ```python
 from qraft import Backtest, BacktestConfig, EqualWeightPolicy, RebalanceSchedule
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
-market = synthetic_vix_market()
+market = synthetic_market_example()
 policy = EqualWeightPolicy(target_cash_weight=0.05)
 
 result = Backtest(
@@ -264,9 +264,9 @@ from qraft import PipelineConfig, RebalanceSchedule, SimulationForecastConfig
 from qraft import ViewWindow, Views
 from qraft.construction import LongOnly, MinCashWeight, TurnoverLimit
 from qraft.construction.optimization import InputPlan
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
-market_without_views = synthetic_vix_market()
+market_without_views = synthetic_market_example()
 bars = market_without_views.trading_bars
 returns = market_without_views.returns_through(bars[120])
 high_stress_move = float(np.quantile(returns.values.get_column("STRESS_INDEX").to_numpy(), 0.80))
@@ -306,7 +306,7 @@ result = Backtest(
 print(result.view_activity_df())
 ```
 
-Finally, users can tune their policies as well. Much of this is based from De Prado's paper [**cite here**]. Users can either use the standard **Walk-Forward Validation** or **Combinatorial Purged Cross-Validation** to tune the policy, both using out-of-sample selection.
+Finally, users can tune their policies as well. Much of this is based on Lopez de Prado, M. (2018). Advances in Financial Machine Learning, Wiley (Ch. 7 -- cross-validation; Ch. 11-12 -- CPCV). Overfitting diagnostics follow Bailey, D. H., & Lopez de Prado, M. (2014). "The Deflated Sharpe Ratio," Journal of Portfolio Management, 40(5), and Bailey, D. H., Borwein, J., Lopez de Prado, M., & Zhu, Q. J. (2017). "The Probability of Backtest Overfitting," Journal of Computational Finance, 20(4). Users can either use the standard **Walk-Forward Validation** or **Combinatorial Purged Cross-Validation** to tune the policy, both using out-of-sample selection.
 
 ```python
 from qraft import BacktestConfig, RebalanceSchedule, Validation, WalkForwardConfig
@@ -333,7 +333,7 @@ print(tuned.backtest.summary_df())
 
 Taking into account our portfolio projection based on the policy decision and existing forecasts, we are able to analyze where risk comes from. Inputs are inherently probabilistic because of this. We are not just looking at one expected return, but at the distribution of outcomes coming from the simulated forecast paths.
 
-The main public object here is `PortfolioRisk`, which users will usually get from a `PolicyRun` by calling `run.risk(...)`, or directly from `Allocation.risk(...)`. This gives users the standard risk measures such as `VaR` and `CVaR`, but also breaks risk down into factor contributions where factors are available in the market universe. Users can inspect the output using `summary_df(...)`, `risk_contribution(...)`, `risk_at_horizon(...)`, and `effective_bets(...)`.
+The main public object here is `PortfolioRisk`, which users will usually get from a `PolicyRun` by calling `run.risk(...)`, or directly from `Allocation.risk(...)`. This gives users the standard risk measures such as `VaR` and `CVaR`, but also breaks risk down into factor contributions where factors are available in the market universe. Users can inspect the output using `summary_df(...)`, `risk_contribution(...)`, `risk_at_horizon(...)`, and `effective_bets(...)`. The effective-bets and minimum-torsion math follows Meucci, A., Santangelo, A., & Deguest, R. (2015). "Risk Budgeting and Diversification Based on Optimized Uncorrelated Factors," Risk, 29(11) (SSRN 2276632).
 
 ```python
 risk = run.risk()
@@ -357,8 +357,6 @@ effective_bets.plot()
 ```
 
 At a lower level, `qraft.risk` also exposes objects and functions such as `RiskContributions`, `EffectiveBets`, `PortfolioRiskAttribution`, `portfolio_factor_attribution`, `factor_ols_regression`, `var`, `cvar`, and `minimum_torsion_matrix`. Most users should not need to start there, but they are available for more custom attribution workflows.
-
-Overall, this module is meant to come after policy construction. First users create forecasts, then the policy decides an allocation, then the risk module explains what risks that allocation is taking under the forecast distribution.
 
 
 ## Contributing

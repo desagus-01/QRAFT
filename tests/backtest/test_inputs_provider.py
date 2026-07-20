@@ -2,6 +2,7 @@ from datetime import datetime
 
 import numpy as np
 import polars as pl
+import pytest
 
 from qraft.backtest.configs import BacktestConfig
 from qraft.backtest.engine.schedule import decision_points
@@ -24,6 +25,21 @@ from qraft.core.scenarios.view_types import MeanView
 from qraft.core.scenarios.views import ViewWindow
 from qraft.core.schedule import RebalanceSchedule
 from qraft.forecast.forecast_paths import AssetUniverse, ForecastPaths
+from qraft.forecast.run import ForecastRecipeHistory, ForecastRun, ForecastStep
+
+
+def _run(as_of: datetime, forecast: ForecastPaths) -> ForecastRun:
+    return ForecastRun(
+        recipe_history=ForecastRecipeHistory(periods=(), pipeline_config=object()),
+        steps=(
+            ForecastStep(
+                as_of=as_of,
+                recipe_period_index=0,
+                forecast=forecast,
+                action="applied_recipe",
+            ),
+        ),
+    )
 
 
 def _snap(t: datetime, cash_rate: float = 0.0) -> MarketSnapshot:
@@ -166,7 +182,7 @@ def test_policy_input_table_accepts_supplied_forecasts(monkeypatch):
 
     table = build_optimizer_input_table(
         [snapshot],
-        [forecast],
+        _run(snapshot.t, forecast),
     )
 
     assert table.keys() == {snapshot.t}
@@ -224,7 +240,9 @@ def test_policy_input_table_uses_snapshot_applied_view_diagnostics(monkeypatch):
         fake_from_policy_sources,
     )
 
-    build_optimizer_input_table([snapshot], [forecast], market=market_wrapper)
+    build_optimizer_input_table(
+        [snapshot], _run(snapshot.t, forecast), market=market_wrapper
+    )
 
     assert snapshot.applied_views is not None
     assert captured["view_diagnostics"] is snapshot.applied_views.diagnostics
@@ -248,12 +266,66 @@ def test_policy_input_table_builds_historical_mean_when_policy_requires_mean():
 
     table = build_optimizer_input_table(
         [snapshot],
-        [forecast],
+        _run(snapshot.t, forecast),
         policy=MeanPolicy(),
     )
 
     assert table.keys() == {snapshot.t}
     assert table[snapshot.t].mean is not None
+
+
+def test_policy_input_table_matches_forecast_run_by_date(monkeypatch):
+    dates = [datetime(2024, 1, day) for day in range(2, 5)]
+    snapshots = [_snap(date) for date in dates[1:]]
+    forecasts = [
+        ForecastPaths(
+            asset_paths={"A": np.array([[price], [price + 0.5]])},
+            dates=pl.Series("date", [datetime(2024, 1, day + 1)]),
+            path_probs=np.array([0.5, 0.5]),
+            initial_prices={"A": 10.0},
+            universe=AssetUniverse.factors_free(["A"]),
+        )
+        for day, price in ((2, 20.0), (3, 30.0), (4, 40.0))
+    ]
+    run = ForecastRun(
+        recipe_history=ForecastRecipeHistory(periods=(), pipeline_config=object()),
+        steps=tuple(
+            ForecastStep(date, 0, forecast, "applied_recipe")
+            for date, forecast in zip(dates, forecasts, strict=True)
+        ),
+    )
+    captured = []
+
+    def fake_from_policy_sources(**kwargs):
+        captured.append(kwargs["forecasts"])
+        return OptimizerInputs.from_arrays(
+            assets=["A"], mean=np.ones((1, 1)), cash_return=np.array([0.0])
+        )
+
+    monkeypatch.setattr(
+        "qraft.construction.inputs.OptimizerInputs.from_policy_sources",
+        fake_from_policy_sources,
+    )
+
+    build_optimizer_input_table(snapshots, run)
+
+    assert captured == forecasts[1:]
+
+
+def test_policy_input_table_rejects_bare_forecast_paths():
+    snapshot = _snap(datetime(2024, 1, 2))
+    forecast = ForecastPaths(
+        asset_paths={"A": np.array([[10.5], [11.0]])},
+        dates=pl.Series("date", [datetime(2024, 1, 3)]),
+        path_probs=np.array([0.5, 0.5]),
+        initial_prices={"A": 10.0},
+        universe=AssetUniverse.factors_free(["A"]),
+    )
+
+    with pytest.raises(
+        TypeError, match="Forecaster, ForecastRun, or ForecastRecipeHistory"
+    ):
+        build_optimizer_input_table([snapshot], [forecast])
 
 
 def test_precompute_from_recipe_history_simulates_then_builds_inputs(monkeypatch):

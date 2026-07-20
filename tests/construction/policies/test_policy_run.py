@@ -258,7 +258,7 @@ def test_allocation_returns_run_with_same_forecasts(monkeypatch) -> None:
     assert run.projection is not None
     assert run.optimizer_inputs is None
     assert run.as_of == datetime(2024, 1, 2)
-    assert captured["source"] == [forecasts]
+    assert captured["source"].forecast_at(datetime(2024, 1, 2)) is forecasts
     assert captured["snapshot"].t == datetime(2024, 1, 2)
     assert captured["snapshot"].t_next == datetime(2024, 1, 2)
 

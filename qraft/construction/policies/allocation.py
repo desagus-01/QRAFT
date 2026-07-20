@@ -17,7 +17,7 @@ from qraft.core.market import MarketData
 from qraft.core.snapshot import MarketSnapshot
 from qraft.forecast.forecast_paths import ForecastPaths
 from qraft.forecast.forecaster import ForecastSpec
-from qraft.forecast.run import ForecastRun
+from qraft.forecast.run import ForecastRecipeHistory, ForecastRun, ForecastStep
 from qraft.risk.risk_report import PortfolioRisk
 
 
@@ -78,9 +78,7 @@ class Allocation:
             self.forecasts,
             market=self.market,
         )
-        if isinstance(forecast_run, ForecastRun):
-            return forecast_run.forecast_at(snapshot.t)
-        return next(iter(forecast_run))
+        return forecast_run.forecast_at(snapshot.t)
 
     def _input_table(
         self,
@@ -89,7 +87,19 @@ class Allocation:
     ):
         return build_optimizer_input_table(
             [snapshot],
-            [forecasts],
+            ForecastRun(
+                recipe_history=ForecastRecipeHistory(
+                    periods=(), pipeline_config=object()
+                ),
+                steps=(
+                    ForecastStep(
+                        as_of=snapshot.t,
+                        recipe_period_index=0,
+                        forecast=forecasts,
+                        action="applied_recipe",
+                    ),
+                ),
+            ),
             policy=self.policy,
             market=self.market,
         )
