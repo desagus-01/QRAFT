@@ -1,6 +1,4 @@
 # %%
-"""Beginner forecast run with synthetic market data."""
-
 import logging
 
 from qraft import (

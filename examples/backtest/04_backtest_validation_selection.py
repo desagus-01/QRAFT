@@ -1,6 +1,4 @@
 # %%
-"""Select MPO hyperparameters with walk-forward validation."""
-
 import logging
 
 from qraft import (

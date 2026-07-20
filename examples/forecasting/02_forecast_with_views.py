@@ -1,6 +1,4 @@
 # %%
-"""Forecast simulation with scenario views."""
-
 import logging
 
 import numpy as np

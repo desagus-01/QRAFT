@@ -1,6 +1,4 @@
 # %%
-"""Latest STRESS_INDEX-state view with diagnostics and plotting."""
-
 import numpy as np
 
 from qraft import Views

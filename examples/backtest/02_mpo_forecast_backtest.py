@@ -1,6 +1,4 @@
 # %%
-"""Backtest a forecast-driven multi-period optimization policy."""
-
 import logging
 
 from qraft import (

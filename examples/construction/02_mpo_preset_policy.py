@@ -1,6 +1,4 @@
 # %%
-"""Construction with a preset multi-period optimization policy."""
-
 import logging
 
 from qraft import (

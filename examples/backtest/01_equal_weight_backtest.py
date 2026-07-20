@@ -1,6 +1,4 @@
 # %%
-"""Backtest quickstart with an equal-weight policy."""
-
 import logging
 
 from qraft import (

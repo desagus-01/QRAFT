@@ -1,6 +1,4 @@
 # %%
-"""Tour the public BacktestResult API, diagnostics, and plots."""
-
 import logging
 
 from qraft import (

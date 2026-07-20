@@ -1,6 +1,4 @@
 # %%
-"""Minimal QRAFT quickstart across views, forecasts, policies, risk, and backtests."""
-
 import logging
 
 import numpy as np

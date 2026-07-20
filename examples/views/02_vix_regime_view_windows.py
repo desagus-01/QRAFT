@@ -1,6 +1,4 @@
 # %%
-"""STRESS_INDEX-regime view windows with diagnostics and plotting."""
-
 import numpy as np
 
 from qraft import Views

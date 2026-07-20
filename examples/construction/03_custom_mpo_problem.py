@@ -1,6 +1,4 @@
 # %%
-"""Construction with a custom multi-period optimization problem."""
-
 import logging
 
 from qraft import (
