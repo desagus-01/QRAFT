@@ -4,11 +4,11 @@ import numpy as np
 from qraft import Views
 from qraft.core.scenarios.view_types import MeanView, RankingView
 from qraft.core.scenarios.views import ViewWindow
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
 # %%
 # Build a synthetic market where STRESS_INDEX, GROWTH_PULSE, and RATE_WAVE are non-tradable state indicators.
-market_without_views = synthetic_vix_market()
+market_without_views = synthetic_market_example()
 
 # %%
 # Express the latest market view as a high-stress state.

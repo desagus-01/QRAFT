@@ -23,13 +23,13 @@ from qraft.construction.optimization import (
     TransactionCost,
 )
 from qraft.utils import LogConfig, setup_logging
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
 setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # Start from the same synthetic market so this example focuses on customization.
-market = synthetic_vix_market()
+market = synthetic_market_example()
 
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),

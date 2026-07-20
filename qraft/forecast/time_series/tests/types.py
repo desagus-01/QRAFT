@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import TypedDict
+from typing_extensions import TypedDict
 
 from qraft.core.configs import IIDConfig
 

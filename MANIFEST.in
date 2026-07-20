@@ -1,0 +1,5 @@
+prune notebooks
+prune .venv
+prune dist
+prune qraft.egg-info
+global-exclude __pycache__ *.py[cod]

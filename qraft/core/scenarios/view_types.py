@@ -1,7 +1,9 @@
 """Entropy-pooling view specifications and diagnostics."""
 
 from dataclasses import dataclass
-from typing import Literal, TypeAlias, TypedDict
+from typing import Literal, TypeAlias
+
+from typing_extensions import TypedDict
 
 from qraft.core.probability.prob_vector import ProbVector
 

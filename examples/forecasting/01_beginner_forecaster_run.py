@@ -7,12 +7,12 @@ from qraft import (
     SimulationForecastConfig,
 )
 from qraft.utils import LogConfig, setup_logging
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
 setup_logging(LogConfig(level=logging.INFO))
 # %%
 # Build a small synthetic market with five tradable assets and STRESS_INDEX, GROWTH_PULSE, and RATE_WAVE as factors.
-market = synthetic_vix_market()
+market = synthetic_market_example()
 
 # %%
 # Configure the high-level forecasting facade.

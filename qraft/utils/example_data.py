@@ -6,7 +6,7 @@ import polars as pl
 from qraft import AssetUniverse, MarketData, Prior
 
 
-def synthetic_vix_market() -> MarketData:
+def synthetic_market_example() -> MarketData:
     """Build the shared synthetic market used by the examples."""
     rng = np.random.default_rng(11)
     n_days = 540

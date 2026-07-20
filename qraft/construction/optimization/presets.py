@@ -1,4 +1,4 @@
-from copy import replace
+from dataclasses import replace
 from typing import Literal
 
 from qraft.construction.optimization.objectives.specs import (

@@ -14,8 +14,8 @@ from qraft import (
     RankingView,
     RebalanceSchedule,
     SimulationForecastConfig,
-    ViewWindow,
     Views,
+    ViewWindow,
 )
 from qraft.construction import (
     FullyInvested,
@@ -26,14 +26,14 @@ from qraft.construction import (
 )
 from qraft.construction.optimization import InputPlan
 from qraft.utils import LogConfig, setup_logging
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
 setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # Start with market data. The synthetic example has five made-up tradable assets
 # and three made-up non-tradable factors.
-market_without_views = synthetic_vix_market()
+market_without_views = synthetic_market_example()
 
 # %%
 # Add one latest-date view. Views operate on simple-return scenario panels, so

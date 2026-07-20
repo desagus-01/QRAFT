@@ -4,11 +4,11 @@ import numpy as np
 from qraft import Views
 from qraft.core.scenarios.view_types import MeanView, QuantileView, RankingView
 from qraft.core.scenarios.views import ViewWindow
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
 # %%
 # Build a synthetic market with three broad STRESS_INDEX regimes.
-market_without_views = synthetic_vix_market()
+market_without_views = synthetic_market_example()
 
 # %%
 # Pick non-overlapping windows. Views are active only inside these intervals.

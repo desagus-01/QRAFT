@@ -20,14 +20,14 @@ from qraft.backtest.result.result import (
 from qraft.construction import LongOnly, MinCashWeight, TurnoverLimit
 from qraft.construction.optimization import InputPlan
 from qraft.utils import LogConfig, setup_logging
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
 setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # Build an equal-weight benchmark and a forecast-driven MPO strategy so the
 # example can show both single-result and comparison APIs.
-market = synthetic_vix_market()
+market = synthetic_market_example()
 config = BacktestConfig(
     schedule=RebalanceSchedule("month_end"),
     initial_cash=100,

@@ -15,14 +15,14 @@ from qraft import (
 from qraft.construction import LongOnly, MinCashWeight
 from qraft.construction.optimization import InputPlan
 from qraft.utils import LogConfig, setup_logging
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
 setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # Build market data and configure forecasts. Backtest will precompute optimizer
 # inputs on the rebalance dates before running the simulation loop.
-market = synthetic_vix_market()
+market = synthetic_market_example()
 
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),

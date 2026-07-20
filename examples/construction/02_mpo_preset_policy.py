@@ -11,14 +11,14 @@ from qraft import (
 from qraft.construction import LongOnly, MaxWeight, MinCashWeight, TurnoverLimit
 from qraft.construction.optimization import InputPlan
 from qraft.utils import LogConfig, setup_logging
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
 setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # The construction module consumes a market, forecasts, a portfolio state, and a
 # policy. Allocation builds the default cash-only state and optimizer inputs.
-market = synthetic_vix_market()
+market = synthetic_market_example()
 
 forecaster = Forecaster(
     pipeline=PipelineConfig(exclude_non_invariants=False),

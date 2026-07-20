@@ -1,6 +1,9 @@
 #custom
 data/
 
+# Personal research notebooks/utilities; not part of the PyPI package.
+notebooks/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -12,13 +12,13 @@ from qraft import (
 from qraft.core.scenarios.view_types import MeanView, RankingView
 from qraft.core.scenarios.views import ViewWindow
 from qraft.utils import LogConfig, setup_logging
-from qraft.utils.example_data import synthetic_vix_market
+from qraft.utils.example_data import synthetic_market_example
 
 setup_logging(LogConfig(level=logging.INFO))
 
 # %%
 # Build a baseline market with STRESS_INDEX, GROWTH_PULSE, and RATE_WAVE as non-tradable factors.
-market_without_views = synthetic_vix_market()
+market_without_views = synthetic_market_example()
 
 # Use the latest quarter-end forecast date that has a following bar available.
 as_of = market_without_views.trading_bars[-89]
