@@ -10,6 +10,22 @@ QRAFT is an advanced end-to-end portfolio construction toolkit aimed at practiti
 
 The package is heavily inspired by the teachings of Attilio Meucci for the 'core' of views using entropy pooling and Stephen Boyd and the cvxportfolio library for policy creation and evaluation.
 
+## Installation
+
+QRAFT is available on PyPI and can be installed with your preferred Python package manager.
+
+Using `pip`:
+
+```bash
+pip install qraft-quant
+```
+
+Using `uv`:
+
+```bash
+uv add qraft-quant
+```
+
 ## What QRAFT Does
 
 There are 5 core pillars for this project:
@@ -40,7 +56,7 @@ For examples, `qraft.utils.example_data.synthetic_market_example()` creates a sm
 
 ### Views
 
-Probably the biggest differentiation between this project and other portfolio construction packages out there. 'Views' refers to the ability of the investor to add their **market** views to the whole investment process explicitly and in a formal manner. This is done through entropy pooling, formalized by Attilio Meucci in "Fully Flexible Views: Theory and Practice" (Meucci, A., 2008, Risk, 21(10), 97-102; SSRN 1213325) and the companion "Historical Scenarios with Fully Flexible Probabilities" (Meucci, A., 2010, GARP Risk Professional; SSRN 1696802). In short, the package allows investors to input their future market expectations, infer updated discrete `scenario probabilities` from them, and simulate futures deriving from these views.
+Probably the biggest differentiation between this project and other portfolio construction packages out there. 'Views' refers to the ability of the investor to add their **market** views to the whole investment process explicitly and in a formal manner. This is done through entropy pooling, formalized by Attilio Meucci in "Fully Flexible Views: Theory and Practice" and the companion "Historical Scenarios with Fully Flexible Probabilities". In short, the package allows investors to input their future market expectations, infer updated discrete `scenario probabilities` from them, and simulate futures deriving from these views.
 
 The main public object is `Views`, which combines one or more view specifications such as `MeanView`, `StdView`, `CorrView`, `RankingView`, or `QuantileView`. A `ViewWindow` makes those views active over a specific date range, and `MarketData.with_views(...)` attaches the windows to the market. Users can then inspect the posterior distribution with `market.viewed_returns(...)`, review entropy-pooling diagnostics with `market.view_report(...)`, or plot the probability movement with `market.plot_view(...)`.
 
@@ -77,6 +93,8 @@ report.plot()
 
 Users are also able to add view events for specific date windows. For example, if users have different views for general risk on/off regimes, they can specify those views for historical date windows, attach them to `MarketData`, and then feed this viewed market into forecasting, backtesting, and validation. During a backtest, the active view for each decision date is picked up from the market snapshot, so historical views can directly affect the forecast scenarios and optimizer inputs used by the policy.
 
+> [!CAUTION]
+> Hardcoding historical views can introduce bias and make backtests difficult to audit. Prefer rule-based view generation, where views are applied automatically when predefined conditions or time periods are met.
 
 ### Forecasting
 
@@ -224,6 +242,9 @@ run.plot_weights()
 run.projection.plot()
 ```
 
+> [!NOTE]
+> This package will **not** have the fastest optimization algos!!!
+
 This module is then responsible for taking our previous simulated forecasts and the current portfolio, applying a policy and producing the next portfolio allocation. The policy itself only decides the target allocation; the projection lets users inspect how that decision behaves across the simulated forecast paths before plugging the same policy into a backtest.
 
 ### Policy Evaluation/Backtest
@@ -358,6 +379,8 @@ effective_bets.plot()
 
 At a lower level, `qraft.risk` also exposes objects and functions such as `RiskContributions`, `EffectiveBets`, `PortfolioRiskAttribution`, `portfolio_factor_attribution`, `factor_ols_regression`, `var`, `cvar`, and `minimum_torsion_matrix`. Most users should not need to start there, but they are available for more custom attribution workflows.
 
+---
+
 ## Alpha Limitations and Modeling Assumptions
 
 - Backtest decisions use market information through decision bar `t` and execute at the single observed price on the next available trading bar, `t+1`.
@@ -369,9 +392,33 @@ At a lower level, `qraft.risk` also exposes objects and functions such as `RiskC
 - When `periods_per_year` is not configured, daily observations map to 252 and other cadences use `365.25 / median calendar-day spacing`. This annualization heuristic is not an exchange-calendar or trading-day model. Holding-cost accrual uses actual elapsed calendar days, so it can differ from simple per-trading-bar assumptions.
 - CMA copula fitting supports `ml` and `itau`; `irho` is not supported. With the pinned `copulae` implementation, two-dimensional panels require `ml` because rank-based `itau` fitting is unsupported.
 
+---
+
+## Roadmap
+
+Quite a few things to add, but broadly:
+- [ ] Add a proper signal layer that allows users to test 'pure' signal based strategies, compare them, and mix.
+- [ ] Add pre-selection layer to measure asset importance prior to optimization.
+- [ ] Add 'sparse' optimization techniques.
+- [ ] Better comparisons against benchmark.
+- [ ] Better solutions for non-idd invariants, especially for resampling techniques.
+- [ ] More options for hyperparamters on selection layers (ie constraints like turnover etc).
+- [ ] More structure on adding views so users don't accidentaly insert look-ahead bias.
+- [ ] Validation purely for scenarios forecasting (ie probabilistic forecasting)
+- [ ] More risk measures
+
+---
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor guidance, including the docstring style decision record.
 
----
+## Acknowledgment
+
+As stated previously, this package is heavily inspired by Attilio Meucci's work, especially on entropy pooling, fully flexible views, filtered historical simulation, copula-marginal simulation, and risk attribution. Some other giants whose shoulders this project stands on are:
+- Stephen Boyd and the `cvxportfolio` contributors, especially for the convex multi-period portfolio optimization framework.
+- Anton Verobets and his many excellent articles and textbook around this subject.
+- Boyd, Busseti, Diamond, Kahn, Koh, Nystrup, and Speth for "Multi-Period Trading via Convex Optimization."
+- Bernardo Reckziegel for his ffp and cma related R packages which I referenced a lot on my own code.
+
+
